@@ -52,6 +52,40 @@
         }
       }
     },
+    "%lld days left" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld days left"
+                }
+              }
+            }
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld일 남음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩余 %lld 天"
+          }
+        }
+      }
+    },
     "1,000" : {
       "shouldTranslate" : false
     },
@@ -79,6 +113,22 @@
     },
     "500" : {
       "shouldTranslate" : false
+    },
+    "7 days of full access" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7일 동안 모든 기능 사용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7 天完整使用"
+          }
+        }
+      }
     },
     "A simple clipboard manager for macOS." : {
       "localizations" : {
@@ -435,6 +485,38 @@
     "Clipbara" : {
       "shouldTranslate" : false
     },
+    "Clipbara is unlocked" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara가 잠금 해제되었습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara 已解锁"
+          }
+        }
+      }
+    },
+    "Clipbara kept recording what you copy. Settings, including backup export, stay available." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara는 복사한 내용을 계속 기록해 두었습니다. 백업 내보내기를 포함한 설정은 계속 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara 一直在记录你复制的内容。设置（包括备份导出）仍可使用。"
+          }
+        }
+      }
+    },
     "Clipboard Monitoring" : {
       "localizations" : {
         "ko" : {
@@ -595,6 +677,38 @@
         }
       }
     },
+    "Couldn't connect to the App Store." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store에 연결할 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法连接 App Store。"
+          }
+        }
+      }
+    },
+    "Couldn't restore purchases. Check your connection and try again." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구입 항목을 복원할 수 없습니다. 네트워크 연결을 확인한 후 다시 시도하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法恢复购买项目。请检查网络连接后重试。"
+          }
+        }
+      }
+    },
     "Create" : {
       "localizations" : {
         "ko" : {
@@ -687,6 +801,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要删除钉板吗？"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
           }
         }
       }
@@ -979,6 +1109,22 @@
         }
       }
     },
+    "Full access to everything. When the trial ends, keep using Clipbara with a one-time purchase." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 기능을 사용할 수 있습니다. 체험이 끝나면 한 번의 구입으로 Clipbara를 계속 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可使用全部功能。试用结束后，只需一次性购买即可继续使用 Clipbara。"
+          }
+        }
+      }
+    },
     "Full-screen Quick Look for the selected card." : {
       "localizations" : {
         "ko" : {
@@ -1071,6 +1217,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "历史记录上限"
+          }
+        }
+      }
+    },
+    "History, pinboards, search and paste all work. The trial is free and never charges or renews on its own." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록, 핀보드, 검색, 붙여넣기를 모두 사용할 수 있습니다. 체험은 무료이며 자동으로 결제되거나 갱신되지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史记录、钉板、搜索和粘贴均可使用。试用免费，不会自动扣费或续订。"
           }
         }
       }
@@ -1231,6 +1393,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在之前的应用中，前往“设置 > 通用 > 备份 > 导出”保存 JSON 备份文件。然后点按“导入”并选择该文件。现有剪贴内容会保留，重复项会跳过。"
+          }
+        }
+      }
+    },
+    "It ends on %@. You can unlock Clipbara anytime from the menu bar." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "체험은 %@에 끝납니다. 메뉴 막대에서 언제든 Clipbara를 잠금 해제할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "试用将于 %@ 结束。你可以随时从菜单栏解锁 Clipbara。"
           }
         }
       }
@@ -1427,6 +1605,22 @@
         }
       }
     },
+    "No unlock purchase was found for this Apple Account." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Apple 계정에서 잠금 해제 구입 내역을 찾을 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未在此 Apple 账户中找到解锁购买记录。"
+          }
+        }
+      }
+    },
     "No unpinned history to clear" : {
       "localizations" : {
         "ko" : {
@@ -1439,6 +1633,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有可清除的历史记录"
+          }
+        }
+      }
+    },
+    "Not Now" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "나중에"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以后再说"
           }
         }
       }
@@ -1475,6 +1685,22 @@
         }
       }
     },
+    "One-time purchase, no subscription" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독 없이 한 번만 구입"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次性购买，无需订阅"
+          }
+        }
+      }
+    },
     "Open Clipbara" : {
       "localizations" : {
         "ko" : {
@@ -1503,6 +1729,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开历史记录"
+          }
+        }
+      }
+    },
+    "Opening your clipboard history and pasting clips from Clipbara stop until you unlock. Copying is still recorded, and Settings, including backup export, stay available." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잠금 해제할 때까지 클립보드 기록을 열거나 Clipbara에서 클립을 붙여넣을 수 없습니다. 복사한 내용은 계속 기록되며, 백업 내보내기를 포함한 설정은 계속 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在解锁之前，将无法打开剪贴板历史记录，也无法从 Clipbara 粘贴剪贴内容。复制的内容仍会被记录，设置（包括备份导出）仍可使用。"
           }
         }
       }
@@ -1830,6 +2072,22 @@
         }
       }
     },
+    "Restore Purchases" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구입 항목 복원"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复购买"
+          }
+        }
+      }
+    },
     "Rich Text" : {
       "localizations" : {
         "ko" : {
@@ -1990,6 +2248,22 @@
         }
       }
     },
+    "Start 7-Day Free Trial" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7일 무료 체험 시작"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始 7 天免费试用"
+          }
+        }
+      }
+    },
     "Start Using Clipbara" : {
       "localizations" : {
         "ko" : {
@@ -2082,6 +2356,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文本、链接、图片、文件和颜色，点按一下即可重新复制。"
+          }
+        }
+      }
+    },
+    "Thank you for supporting Clipbara." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara를 지원해 주셔서 감사합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感谢你对 Clipbara 的支持。"
+          }
+        }
+      }
+    },
+    "The purchase couldn't be completed. Please try again." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구입을 완료할 수 없습니다. 다시 시도하십시오."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法完成购买。请重试。"
           }
         }
       }
@@ -2198,6 +2504,54 @@
         }
       }
     },
+    "Trial ended" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "체험 종료됨"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "试用已结束"
+          }
+        }
+      }
+    },
+    "Try Again" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 시도"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        }
+      }
+    },
+    "Try Clipbara free for 7 days" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara 7일 무료 체험"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费试用 Clipbara 7 天"
+          }
+        }
+      }
+    },
     "Try a different search or filter" : {
       "localizations" : {
         "ko" : {
@@ -2278,6 +2632,102 @@
         }
       }
     },
+    "Unlock Clipbara" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara 잠금 해제"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁 Clipbara"
+          }
+        }
+      }
+    },
+    "Unlock Clipbara for %@ and keep full access." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 Clipbara를 잠금 해제하면 모든 기능을 계속 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以 %@ 解锁 Clipbara，即可继续使用全部功能。"
+          }
+        }
+      }
+    },
+    "Unlock Clipbara to open your clipboard history again. Everything you copied in the meantime has been kept." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara를 잠금 해제하면 클립보드 기록을 다시 열 수 있습니다. 그동안 복사한 내용은 모두 보관되어 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁 Clipbara 即可再次打开剪贴板历史记录。在此期间复制的内容都已保留。"
+          }
+        }
+      }
+    },
+    "Unlock Clipbara with a single purchase and keep full access." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 번의 구입으로 Clipbara를 잠금 해제하면 모든 기능을 계속 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只需一次购买即可解锁 Clipbara，继续使用全部功能。"
+          }
+        }
+      }
+    },
+    "Unlock Clipbara…" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipbara 잠금 해제…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁 Clipbara…"
+          }
+        }
+      }
+    },
+    "Unlock for %@" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 잠금 해제"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以 %@ 解锁"
+          }
+        }
+      }
+    },
     "Version %@ (%@)" : {
       "localizations" : {
         "ko" : {
@@ -2306,6 +2756,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "欢迎使用 %@"
+          }
+        }
+      }
+    },
+    "When the trial ends" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "체험이 끝나면"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "试用结束后"
           }
         }
       }
@@ -2354,6 +2820,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的剪贴板历史记录会显示在这里"
+          }
+        }
+      }
+    },
+    "Your free trial ends on %@." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "무료 체험이 %@에 끝납니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费试用将于 %@ 结束。"
+          }
+        }
+      }
+    },
+    "Your free trial has ended" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "무료 체험이 끝났습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费试用已结束"
+          }
+        }
+      }
+    },
+    "Your free trial has started" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "무료 체험이 시작되었습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费试用已开始"
+          }
+        }
+      }
+    },
+    "Your history is safe" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록은 안전하게 보관되어 있습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的历史记录都还在"
+          }
+        }
+      }
+    },
+    "Your purchase is waiting for approval. Clipbara unlocks as soon as it goes through." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구입이 승인을 기다리고 있습니다. 승인되는 즉시 Clipbara가 잠금 해제됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的购买正在等待批准。批准后 Clipbara 会立即解锁。"
+          }
+        }
+      }
+    },
+    "Your purchases were restored." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구입 항목을 복원했습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已恢复购买项目。"
           }
         }
       }

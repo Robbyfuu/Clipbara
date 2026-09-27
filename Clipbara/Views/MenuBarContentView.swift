@@ -63,6 +63,33 @@ struct MenuBarContentView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
 
+            #if APPSTORE
+            if showsPurchaseItems {
+                Divider()
+                    .padding(.vertical, 4)
+
+                Button {
+                    PaywallWindowController.shared.show()
+                } label: {
+                    HStack {
+                        Text("Unlock Clipbara…")
+                        Spacer()
+                        trialStatus
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+
+                Button("Restore Purchases") {
+                    PaywallWindowController.shared.show(restore: true)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+            }
+            #endif
+
             Divider()
                 .padding(.vertical, 4)
 
@@ -106,7 +133,32 @@ struct MenuBarContentView: View {
             .padding(.bottom, 4)
         }
         .frame(width: 280)
+        #if APPSTORE
+        .onAppear { Entitlements.shared.reevaluate() }
+        #endif
     }
+
+    #if APPSTORE
+    /// Hidden once the app is owned, and while a StoreKit check has failed open.
+    private var showsPurchaseItems: Bool {
+        switch Entitlements.shared.state {
+        case .trialActive, .trialNotStarted, .trialExpired: true
+        case .unlocked: false
+        }
+    }
+
+    @ViewBuilder
+    private var trialStatus: some View {
+        switch Entitlements.shared.state {
+        case .trialActive(let daysLeft):
+            Text("\(daysLeft) days left")
+        case .trialExpired:
+            Text("Trial ended")
+        case .trialNotStarted, .unlocked:
+            EmptyView()
+        }
+    }
+    #endif
 }
 
 struct MenuBarItemRow: View {
@@ -115,6 +167,12 @@ struct MenuBarItemRow: View {
 
     var body: some View {
         Button {
+            #if APPSTORE
+            guard Entitlements.shared.checkHistoryAccess() else {
+                PaywallWindowController.shared.show()
+                return
+            }
+            #endif
             appState.clipboardMonitor.skipNextChange()
             appState.pasteService.paste(item: item)
         } label: {

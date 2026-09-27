@@ -60,6 +60,9 @@ targets:
       - path: Clipbara
         excludes:
           - "Info.plist"
+      # Local StoreKit testing only. Listed so Xcode can open it; never bundled.
+      - path: StoreKit/Clipbara.storekit
+        buildPhase: none
     resources:
       - Clipbara/Resources
     settings:
@@ -85,6 +88,13 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
+    scheme:
+      # Run with the local StoreKit products (trial + lifetime) instead of the sandbox.
+      storeKitConfiguration: StoreKit/Clipbara.storekit
+      # Debug-only trial switches, off by default. Tick them in Edit Scheme > Run > Arguments.
+      commandLineArguments:
+        "-ClipbaraDebugOriginalAppVersion 1.4": false
+        "-ClipbaraDebugTrialShiftDays 8": false
 
   # Unhosted unit tests: no app launch, clipboard monitor, or user store access.
   ClipbaraTests:
@@ -95,6 +105,7 @@ targets:
       - path: Clipbara/Utilities/PanelTabShortcut.swift
       - path: Clipbara/Utilities/WheelScrollTranslation.swift
       - path: Clipbara/Utilities/ReviewPromptPolicy.swift
+      - path: Clipbara/Utilities/AccessPolicy.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.minsang.ClipbaraTests
