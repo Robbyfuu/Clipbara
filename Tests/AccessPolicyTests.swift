@@ -133,6 +133,12 @@ final class AccessPolicyTests: XCTestCase {
         XCTAssertNil(AccessPolicy.isGrandfathered(originalAppVersion: "abc", originalPlatform: .mac))
     }
 
+    func testNotGrandfatheredOutsideProduction() {
+        // Sandbox, TestFlight, App Review, and Xcode always report "1.0".
+        XCTAssertEqual(AccessPolicy.isGrandfathered(originalAppVersion: "1.0", originalPlatform: .mac, isProduction: false), false)
+        XCTAssertEqual(AccessPolicy.isGrandfathered(originalAppVersion: "1.0", originalPlatform: .mac, isProduction: true), true)
+    }
+
     func testVersionComponents() {
         XCTAssertEqual(AccessPolicy.versionComponents("1.3.3"), [1, 3, 3])
         XCTAssertEqual(AccessPolicy.versionComponents(" 1.4 "), [1, 4])

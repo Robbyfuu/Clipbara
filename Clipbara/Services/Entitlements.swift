@@ -204,7 +204,15 @@ final class Entitlements {
                 if #available(macOS 15.4, *) {
                     platform = transaction.originalPlatform == .macOS ? .mac : .other
                 }
-                let grandfathered = AccessPolicy.isGrandfathered(originalAppVersion: version, originalPlatform: platform)
+                let isProduction = transaction.environment == .production
+                if !isProduction {
+                    logger.info("App transaction from \(transaction.environment.rawValue, privacy: .public): offering the trial")
+                }
+                let grandfathered = AccessPolicy.isGrandfathered(
+                    originalAppVersion: version,
+                    originalPlatform: platform,
+                    isProduction: isProduction
+                )
                 if grandfathered == nil {
                     logger.error("Unrecognized originalAppVersion \(version, privacy: .public)")
                 }

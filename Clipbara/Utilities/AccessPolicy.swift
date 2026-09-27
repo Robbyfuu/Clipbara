@@ -96,7 +96,16 @@ enum AccessPolicy {
     /// who first got it on iPhone never had the old Mac app, whatever version string the
     /// App Store reports for them (the iPhone app's own versions could read as older
     /// than 1.4). Without the platform, fall back to the version alone.
-    static func isGrandfathered(originalAppVersion: String, originalPlatform: OriginalPlatform) -> Bool? {
+    ///
+    /// Outside production (App Review, TestFlight, Xcode), `originalAppVersion` is
+    /// always "1.0", which would read as a pre-trial purchase and hide the trial and
+    /// the unlock from App Review. Everyone there is treated as a new customer.
+    static func isGrandfathered(
+        originalAppVersion: String,
+        originalPlatform: OriginalPlatform,
+        isProduction: Bool = true
+    ) -> Bool? {
+        if !isProduction { return false }
         if originalPlatform == .other { return false }
         return isGrandfathered(originalAppVersion: originalAppVersion)
     }
