@@ -9,6 +9,8 @@ enum DuplicateRule {
         let loserID: UUID
         let isPinned: Bool
         let userTitle: String?
+        /// The later copy time, so a re-copy merged into an older survivor stays at the top of the history.
+        let copiedAt: Date
     }
 
     /// Returns nil when the clips are not duplicates.
@@ -19,6 +21,7 @@ enum DuplicateRule {
         return Merge(
             survivorID: survivor.id, loserID: loser.id,
             isPinned: a.isPinned || b.isPinned,
-            userTitle: survivor.userTitle ?? loser.userTitle)
+            userTitle: survivor.userTitle ?? loser.userTitle,
+            copiedAt: max(a.copiedAt, b.copiedAt))
     }
 }

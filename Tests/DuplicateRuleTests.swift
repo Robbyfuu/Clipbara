@@ -53,4 +53,10 @@ final class DuplicateRuleTests: XCTestCase {
     func testLoserTitleFillsNilSurvivorTitle() {
         XCTAssertEqual(DuplicateRule.merge(clip(id: lo), clip(id: hi, title: "l"))?.userTitle, "l")
     }
+
+    func testMergeKeepsLatestCopiedAt() {
+        let older = clip(id: lo), newer = clip(id: hi, dt: 30)
+        XCTAssertEqual(DuplicateRule.merge(older, newer)?.copiedAt, newer.copiedAt)
+        XCTAssertEqual(DuplicateRule.merge(newer, older)?.copiedAt, newer.copiedAt)
+    }
 }

@@ -164,6 +164,7 @@ struct RemoteApplier {
             let loser = merge.loserID == id ? incoming : other
             survivor.isPinned = merge.isPinned
             survivor.userTitle = merge.userTitle
+            survivor.copiedAt = merge.copiedAt
             out.saves.insert(survivor.id)
             out.touched.insert(survivor.id)
             var survivorBoards = Set(try entries(ofClip: survivor.id, excluding: out.deletes).compactMap { $0.pinboard?.id })

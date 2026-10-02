@@ -261,6 +261,15 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertTrue(out.touched.contains(id(5)))
     }
 
+    func testMergedSurvivorTakesLatestCopiedAt() throws {
+        try apply(clips: [clip(1)])  // local, older, smaller UUID: survives
+        try apply(clips: [clip(2, dt: 30)])  // incoming re-copy, newer, larger UUID: loses
+        let survivor = try XCTUnwrap(try clips().first)
+        XCTAssertEqual(try clips().count, 1)
+        XCTAssertEqual(survivor.id, id(1))
+        XCTAssertEqual(survivor.copiedAt, t0.addingTimeInterval(30))
+    }
+
     func testNoMergeAt61Seconds() throws {
         try apply(clips: [clip(1)])
         let out = try apply(clips: [clip(2, dt: 61)])
