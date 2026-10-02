@@ -56,7 +56,7 @@ The current colors are replaced by these values (sRGB, converted from the brand 
 From left to right:
 
 1. The Copyd mark, 24 pt.
-2. Board tabs as pills, 32 pt tall. The active tab has a `butter` fill with `onButter` text. Inactive tabs show `ink2` text, and a pinboard tab adds an 8 pt dot in that board's existing color. The "+" (new pinboard) button follows the tabs.
+2. Board tabs as pills, 32 pt tall. The active tab has a `butter` fill with `onButter` text. Inactive tabs show `ink2` text, and a pinboard tab adds an 8 pt dot. Pinboards have no stored color, so the dot comes from a fixed six-color palette indexed by the pinboard's UUID bytes. The color stays the same across launches and devices without a schema change. The "+" (new pinboard) button follows the tabs.
 3. The search field, centered in the remaining space, up to 420 pt wide, 34 pt tall, with a `chip` fill. It shows a "⌘F" hint at its trailing edge. Wire ⌘F to focus the field if it does not already do so.
 4. The sync chip (`#if CLOUDSYNC`, only while sync is on). It shows a lock icon and the engine's short status: "Synced · now" / "Synced · 2 min", "Syncing…", or "Sync paused" for any error, account or quota state. Clicking it opens Settings.
 5. The "…" (more actions) button and the clear-history button. Both are 32 pt icon buttons in `ink2`.
@@ -139,7 +139,7 @@ The existing behavior of every control is preserved: renaming and deleting pinbo
     - mapping with `firstVisibleIndex` 0 and 12;
     - a number past `itemCount` → nil.
   - `PanelTabShortcutTests`: updated so that ⌥⌘ matches and ⌘ alone no longer does.
-  - A static, testable `PanelController.panelFrame(visibleFrame:height:)`: full width, bottom-aligned.
+  - A pure, testable `PanelGeometry.frame(visibleFrame:height:)`: full width, bottom-aligned. It lives outside `PanelController` so the unhosted test target can compile it.
 - **Visual check**, by the user with the built app:
   - light and dark mode;
   - a 1512 pt and a 1920 pt wide screen;
