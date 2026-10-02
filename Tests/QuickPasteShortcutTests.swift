@@ -56,4 +56,15 @@ final class QuickPasteShortcutTests: XCTestCase {
         XCTAssertNil(QuickPasteShortcut.hint(number: -1))
         XCTAssertNil(QuickPasteShortcut.hint(number: 9))
     }
+
+    func testFirstVisibleIndexFromOffset() {
+        func f(_ o: CGFloat) -> Int {
+            QuickPasteShortcut.firstVisibleIndex(scrollOffset: o, cardWidth: 200, spacing: 12, leadingPadding: 16)
+        }
+        XCTAssertEqual(f(0), 0)
+        XCTAssertEqual(f(100), 0)
+        XCTAssertEqual(f(130), 1)
+        XCTAssertEqual(f(2846), 13)
+        XCTAssertEqual(f(-40), 0)
+    }
 }

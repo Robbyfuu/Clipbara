@@ -49,6 +49,8 @@ enum DesignTokens {
 
     enum Card {
         static let width: CGFloat = 200
+        static let gridSpacing: CGFloat = 12
+        static let gridLeadingPadding: CGFloat = 16
         static let height: CGFloat = 220
         static let padding: CGFloat = 10
         static let cornerRadius: CGFloat = 16

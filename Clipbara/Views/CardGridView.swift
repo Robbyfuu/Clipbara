@@ -9,7 +9,6 @@ struct CardGridView: View {
     private var pinboards: [Pinboard]
 
     @State private var filteredItems: [ClipboardItem] = []
-    @State private var leadingID: UUID?
 
     var body: some View {
         Group {
@@ -27,7 +26,7 @@ struct CardGridView: View {
 
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHGrid(rows: rows, spacing: 12) {
+                            LazyHGrid(rows: rows, spacing: DesignTokens.Card.gridSpacing) {
                                 ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
                                     let n = index - appState.firstVisibleIndex
                                     ClipboardCardView(
@@ -51,17 +50,15 @@ struct CardGridView: View {
                                     .id(item.id)
                                 }
                             }
-                            .scrollTargetLayout()
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, DesignTokens.Card.gridLeadingPadding)
                             .padding(.vertical, 8)
+                            .trackFirstVisibleIndex(space: "cardGridScroll") { index in
+                                if appState.selectedTab == .history, appState.firstVisibleIndex != index {
+                                    appState.firstVisibleIndex = index
+                                }
+                            }
                         }
-                        .scrollPosition(id: $leadingID, anchor: .leading)
-                        .onChange(of: leadingID) { _, id in
-                            guard appState.selectedTab == .history else { return }
-                            appState.firstVisibleIndex = id.flatMap { id in
-                                filteredItems.firstIndex { $0.id == id }
-                            } ?? 0
-                        }
+                        .coordinateSpace(name: "cardGridScroll")
                         .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
                             if let idx = newIndex, idx < filteredItems.count {
                                 withAnimation(.easeOut(duration: 0.15)) {
@@ -111,8 +108,6 @@ struct CardGridView: View {
     private func updateFilteredItems(from sourceItems: [ClipboardItem]) {
         let updated = appState.searchState.filteredItems(from: sourceItems)
         filteredItems = updated
-        leadingID = nil
-        if appState.selectedTab == .history { appState.firstVisibleIndex = 0 }
         appState.currentFilteredItems = updated
         appState.searchState.ensureSelection(itemCount: updated.count)
     }
@@ -125,6 +120,31 @@ struct CardGridView: View {
         }
 
         appState.searchState.selectedIndex = min(deletedIndex, remainingCount - 1)
+    }
+}
+
+/// Reports the horizontal scroll offset of a grid's content (positive when scrolled right)
+/// as the first visible card index. Programmatic `scrollTo` moves are seen too.
+private struct GridOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+extension View {
+    func trackFirstVisibleIndex(space: String, onChange: @escaping (Int) -> Void) -> some View {
+        background(
+            GeometryReader { geo in
+                Color.clear.preference(key: GridOffsetKey.self, value: -geo.frame(in: .named(space)).minX)
+            }
+        )
+        .onPreferenceChange(GridOffsetKey.self) { offset in
+            onChange(QuickPasteShortcut.firstVisibleIndex(
+                scrollOffset: offset,
+                cardWidth: DesignTokens.Card.width,
+                spacing: DesignTokens.Card.gridSpacing,
+                leadingPadding: DesignTokens.Card.gridLeadingPadding
+            ))
+        }
     }
 }
 

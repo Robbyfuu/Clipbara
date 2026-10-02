@@ -121,19 +121,18 @@ final class AppState {
     }
 
     /// Command-number: paste the Nth visible card. `paste` already skips the
-    /// monitor's next change and hides the panel. No-op when no card is there.
-    func quickPaste(number: Int, plainText: Bool) {
+    /// monitor's next change and hides the panel. Live Shift decides plain text
+    /// exactly as it does for Return. No-op when no card is there.
+    func quickPaste(number: Int) {
         guard let index = QuickPasteShortcut.itemIndex(
             number: number,
             firstVisibleIndex: max(firstVisibleIndex, 0),
             itemCount: currentFilteredItems.count
         ), currentFilteredItems.indices.contains(index) else { return }
-        paste(currentFilteredItems[index], asPlainText: plainText ? true : nil)
+        paste(currentFilteredItems[index], asPlainText: nil)
     }
 
     func hidePanel() {
-        isCommandHeld = false
-        firstVisibleIndex = 0
         previewItem = nil
         panelToast = nil
         toastTask?.cancel()

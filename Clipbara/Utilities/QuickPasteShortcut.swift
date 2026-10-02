@@ -37,6 +37,11 @@ enum QuickPasteShortcut {
         return index < itemCount ? index : nil
     }
 
+    /// First card whose center is right of the scroll view's leading edge.
+    static func firstVisibleIndex(scrollOffset: CGFloat, cardWidth: CGFloat, spacing: CGFloat, leadingPadding: CGFloat) -> Int {
+        max(0, Int(ceil((scrollOffset - leadingPadding - cardWidth / 2) / (cardWidth + spacing))))
+    }
+
     static func hint(number: Int) -> String? {
         guard (0..<9).contains(number) else { return nil }
         return "⌘\(number + 1)"

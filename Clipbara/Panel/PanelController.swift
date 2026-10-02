@@ -21,7 +21,7 @@ final class PanelController {
     private var scrollMonitor: Any?
     private var wheelTranslator = WheelScrollTranslation.Translator()
     private var keyMonitor: Any?
-private var flagsMonitor: Any?
+    private var flagsMonitor: Any?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
 
@@ -151,6 +151,8 @@ private var flagsMonitor: Any?
         installMouseMonitor()
         installScrollMonitor()
         installKeyMonitor()
+        appState.isCommandHeld = NSEvent.modifierFlags
+            .intersection([.command, .option, .control, .shift]) == .command
         installFlagsMonitor()
     }
 
@@ -384,7 +386,7 @@ private var flagsMonitor: Any?
                 // Command-number paste: before the Quick Look branch and the
                 // search-field pass-through. Consumed even when no card exists.
                 if let match = QuickPasteShortcut.match(keyCode: keyCode, modifiers: event.modifierFlags) {
-                    self.appState?.quickPaste(number: match.number, plainText: match.plainText)
+                    self.appState?.quickPaste(number: match.number)
                     return true
                 }
 

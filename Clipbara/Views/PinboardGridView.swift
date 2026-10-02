@@ -12,7 +12,6 @@ struct PinboardGridView: View {
 
     @State private var orderedEntries: [PinboardEntry] = []
     @State private var draggingEntry: PinboardEntry?
-    @State private var leadingID: UUID?
 
     private var pinboard: Pinboard? {
         allPinboards.first { $0.id == pinboardId }
@@ -33,7 +32,7 @@ struct PinboardGridView: View {
 
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHGrid(rows: rows, spacing: 12) {
+                            LazyHGrid(rows: rows, spacing: DesignTokens.Card.gridSpacing) {
                                 ForEach(Array(orderedEntries.enumerated()), id: \.element.id) { index, entry in
                                     if let item = entry.clipboardItem {
                                         cardView(
@@ -45,17 +44,15 @@ struct PinboardGridView: View {
                                     }
                                 }
                             }
-                            .scrollTargetLayout()
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, DesignTokens.Card.gridLeadingPadding)
                             .padding(.vertical, 8)
+                            .trackFirstVisibleIndex(space: "pinboardGridScroll") { index in
+                                if appState.selectedTab == .pinboard(pinboardId), appState.firstVisibleIndex != index {
+                                    appState.firstVisibleIndex = index
+                                }
+                            }
                         }
-                        .scrollPosition(id: $leadingID, anchor: .leading)
-                        .onChange(of: leadingID) { _, id in
-                            guard appState.selectedTab == .pinboard(pinboardId) else { return }
-                            appState.firstVisibleIndex = id.flatMap { id in
-                                orderedEntries.firstIndex { $0.id == id }
-                            } ?? 0
-                        }
+                        .coordinateSpace(name: "pinboardGridScroll")
                         .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
                             if let idx = newIndex, idx < orderedEntries.count {
                                 withAnimation(.easeOut(duration: 0.15)) {
@@ -67,7 +64,7 @@ struct PinboardGridView: View {
                     .onAppear {
                         syncNavigationItems(pinboardItems)
                     }
-                    .onChange(of: orderedEntries.count) { _, _ in
+                    .onChange(of: orderedEntries.map(\.id)) { _, _ in
                         syncNavigationItems(orderedEntries.compactMap(\.clipboardItem))
                     }
                 }
@@ -123,8 +120,6 @@ struct PinboardGridView: View {
     }
 
     private func syncEntries() {
-        leadingID = nil
-        if appState.selectedTab == .pinboard(pinboardId) { appState.firstVisibleIndex = 0 }
         let current = (pinboard?.entries ?? [])
             .filter { !$0.isDeleted && $0.clipboardItem != nil }
             .sorted { $0.displayOrder < $1.displayOrder }
