@@ -19,6 +19,7 @@ struct ImageCardContent: View {
                 }
             }
             .clipped()
+            .contentShape(Rectangle())
             .task(id: item.id) {
                 cachedImage = ThumbnailImageCache.image(for: item)
             }

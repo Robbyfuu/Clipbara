@@ -27,11 +27,11 @@ struct TextCardContent: View {
         .multilineTextAlignment(.leading)
         .foregroundStyle(DesignTokens.Brand.ink)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(10)
-        .background(DesignTokens.Brand.chip)
         .mask(LinearGradient(
             stops: [.init(color: .black, location: 0.72), .init(color: .clear, location: 1)],
             startPoint: .top, endPoint: .bottom))
+        .padding(10)
+        .background(DesignTokens.Brand.chip)
         .task(id: item.id) {
             guard let text = item.textContent else { return }
             let sample = text.prefix(900)

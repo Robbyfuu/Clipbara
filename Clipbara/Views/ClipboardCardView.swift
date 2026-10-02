@@ -20,6 +20,7 @@ struct ClipboardCardView: View {
     @State private var isHovered = false
     @State private var isRenaming = false
     @State private var renameText = ""
+    @State private var imageDimensions: CGSize?
 
     var body: some View {
         if item.isDeleted || item.modelContext == nil {
@@ -117,6 +118,7 @@ struct ClipboardCardView: View {
         .frame(width: DesignTokens.Card.width, height: DesignTokens.Card.height)
         .background(DesignTokens.Brand.card)
         .clipShape(shape)
+        .contentShape(shape)
         .overlay(
             shape.strokeBorder(
                 isSelected ? DesignTokens.Brand.butter : DesignTokens.Brand.line,
@@ -145,6 +147,9 @@ struct ClipboardCardView: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(accessibilityDescription)
+        .task(id: item.id) {
+            imageDimensions = item.contentType == .image ? Self.pixelSize(of: item.rawData) : nil
+        }
     }
 
     @ViewBuilder
@@ -201,6 +206,7 @@ struct ClipboardCardView: View {
     private var headerView: some View {
         HStack(alignment: .center, spacing: 6) {
             Image(systemName: item.contentType.systemImage)
+                .foregroundStyle(DesignTokens.typeTint(for: item.contentType, itemColor: item.textContent))
             Text(item.userTitle ?? item.contentType.displayName)
                 .lineLimit(1)
 
@@ -257,8 +263,8 @@ struct ClipboardCardView: View {
         }
     }
 
-    private var imageDimensions: CGSize? {
-        guard let source = CGImageSourceCreateWithData(item.rawData as CFData, nil),
+    private static func pixelSize(of data: Data) -> CGSize? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let w = props[kCGImagePropertyPixelWidth] as? Int,
               let h = props[kCGImagePropertyPixelHeight] as? Int else { return nil }

@@ -71,38 +71,6 @@ enum DesignTokens {
 
     enum Nav {
         static let height: CGFloat = 56
-        static let horizontalPadding: CGFloat = 16
-        static let tabHeight: CGFloat = 28
-        static let tabCornerRadius: CGFloat = 8
-        static let activeFont: Font = .system(size: 13, weight: .medium)
-        static let inactiveFont: Font = .system(size: 13, weight: .regular)
-        static let dotSize: CGFloat = 8
-        static let searchIconSize: CGFloat = 16
-        static let searchWidth: CGFloat = 260
-
-        static func activeBackground(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color.white.opacity(0.10)
-                : Color.black.opacity(0.06)
-        }
-
-        static func searchBackground(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color.white.opacity(0.08)
-                : Color.black.opacity(0.08)
-        }
-
-        static func activeTextColor(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color(white: 0.95)
-                : Color(white: 0.16)
-        }
-
-        static func inactiveTextColor(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color(white: 0.75)
-                : Color(white: 0.38)
-        }
     }
 }
 
