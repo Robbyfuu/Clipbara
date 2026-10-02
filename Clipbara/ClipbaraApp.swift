@@ -23,7 +23,8 @@ struct ClipbaraApp: App {
         let storeURL = StoreManager.resolveStoreURL()
         StoreManager.backupStore(at: storeURL)
 
-        let config = ModelConfiguration(url: storeURL)
+        // CloudSyncEngine drives CloudKit itself; stop SwiftData from auto-mirroring when the iCloud entitlement is present.
+        let config = ModelConfiguration(url: storeURL, cloudKitDatabase: .none)
 
         // 1차: 정상 오픈
         do {

@@ -75,6 +75,8 @@ enum StoreManager {
             try? fm.removeItem(at: dir.appendingPathComponent(name + suffix))
         }
         try? fm.removeItem(at: dir.appendingPathComponent(newSupportDirName))
+        // Stale CloudKit change tokens would stop the emptied store from re-downloading.
+        try? fm.removeItem(at: dir.appendingPathComponent("SyncState.data"))
         logger.info("Deleted store at \(storeURL.path)")
     }
 

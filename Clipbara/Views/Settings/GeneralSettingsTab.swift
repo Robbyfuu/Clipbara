@@ -8,9 +8,28 @@ struct GeneralSettingsTab: View {
     @Environment(AppState.self) private var appState
     @AppStorage("historyLimit") private var historyLimit: Int = 500
     @AppStorage(PasteService.alwaysPlainTextDefaultsKey) private var alwaysPastePlainText: Bool = false
+    #if CLOUDSYNC
+    @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
+    #endif
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
     @State private var transferMessage: String?
     @State private var showTransferAlert = false
+
+    #if CLOUDSYNC
+    @ViewBuilder
+    private var syncStatusText: some View {
+        switch appState.cloudSync?.status ?? .off {
+        case .off: Text("Off")
+        case .syncing: Text("Syncing\u{2026}")
+        case .upToDate(let date):
+            Text("Up to date \u{00b7} \(date.formatted(.relative(presentation: .named)))")
+        case .accountUnavailable: Text("iCloud account unavailable")
+        case .quotaExceeded: Text("iCloud storage full")
+        case .accountChanged: Text("iCloud account changed. Sync is off.")
+        case .error(let message): Text("Sync error: \(message)")
+        }
+    }
+    #endif
 
     var body: some View {
         Form {
@@ -52,6 +71,24 @@ struct GeneralSettingsTab: View {
                         .labelsHidden()
                 }
             }
+
+            #if CLOUDSYNC
+            Section("iCloud Sync") {
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Sync with iCloud", isOn: $iCloudSyncEnabled)
+                    syncStatusText
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .onChange(of: iCloudSyncEnabled) { _, enabled in
+                    if enabled {
+                        appState.cloudSync?.start()
+                    } else {
+                        appState.cloudSync?.stop(clearState: true)
+                    }
+                }
+            }
+            #endif
 
             Section("Backup") {
                 LabeledContent("Export history, pinboards, and settings to a JSON file.") {

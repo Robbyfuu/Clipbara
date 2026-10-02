@@ -33,6 +33,10 @@ final class AppState {
     /// Cached filtered items for keyboard navigation (updated by CardGridView)
     var currentFilteredItems: [ClipboardItem] = []
 
+    #if CLOUDSYNC
+    private(set) var cloudSync: CloudSyncEngine?
+    #endif
+
     @ObservationIgnored private var hasStarted = false
 
     func start(modelContext: ModelContext, modelContainer: ModelContainer) {
@@ -54,6 +58,16 @@ final class AppState {
         }
         setupHotkey()
 
+        #if CLOUDSYNC
+        let engine = CloudSyncEngine(container: modelContainer) { [weak self] in
+            self?.clipboardMonitor.refreshLatestItems()
+        }
+        cloudSync = engine
+        if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) {
+            engine.start()
+        }
+        #endif
+
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(300))
@@ -71,6 +85,9 @@ final class AppState {
             PaywallWindowController.shared.show()
             return
         }
+        #endif
+        #if CLOUDSYNC
+        if !panelController.isVisible { cloudSync?.fetchIfStale() }
         #endif
         panelController.toggle(modelContainer: container, appState: self)
     }
