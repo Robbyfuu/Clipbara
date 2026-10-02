@@ -108,6 +108,8 @@ targets:
       - path: Clipbara/Utilities/Thumbnail.swift
       - path: Clipbara/Sync/AssetCrypto.swift
       - path: Clipbara/Sync/SyncRecordMapper.swift
+      - path: Clipbara/Sync/DuplicateRule.swift
+      - path: Clipbara/Sync/SyncBatchPlanner.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.minsang.ClipbaraTests
