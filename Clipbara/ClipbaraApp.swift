@@ -43,7 +43,7 @@ struct ClipbaraApp: App {
 
         // 3차: in-memory 폴백 (앱은 실행되지만 데이터 비영속)
         do {
-            return try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+            return try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
         } catch {
             fatalError("Cannot create any ModelContainer: \(error)")
         }

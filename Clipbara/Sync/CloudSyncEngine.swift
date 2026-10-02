@@ -57,6 +57,7 @@ import SwiftData
     /// so local changes are captured from the start; the account check only drives `status`.
     func start() {
         guard engine == nil else { return }
+        status = .syncing  // until the first engine event or the account check says otherwise
         startEngine()
         accountCheck = Task { [weak self] in
             let account = try? await CKContainer(identifier: Self.containerID).accountStatus()
@@ -66,7 +67,10 @@ import SwiftData
         }
     }
 
+    /// No-op when no engine runs: when the engine turns sync off itself, the Settings toggle's
+    /// onChange calls this again, and that must not re-clear state or overwrite `.accountChanged`.
     func stop(clearState: Bool) {
+        guard engine != nil else { return }
         accountCheck?.cancel()
         accountCheck = nil
         if let engine { Task { await engine.cancelOperations() } }
@@ -352,8 +356,8 @@ import SwiftData
                 zoneMissing = true
                 fields.updateValue(nil, forKey: id)
                 resendLater(save, id)
-            case .unknownItem:
-                remoteDeleted.append(id)  // another device deleted it
+            case .unknownItem, .referenceViolation:
+                remoteDeleted.append(id)  // another device deleted it, or the clip or pinboard it references
             case .quotaExceeded:
                 status = .quotaExceeded
                 resendLater(save, id)
