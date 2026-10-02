@@ -23,20 +23,20 @@ struct RemoteApplier {
                deletions: [UUID], systemFields: [UUID: Data]) -> Outcome {
         var out = Outcome()
         for s in clips {
-            do { try upsert(s, &out) } catch { Self.log.error("Clip \(s.id) not applied: \(error)") }
+            do { try upsert(s, &out) } catch { Self.log.error("Clip \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
         }
         for s in pinboards {
-            do { try upsert(s, &out) } catch { Self.log.error("Pinboard \(s.id) not applied: \(error)") }
+            do { try upsert(s, &out) } catch { Self.log.error("Pinboard \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
         }
         for s in entries {
-            do { try upsert(s, &out) } catch { Self.log.error("Entry \(s.id) not applied: \(error)") }
+            do { try upsert(s, &out) } catch { Self.log.error("Entry \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
         }
         // After entries, so a same-batch entry of a losing clip is moved to the survivor, not orphaned.
         for s in clips {
-            do { try mergeDuplicates(of: s.id, &out) } catch { Self.log.error("Merge for \(s.id) failed: \(error)") }
+            do { try mergeDuplicates(of: s.id, &out) } catch { Self.log.error("Merge for \(s.id, privacy: .public) failed: \(error.syncLogDescription, privacy: .public)") }
         }
         for id in deletions {
-            do { try delete(id, &out) } catch { Self.log.error("Deletion \(id) not applied: \(error)") }
+            do { try delete(id, &out) } catch { Self.log.error("Deletion \(id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
         }
         let gone = out.deletes.union(deletions)
         for (id, data) in systemFields where !gone.contains(id) {
@@ -51,7 +51,7 @@ struct RemoteApplier {
                     continue
                 }
                 out.touched.insert(id)
-            } catch { Self.log.error("System fields for \(id) not stored: \(error)") }
+            } catch { Self.log.error("System fields for \(id, privacy: .public) not stored: \(error.syncLogDescription, privacy: .public)") }
         }
         return out
     }
@@ -62,7 +62,7 @@ struct RemoteApplier {
             for m in try context.fetch(FetchDescriptor<ClipboardItem>()) { m.syncSystemFields = nil }
             for m in try context.fetch(FetchDescriptor<Pinboard>()) { m.syncSystemFields = nil }
             for m in try context.fetch(FetchDescriptor<PinboardEntry>()) { m.syncSystemFields = nil }
-        } catch { log.error("clearSystemFields failed: \(error)") }
+        } catch { log.error("clearSystemFields failed: \(error.syncLogDescription, privacy: .public)") }
     }
 
     // MARK: Lookups (throwing: a fetch error must never read as "not found")

@@ -69,14 +69,14 @@ It is optional with no default, so SwiftData migrates the store lightweight. No 
 - Database: the user's private database.
 - Zone: `Clipboard` (custom zone, required for `CKSyncEngine` change tracking).
 - `recordName` = the model's existing `UUID`.
-- Every content field lives in `encryptedValues`. Only references and the asset are plain fields.
+- Every content field lives in `encryptedValues`. Only references and the assets are plain fields.
 
 ### `Clip`
 
 | Field | Storage | Type |
 |---|---|---|
 | `contentType` | encrypted | String (`ContentType.rawValue`) |
-| `textContent` | encrypted | String? |
+| `textContent` | encrypted | String?, present when its UTF-8 form is ≤ 256 KB |
 | `userTitle` | encrypted | String? |
 | `sourceAppName` | encrypted | String? |
 | `sourceAppBundleId` | encrypted | String? |
@@ -84,10 +84,13 @@ It is optional with no default, so SwiftData migrates the store lightweight. No 
 | `copiedAt` | encrypted | Date |
 | `isPinned` | encrypted | Int64 (0/1) |
 | `rawData` | encrypted | Data, present when `rawData` ≤ 256 KB |
-| `assetKey` | encrypted | Data (32 bytes), present when `rawData` > 256 KB |
+| `assetKey` | encrypted | Data (32 bytes), present when `rawData` or `textContent` > 256 KB |
 | `payload` | plain | `CKAsset`, present when `rawData` > 256 KB |
+| `textPayload` | plain | `CKAsset`, present when `textContent` (UTF-8) > 256 KB |
 
 `payload` holds `rawData` sealed with AES-GCM (CryptoKit) under a random per-clip key stored in `assetKey`. CloudKit encrypts assets at rest on its own, but only Advanced Data Protection makes that end-to-end; sealing the file first keeps clip content end-to-end encrypted for every user.
+
+`textPayload` holds a large `textContent` sealed the same way under the same `assetKey`; without it, a text clip over about 1 MB would carry its full text inline and exceed the record limit.
 
 The 256 KB threshold keeps every record well under CloudKit's 1 MB record limit.
 

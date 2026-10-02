@@ -71,7 +71,13 @@ final class SyncRecordMapperTests: XCTestCase {
         let clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
         let rec = record(for: clip)
         try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
-        XCTAssertTrue(plainKeys(rec).isSubset(of: ["payload"]))
+        XCTAssertTrue(plainKeys(rec).isSubset(of: ["payload", "textPayload"]))
+
+        var textClip = makeClip()
+        textClip.textContent = String(repeating: "a", count: SyncRecordMapper.inlineLimit + 1)
+        let trec = record(for: textClip)
+        try SyncRecordMapper.populate(trec, from: textClip, assetDirectory: dir)
+        XCTAssertEqual(plainKeys(trec), ["textPayload"])
 
         let board = PinboardSnapshot(id: UUID(), name: "n", displayOrder: 1, createdAt: Date())
         let brec = CKRecord(recordType: SyncRecordMapper.pinboardType, recordID: SyncRecordMapper.recordID(for: board.id))
@@ -158,6 +164,34 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertNil(rec["payload"])
         XCTAssertNil(rec.encryptedValues["assetKey"] as Data?)
         XCTAssertEqual(try SyncRecordMapper.clip(from: rec).rawData, clip.rawData)
+    }
+
+    func testLargeTextGoesToTextPayload() throws {
+        var clip = makeClip()
+        clip.textContent = String(repeating: "é", count: SyncRecordMapper.inlineLimit / 2 + 1)  // 2 UTF-8 bytes each
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        XCTAssertFalse(rec.encryptedValues.allKeys().contains("textContent"))
+        XCTAssertNotNil(rec["textPayload"] as CKAsset?)
+        XCTAssertNotNil(rec.encryptedValues["assetKey"] as Data?)
+        XCTAssertNotNil(rec.encryptedValues["rawData"] as Data?)
+        XCTAssertNil(rec["payload"])
+        let sealed = try Data(contentsOf: SyncRecordMapper.textAssetURL(for: clip.id, in: dir))
+        XCTAssertNil(sealed.range(of: Data(clip.textContent!.utf8.prefix(64))))
+        XCTAssertEqual(try SyncRecordMapper.clip(from: rec), clip)
+    }
+
+    func testSwitchingFromLargeToSmallTextClearsTextPayload() throws {
+        var clip = makeClip()
+        clip.textContent = String(repeating: "a", count: SyncRecordMapper.inlineLimit + 1)
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        clip.textContent = "small"
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        XCTAssertNil(rec["textPayload"])
+        XCTAssertNil(rec.encryptedValues["assetKey"] as Data?)
+        XCTAssertEqual(rec.encryptedValues["textContent"] as String?, "small")
+        XCTAssertEqual(try SyncRecordMapper.clip(from: rec), clip)
     }
 
     func testSwitchingToAssetClearsInlineData() throws {

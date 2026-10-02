@@ -56,12 +56,17 @@ enum SyncRecordMapper {
         directory.appendingPathComponent("\(id.uuidString).bin")
     }
 
+    static func textAssetURL(for id: UUID, in directory: URL) -> URL {
+        directory.appendingPathComponent("\(id.uuidString).text.bin")
+    }
+
     // MARK: - Populate
 
+    /// `rawData` and `textContent` above `inlineLimit` each move to their own sealed asset,
+    /// both under one `assetKey`, so every record stays under CloudKit's 1 MB limit.
     static func populate(_ record: CKRecord, from clip: ClipSnapshot, assetDirectory: URL) throws {
         let values = record.encryptedValues
         values["contentType"] = clip.contentType
-        values["textContent"] = clip.textContent
         values["userTitle"] = clip.userTitle
         values["sourceAppName"] = clip.sourceAppName
         values["sourceAppBundleId"] = clip.sourceAppBundleId
@@ -69,17 +74,30 @@ enum SyncRecordMapper {
         values["copiedAt"] = clip.copiedAt
         values["isPinned"] = Int64(clip.isPinned ? 1 : 0)
 
-        if clip.rawData.count <= inlineLimit {
-            values["rawData"] = clip.rawData
-            values["assetKey"] = nil as Data?
-            record["payload"] = nil
-        } else {
-            let key = AssetCrypto.makeKey()
+        let text = clip.textContent.map { Data($0.utf8) }
+        let largeText = (text?.count ?? 0) > inlineLimit
+        let largeRaw = clip.rawData.count > inlineLimit
+        let key = largeText || largeRaw ? AssetCrypto.makeKey() : nil
+        values["assetKey"] = key
+
+        if largeRaw, let key {
             let url = assetURL(for: clip.id, in: assetDirectory)
             try AssetCrypto.seal(clip.rawData, key: key).write(to: url, options: .atomic)
             values["rawData"] = nil as Data?
-            values["assetKey"] = key
             record["payload"] = CKAsset(fileURL: url)
+        } else {
+            values["rawData"] = clip.rawData
+            record["payload"] = nil
+        }
+
+        if largeText, let text, let key {
+            let url = textAssetURL(for: clip.id, in: assetDirectory)
+            try AssetCrypto.seal(text, key: key).write(to: url, options: .atomic)
+            values["textContent"] = nil as String?
+            record["textPayload"] = CKAsset(fileURL: url)
+        } else {
+            values["textContent"] = clip.textContent
+            record["textPayload"] = nil
         }
     }
 
@@ -111,24 +129,27 @@ enum SyncRecordMapper {
         return id
     }
 
+    /// Opens the sealed asset in `field`, or nil when the record has none.
+    private static func sealedAsset(_ record: CKRecord, _ field: String) throws -> Data? {
+        guard let asset = record[field] as? CKAsset else { return nil }
+        guard let url = asset.fileURL else { throw DecodeError.missingField("\(field).fileURL") }
+        guard let key = record.encryptedValues["assetKey"] as? Data else { throw DecodeError.missingField("assetKey") }
+        return try AssetCrypto.open(Data(contentsOf: url), key: key)
+    }
+
     static func clip(from record: CKRecord) throws -> ClipSnapshot {
         let values = record.encryptedValues
-        let rawData: Data
-        if let inline = values["rawData"] as? Data {
-            rawData = inline
-        } else if let asset = record["payload"] as? CKAsset {
-            guard let url = asset.fileURL else { throw DecodeError.missingField("payload.fileURL") }
-            guard let key = values["assetKey"] as? Data else { throw DecodeError.missingField("assetKey") }
-            rawData = try AssetCrypto.open(Data(contentsOf: url), key: key)
-        } else {
+        guard let rawData = try values["rawData"] as? Data ?? sealedAsset(record, "payload") else {
             throw DecodeError.missingField("rawData")
         }
+        let textContent = try values["textContent"] as? String
+            ?? sealedAsset(record, "textPayload").map { String(decoding: $0, as: UTF8.self) }
         let pinned: Int64 = try required(record, "isPinned")
         return ClipSnapshot(
             id: try id(of: record),
             contentType: try required(record, "contentType"),
             rawData: rawData,
-            textContent: values["textContent"] as? String,
+            textContent: textContent,
             userTitle: values["userTitle"] as? String,
             sourceAppName: values["sourceAppName"] as? String,
             sourceAppBundleId: values["sourceAppBundleId"] as? String,
@@ -157,5 +178,14 @@ enum SyncRecordMapper {
         return EntrySnapshot(
             id: try id(of: record), clipID: clipID, pinboardID: boardID,
             displayOrder: Int(order), addedAt: try required(record, "addedAt"))
+    }
+}
+
+extension Error {
+    /// Domain, code and message only, safe for public logs: full error dumps can embed record or model values.
+    var syncLogDescription: String {
+        if let e = self as? SyncRecordMapper.DecodeError { return String(describing: e) }
+        let e = self as NSError
+        return "\(e.domain) \(e.code): \(e.localizedDescription)"
     }
 }

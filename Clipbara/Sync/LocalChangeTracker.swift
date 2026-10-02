@@ -41,8 +41,10 @@ import SwiftData
 
         // Deletes win over saves; a record inserted and deleted in the same save never reached the server.
         let insertedIDs = Set(context.insertedModelsArray.compactMap(Self.syncID))
+        // Suppression is checked first: isSyncEligible reads rawData, an external-storage blob.
         for model in context.deletedModelsArray {
-            if let id = Self.syncID(model), insertedIDs.contains(id) { seen.insert(id); continue }
+            guard let id = Self.syncID(model), !suppressed.contains(id) else { continue }
+            if insertedIDs.contains(id) { seen.insert(id); continue }
             switch model {
             case let clip as ClipboardItem where clip.isSyncEligible: add(clip.id, delete: true)
             case let board as Pinboard: add(board.id, delete: true)
@@ -51,6 +53,7 @@ import SwiftData
             }
         }
         for model in context.insertedModelsArray + context.changedModelsArray {
+            guard let id = Self.syncID(model), !suppressed.contains(id) else { continue }
             switch model {
             case let clip as ClipboardItem where clip.isSyncEligible: add(clip.id, delete: false)
             case let board as Pinboard: add(board.id, delete: false)
