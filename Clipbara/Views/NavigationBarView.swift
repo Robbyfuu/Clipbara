@@ -10,7 +10,6 @@ private enum DroppedClipResult {
 
 struct NavigationBarView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Pinboard.displayOrder) private var pinboards: [Pinboard]
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse) private var historyItems: [ClipboardItem]
@@ -23,11 +22,15 @@ struct NavigationBarView: View {
     @State private var targetedPinboardID: UUID?
     @State private var renameText = ""
     @State private var isShowingClearAlert = false
+    @State private var tabsWidth: CGFloat = 0
     @FocusState private var isSearchFocused: Bool
+#if CLOUDSYNC
+    @Environment(\.openSettings) private var openSettings
+#endif
 
     var body: some View {
         navigationBar
-        .frame(height: DesignTokens.Nav.height)
+        .frame(height: 56)
         .onAppear { appState.orderedPinboardIDs = pinboards.map(\.id) }
         .onChange(of: pinboards.map(\.id)) { _, ids in
             appState.orderedPinboardIDs = ids
@@ -84,21 +87,25 @@ struct NavigationBarView: View {
 
     private var navigationBar: some View {
         HStack(spacing: 12) {
-            searchField
-
-            toolbarDivider
+            CopydMark(size: 24)
 
             tabGroup
-                .frame(minWidth: 120)
                 .layoutPriority(1)
 
-            Spacer(minLength: 8)
-
-            toolbarDivider
+            searchField
+                .frame(maxWidth: 420)
+                .frame(minWidth: 120, maxWidth: .infinity)
 
             actionGroup
         }
-        .padding(.horizontal, DesignTokens.Nav.horizontalPadding)
+        .padding(.horizontal, 16)
+        .background(
+            // Command-F focuses the search field; nothing else handled it before.
+            Button("") { isSearchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+        )
     }
 
     private var tabGroup: some View {
@@ -107,24 +114,18 @@ struct NavigationBarView: View {
                 HStack(spacing: 4) {
                     navTab(
                         label: String(localized: "History"),
-                        icon: "clock",
+                        dotColor: nil,
                         isActive: appState.selectedTab == .history
                     ) {
                         appState.panelController.selectTab(.history)
                     }
                     .id(PanelTab.history)
-                    .help("History (⌘1)")
-
-                    if !pinboards.isEmpty {
-                        Divider()
-                            .frame(height: 18)
-                            .padding(.horizontal, 2)
-                    }
+                    .help(PanelTabShortcut.hint(at: 0).map { "History (\($0))" } ?? "History")
 
                     ForEach(Array(pinboards.enumerated()), id: \.element.id) { index, pinboard in
                         navTab(
                             label: pinboard.name,
-                            icon: "folder",
+                            dotColor: DesignTokens.pinboardDots[PinboardDot.index(for: pinboard.id)],
                             isActive: appState.selectedTab == .pinboard(pinboard.id),
                             isDropTargeted: targetedPinboardID == pinboard.id
                         ) {
@@ -149,8 +150,17 @@ struct NavigationBarView: View {
                             }
                         }
                     }
+
+                    NavIconButton(icon: "plus", iconSize: 12) {
+                        newPinboardName = nextPinboardName()
+                        isAddingPinboard = true
+                    }
+                    .help("New Pinboard")
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { tabsWidth = $0 }
             }
+            // Hug the tabs so the search field gets the rest; scroll only on overflow.
+            .frame(maxWidth: tabsWidth > 0 ? tabsWidth : .infinity)
             .onChange(of: appState.selectedTab) { _, tab in
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo(tab, anchor: .center)
@@ -161,24 +171,28 @@ struct NavigationBarView: View {
 
     private var actionGroup: some View {
         HStack(spacing: 4) {
+#if CLOUDSYNC
+            if let engine = appState.cloudSync,
+               let text = SyncChip.text(for: engine.status, now: Date()) {
+                Button { openSettings() } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "lock.fill").font(.system(size: 11))
+                        Text(text).font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(DesignTokens.Brand.ink2)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(DesignTokens.Brand.chip, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("iCloud Sync")
+            }
+#endif
+
             optionsMenuButton
 
-            NavIconButton(
-                icon: "plus",
-                iconSize: 12,
-                colorScheme: colorScheme
-            ) {
-                newPinboardName = nextPinboardName()
-                isAddingPinboard = true
-            }
-            .help("New Pinboard")
-
             if appState.selectedTab == .history {
-                NavIconButton(
-                    icon: "trash",
-                    iconSize: 13,
-                    colorScheme: colorScheme
-                ) {
+                NavIconButton(icon: "trash", iconSize: 13) {
                     isShowingClearAlert = true
                 }
                 .disabled(clearableHistoryCount == 0)
@@ -190,24 +204,18 @@ struct NavigationBarView: View {
         }
     }
 
-    private var toolbarDivider: some View {
-        Rectangle()
-            .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.10))
-            .frame(width: 1, height: 20)
-    }
-
     // MARK: - Search Field
 
     private var searchField: some View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(DesignTokens.Brand.ink2)
 
             TextField("Search clipboard...", text: searchTextBinding)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
-                .foregroundStyle(DesignTokens.Nav.activeTextColor(for: colorScheme))
+                .foregroundStyle(DesignTokens.Brand.ink)
                 .focused($isSearchFocused)
 
             if !appState.searchState.searchText.isEmpty {
@@ -216,36 +224,40 @@ struct NavigationBarView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(DesignTokens.Brand.ink2)
                 }
                 .buttonStyle(.plain)
             }
+
+            Text("⌘F")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DesignTokens.Brand.ink2)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .strokeBorder(DesignTokens.Brand.line, lineWidth: 1)
+                )
         }
         .padding(.horizontal, 10)
-        .frame(width: DesignTokens.Nav.searchWidth, height: DesignTokens.Nav.tabHeight)
-        .background(DesignTokens.Nav.searchBackground(for: colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.07), lineWidth: 0.75)
-        )
+        .frame(height: 34)
+        .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Tab Component
 
     private func navTab(
         label: String,
-        icon: String? = nil,
+        dotColor: Color?,
         isActive: Bool,
         isDropTargeted: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         NavTabButton(
             label: label,
-            icon: icon,
+            dotColor: dotColor,
             isActive: isActive,
             isDropTargeted: isDropTargeted,
-            colorScheme: colorScheme,
             action: action
         )
     }
@@ -260,10 +272,7 @@ struct NavigationBarView: View {
     }
 
     private var optionsMenuButton: some View {
-        OptionsMenuButton(
-            colorScheme: colorScheme,
-            searchState: appState.searchState
-        )
+        OptionsMenuButton(searchState: appState.searchState)
     }
 
     private var pinnedItemIDs: Set<UUID> {
@@ -398,48 +407,40 @@ struct NavigationBarView: View {
 
 private struct NavTabButton: View {
     let label: String
-    let icon: String?
+    let dotColor: Color?
     let isActive: Bool
     let isDropTargeted: Bool
-    let colorScheme: ColorScheme
     let action: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 11, weight: .medium))
+            HStack(spacing: 6) {
+                if let dotColor {
+                    Circle().fill(dotColor).frame(width: 8, height: 8)
                 }
 
                 Text(label)
-                    .font(isActive ? DesignTokens.Nav.activeFont : DesignTokens.Nav.inactiveFont)
+                    .font(.system(size: 13, weight: isActive ? .semibold : .medium))
                     .lineLimit(1)
             }
-            .foregroundStyle(
-                isActive
-                    ? DesignTokens.Nav.activeTextColor(for: colorScheme)
-                    : DesignTokens.Nav.inactiveTextColor(for: colorScheme)
-            )
-            .padding(.horizontal, 10)
-            .frame(height: DesignTokens.Nav.tabHeight)
+            .foregroundStyle(isActive ? DesignTokens.Brand.onButter : DesignTokens.Brand.ink2)
+            .padding(.horizontal, 14)
+            .frame(height: 32)
             .background(
-                isDropTargeted
-                    ? Color.accentColor.opacity(colorScheme == .dark ? 0.24 : 0.16)
-                    : isActive || isHovered
-                    ? DesignTokens.Nav.activeBackground(for: colorScheme)
-                    : Color.clear
+                isActive ? DesignTokens.Brand.butter
+                    : isHovered ? DesignTokens.Brand.chip
+                    : Color.clear,
+                in: Capsule()
             )
             .overlay(
-                RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isDropTargeted ? Color.accentColor.opacity(0.7) : Color.clear,
-                        lineWidth: 1
-                    )
+                Capsule().strokeBorder(
+                    isDropTargeted ? DesignTokens.Brand.butter : Color.clear,
+                    lineWidth: 1.5
+                )
             )
-            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
@@ -454,7 +455,6 @@ private struct NavTabButton: View {
 private struct NavIconButton: View {
     let icon: String
     let iconSize: CGFloat
-    let colorScheme: ColorScheme
     let action: () -> Void
 
     @State private var isHovered = false
@@ -463,14 +463,13 @@ private struct NavIconButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: iconSize, weight: .medium))
-                .foregroundStyle(DesignTokens.Nav.inactiveTextColor(for: colorScheme))
-                .frame(width: 28, height: DesignTokens.Nav.tabHeight)
+                .foregroundStyle(DesignTokens.Brand.ink2)
+                .frame(width: 32, height: 32)
                 .background(
-                    isHovered
-                        ? DesignTokens.Nav.activeBackground(for: colorScheme)
-                        : Color.clear
+                    isHovered ? DesignTokens.Brand.chip : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
@@ -478,20 +477,29 @@ private struct NavIconButton: View {
     }
 }
 
+#if CLOUDSYNC
+/// Maps the engine status to the top-bar chip text; nil hides the chip.
+enum SyncChip {
+    static func text(for status: CloudSyncEngine.Status, now: Date) -> String? {
+        switch status {
+        case .off: return nil
+        case .syncing: return String(localized: "Syncing…")
+        case .upToDate(let date):
+            let minutes = Int(now.timeIntervalSince(date) / 60)
+            return minutes < 1 ? String(localized: "Synced · now") : String(localized: "Synced · \(minutes) min")
+        default: return String(localized: "Sync paused")
+        }
+    }
+}
+#endif
+
 // MARK: - OptionsMenuButton (NSMenu-based for proper centering)
 
 private struct OptionsMenuButton: View {
-    let colorScheme: ColorScheme
     let searchState: SearchState
 
-    @State private var isHovered = false
-
     var body: some View {
-        NavIconButton(
-            icon: "ellipsis",
-            iconSize: 14,
-            colorScheme: colorScheme
-        ) {
+        NavIconButton(icon: "ellipsis", iconSize: 14) {
             showMenu()
         }
     }
