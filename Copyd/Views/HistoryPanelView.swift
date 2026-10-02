@@ -16,10 +16,22 @@ struct HistoryPanelView: View {
         )
     }
 
-    var body: some View {
-        ZStack {
+    @ViewBuilder
+    private var shelfFill: some View {
+        if #available(macOS 26, *) {
+            // Tint as content, not `Glass.tint(_:)`, which renders only while the app is active.
+            shelfShape
+                .fill(DesignTokens.Brand.glassTint)
+                .glassEffect(.regular, in: shelfShape)
+        } else {
             shelfShape
                 .fill(DesignTokens.Brand.shelf)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            shelfFill
                 .overlay(alignment: .top) {
                     // Hairline along the top curve only.
                     shelfShape

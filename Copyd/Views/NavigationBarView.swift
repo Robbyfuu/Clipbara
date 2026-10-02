@@ -95,6 +95,7 @@ struct NavigationBarView: View {
                 .frame(minWidth: 120, maxWidth: .infinity)
 
             actionGroup
+                .navGlassContainer()
         }
         .padding(.horizontal, 16)
         .background(
@@ -186,7 +187,7 @@ struct NavigationBarView: View {
                             .foregroundStyle(DesignTokens.Brand.ink2)
                             .padding(.horizontal, 10)
                             .frame(height: 28)
-                            .background(DesignTokens.Brand.chip, in: Capsule())
+                            .navSurface(DesignTokens.Brand.chip, in: Capsule())
                         }
                         .buttonStyle(.plain)
                         .help("iCloud Sync")
@@ -246,7 +247,7 @@ struct NavigationBarView: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 34)
-        .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .navSurface(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Tab Component
@@ -440,6 +441,7 @@ private struct NavTabButton: View {
                     : Color.clear,
                 in: Capsule()
             )
+            .navGlass(in: Capsule())
             .overlay(
                 Capsule().strokeBorder(
                     isDropTargeted ? DesignTokens.Brand.butter : Color.clear,
@@ -476,11 +478,50 @@ private struct NavIconButton: View {
                     isHovered ? DesignTokens.Brand.chip : Color.clear,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                 )
+                .navGlass(in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.15), value: isHovered)
+    }
+}
+
+// MARK: - Liquid Glass (macOS 26+)
+
+// Tints are fills laid on the glass as content, never `Glass.tint(_:)`: glass tints render only
+// while the app is active, and this non-activating panel is used while another app is frontmost.
+private extension View {
+    /// macOS 26+: Liquid Glass behind the view's fills, in `shape`. Earlier: unchanged.
+    @ViewBuilder
+    func navGlass(in shape: some Shape) -> some View {
+        if #available(macOS 26, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            self
+        }
+    }
+
+    /// macOS 26+: plain Liquid Glass in `shape`. Earlier: `background(fill, in: shape)`, as before.
+    @ViewBuilder
+    func navSurface(_ fill: Color, in shape: some Shape) -> some View {
+        if #available(macOS 26, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(fill, in: shape)
+        }
+    }
+
+    /// Renders a group's glass together; spacing 0 keeps each control its own shape at rest.
+    /// Not used on the tab strip: outside its ScrollView a container lifts the pills out of the
+    /// scroll clip, and inside it the container squeezes the pills until their labels truncate.
+    @ViewBuilder
+    func navGlassContainer() -> some View {
+        if #available(macOS 26, *) {
+            GlassEffectContainer(spacing: 0) { self }
+        } else {
+            self
+        }
     }
 }
 

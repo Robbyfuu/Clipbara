@@ -22,20 +22,22 @@ enum DesignTokens {
         static let chip = dynamic(light: 0xE4E1D9, dark: 0x2A2A35)
         static let butter = dynamic(light: 0xF8D14F, dark: 0xF8D14F)
         static let onButter = dynamic(light: 0x191926, dark: 0x191926)
+        /// Liquid Glass tint (macOS 26+): faint paper / ink keeps text legible over any wallpaper.
+        static let glassTint = dynamic(light: 0xF2F0E9, dark: 0x12121A, alpha: 0.4)
 
-        private static func dynamic(light: UInt32, dark: UInt32) -> Color {
+        private static func dynamic(light: UInt32, dark: UInt32, alpha: CGFloat = 1) -> Color {
             Color(nsColor: NSColor(name: nil) { appearance in
                 appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                    ? nsColor(hex: dark) : nsColor(hex: light)
+                    ? nsColor(hex: dark, alpha: alpha) : nsColor(hex: light, alpha: alpha)
             })
         }
 
-        private static func nsColor(hex: UInt32) -> NSColor {
+        private static func nsColor(hex: UInt32, alpha: CGFloat) -> NSColor {
             NSColor(
                 srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
                 green: CGFloat((hex >> 8) & 0xFF) / 255,
                 blue: CGFloat(hex & 0xFF) / 255,
-                alpha: 1
+                alpha: alpha
             )
         }
     }
