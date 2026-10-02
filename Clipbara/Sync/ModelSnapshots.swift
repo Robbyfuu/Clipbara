@@ -9,10 +9,13 @@ extension ClipboardItem {
             contentHash: contentHash, copiedAt: copiedAt, isPinned: isPinned)
     }
 
-    /// Copies every field except `id`, `thumbnailData` and `syncSystemFields`.
-    func update(from s: ClipSnapshot) {
+    /// Copies every field except `id`, `thumbnailData` and `syncSystemFields`. `rawData` is written only
+    /// when it differs, so an echo of our own save does not rewrite the external blob. Returns whether it did.
+    @discardableResult
+    func update(from s: ClipSnapshot) -> Bool {
+        let rawChanged = rawData != s.rawData
+        if rawChanged { rawData = s.rawData }
         contentTypeRaw = s.contentType
-        rawData = s.rawData
         textContent = s.textContent
         userTitle = s.userTitle
         sourceAppName = s.sourceAppName
@@ -20,6 +23,7 @@ extension ClipboardItem {
         contentHash = s.contentHash
         copiedAt = s.copiedAt
         isPinned = s.isPinned
+        return rawChanged
     }
 
     var isSyncEligible: Bool {

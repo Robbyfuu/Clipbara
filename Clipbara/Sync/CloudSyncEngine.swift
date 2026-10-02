@@ -31,6 +31,7 @@ import SwiftData
 
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
     private static let batchRecords = 100
+    private static let batchBytes = 52_428_800
     /// CKSyncEngine retries these on its own.
     private static let retryable: Set<CKError.Code> = [
         .networkFailure, .networkUnavailable, .zoneBusy, .serviceUnavailable, .requestRateLimited,
@@ -154,7 +155,9 @@ import SwiftData
 
         var candidates: [SyncBatchPlanner.Candidate] = []
         var dead: [CKSyncEngine.PendingRecordZoneChange] = []
-        var sizedClips = 0
+        var sizedClips = 0, sizedBytes = 0
+        // An entry sent without its clip is rejected with referenceViolation, so entries wait while a clip is held back.
+        var clipsHeldBack = false
         for change in syncEngine.state.pendingRecordZoneChanges where context.options.scope.contains(change) {
             if case .deleteRecord(let rid) = change {
                 if let id = UUID(uuidString: rid.recordName), deferred.contains(id) { continue }
@@ -163,16 +166,21 @@ import SwiftData
             }
             guard case .saveRecord(let rid) = change else { continue }
             guard let id = UUID(uuidString: rid.recordName) else { dead.append(change); continue }
-            if deferred.contains(id) { continue }
+            if deferred.contains(id) {
+                if clips[id] != nil { clipsHeldBack = true }
+                continue
+            }
             if let clip = clips[id] {
                 // fileURL first: rawData is external storage and reading it loads the blob.
                 if clip.contentTypeRaw == "fileURL" { dead.append(change); continue }
-                // Size only the clips that can fit in this batch; the planner never takes more than batchRecords clips.
-                guard sizedClips < Self.batchRecords else { continue }
+                // Size only the clips that can fit in this batch; the planner stops at either cap.
+                guard sizedClips < Self.batchRecords, sizedBytes < Self.batchBytes else { clipsHeldBack = true; continue }
                 let bytes = clip.rawData.count
                 guard bytes <= SyncRecordMapper.maxClipBytes else { dead.append(change); continue }
+                let byteCount = bytes + (clip.textContent?.utf8.count ?? 0)
                 sizedClips += 1
-                candidates.append(.init(change: change, kind: .clip, byteCount: bytes + (clip.textContent?.utf8.count ?? 0)))
+                sizedBytes += byteCount
+                candidates.append(.init(change: change, kind: .clip, byteCount: byteCount))
             } else if boards[id] != nil {
                 candidates.append(.init(change: change, kind: .pinboard, byteCount: 0))
             } else if let clipID = entries[id]?.snapshot?.clipID, let clip = clips[clipID],
@@ -185,6 +193,8 @@ import SwiftData
             }
         }
         if !dead.isEmpty { syncEngine.state.remove(pendingRecordZoneChanges: dead) }
+        // Held-back entries stay pending for the next batch.
+        if clipsHeldBack { candidates.removeAll { $0.kind == .entry } }
 
         do {
             try FileManager.default.createDirectory(at: assetDirectory, withIntermediateDirectories: true)
@@ -192,7 +202,7 @@ import SwiftData
 
         var toSave: [CKRecord] = []
         var toDelete: [CKRecord.ID] = []
-        for change in SyncBatchPlanner.select(candidates, maxRecords: Self.batchRecords) {
+        for change in SyncBatchPlanner.select(candidates, maxRecords: Self.batchRecords, maxBytes: Self.batchBytes) {
             switch change {
             case .deleteRecord(let rid):
                 toDelete.append(rid)
@@ -457,13 +467,12 @@ import SwiftData
     private func queueEverything(on engine: CKSyncEngine) {
         var ids: [UUID] = []
         do {
-            // contentTypeRaw first: rawData is external storage and reading it loads the blob.
+            // Type only: rawData is external storage. Oversized clips (and their entries) are dropped when the batch is built.
             let clips = try modelContext.fetch(FetchDescriptor<ClipboardItem>())
-                .filter { $0.contentTypeRaw != "fileURL" && $0.isSyncEligible }.map(\.id)
-            let eligible = Set(clips)
+                .filter { $0.contentTypeRaw != "fileURL" }.map(\.id)
             let boards = try modelContext.fetch(FetchDescriptor<Pinboard>()).map(\.id)
             let entries = try modelContext.fetch(FetchDescriptor<PinboardEntry>())
-                .filter { $0.snapshot.map { eligible.contains($0.clipID) } ?? false }.map(\.id)
+                .filter { $0.clipboardItem?.contentTypeRaw != "fileURL" }.map(\.id)
             ids = clips + boards + entries
         } catch {
             Self.log.error("Could not list records to upload: \(error.syncLogDescription, privacy: .public)")

@@ -97,8 +97,7 @@ struct RemoteApplier {
         out.touched.insert(s.id)
         if let m = try clip(s.id) {
             if hasPendingSave(s.id) { return }
-            let rawChanged = m.rawData != s.rawData
-            m.update(from: s)
+            let rawChanged = m.update(from: s)
             if s.contentType == ContentType.image.rawValue && rawChanged {
                 m.thumbnailData = Thumbnail.png(from: s.rawData)
             }

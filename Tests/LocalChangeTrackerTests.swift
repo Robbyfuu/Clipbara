@@ -86,6 +86,16 @@ final class LocalChangeTrackerTests: XCTestCase {
         XCTAssertTrue(changes.isEmpty)
     }
 
+    func testDeletingOversizedClipQueuesDelete() throws {
+        let clip = makeClip(data: Data(count: 20_971_521))
+        context.insert(clip)
+        try context.save()
+        let id = clip.id
+        context.delete(clip)
+        try context.save()
+        XCTAssertEqual(changes, [.deleteRecord(SyncRecordMapper.recordID(for: id))])
+    }
+
     func testEntryForFileURLClipQueuesNothing() throws {
         let clip = makeClip(.fileURL)
         let board = Pinboard(name: "b")
