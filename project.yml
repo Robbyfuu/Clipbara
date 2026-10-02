@@ -103,6 +103,7 @@ targets:
       - path: Tests
       - path: Clipbara/Utilities/PanelTabShortcut.swift
       - path: Clipbara/Utilities/QuickPasteShortcut.swift
+      - path: Clipbara/Utilities/PinboardDot.swift
       - path: Clipbara/Utilities/WheelScrollTranslation.swift
       - path: Clipbara/Utilities/ReviewPromptPolicy.swift
       - path: Clipbara/Utilities/AccessPolicy.swift

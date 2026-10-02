@@ -4,23 +4,45 @@ enum DesignTokens {
     // MARK: - Content Type Accent Colors
 
     static func typeTint(for contentType: ContentType, itemColor: String? = nil) -> Color {
-        switch contentType {
-        case .plainText, .richText, .html:
-            return Color(red: 0.247, green: 0.388, blue: 0.886) // #3F63E2
-        case .image:
-            return Color(red: 0.169, green: 0.231, blue: 0.584) // #2B3B95
-        case .url:
-            return Color(red: 0.0, green: 0.588, blue: 0.533)   // #009688 teal
-        case .fileURL:
-            return Color(red: 0.898, green: 0.494, blue: 0.129) // #E57E21 orange
-        case .color:
-            if let hex = itemColor {
-                return Color(hex: hex) ?? Color.gray
-            }
-            return Color.gray
-        case .unknown:
-            return Color(red: 0.247, green: 0.388, blue: 0.886)
+        guard contentType == .color else { return Brand.ink2 }
+        if let hex = itemColor {
+            return Color(hex: hex) ?? Color.gray
         }
+        return Color.gray
+    }
+
+    // MARK: - Copyd brand
+
+    enum Brand {
+        static let shelf = dynamic(light: 0xF2F0E9, dark: 0x12121A)
+        static let card = dynamic(light: 0xFEFDFB, dark: 0x1E1E29)
+        static let line = dynamic(light: 0xD8D8E0, dark: 0x32323D)
+        static let ink = dynamic(light: 0x191926, dark: 0xF3F2ED)
+        static let ink2 = dynamic(light: 0x575763, dark: 0xA9AAB4)
+        static let chip = dynamic(light: 0xE4E1D9, dark: 0x2A2A35)
+        static let butter = dynamic(light: 0xF8D14F, dark: 0xF8D14F)
+        static let onButter = dynamic(light: 0x191926, dark: 0x191926)
+
+        private static func dynamic(light: UInt32, dark: UInt32) -> Color {
+            Color(nsColor: NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                    ? nsColor(hex: dark) : nsColor(hex: light)
+            })
+        }
+
+        private static func nsColor(hex: UInt32) -> NSColor {
+            NSColor(
+                srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: 1
+            )
+        }
+    }
+
+    /// Pinboard dot palette, identical in light and dark. Index via `PinboardDot.index(for:)`.
+    static let pinboardDots: [Color] = [0x4C9DEB, 0x4EB068, 0xE17363, 0xAD80DD, 0x00B1BA, 0xCE871B].map {
+        Color(red: Double(($0 >> 16) & 0xFF) / 255, green: Double(($0 >> 8) & 0xFF) / 255, blue: Double($0 & 0xFF) / 255)
     }
 
     static func headerColor(for contentType: ContentType, itemColor: String? = nil) -> Color {
@@ -100,7 +122,7 @@ enum DesignTokens {
     // MARK: - Card Selection
 
     enum Selection {
-        static let borderColor = Color(red: 0.231, green: 0.443, blue: 0.953) // #3B71F3
+        static let borderColor = Brand.butter
         static let borderWidth: CGFloat = 2.25
         static let defaultBorderWidth: CGFloat = 0.75
         static let selectedShadowOpacity: Double = 0.24
