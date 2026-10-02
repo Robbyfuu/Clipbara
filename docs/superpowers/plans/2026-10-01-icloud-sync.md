@@ -73,6 +73,16 @@ Throwaway code. Do not commit it; only the results are kept.
 
 Risks 3 (push delivery) and 4 (`network.client`) need the signed app and a container, so they are checked in Task 11.
 
+**Spike results**
+
+- **Risk 1 (`willSave` and deleted models): PASS.** `ModelContext.willSave` fires on the macOS 14 SDK for `container.mainContext` (in-memory container with all four models). Inside the observer, for one `ClipboardItem` with id `BAFAD576-...`:
+  - insert: `ins=1 chg=0 del=0`, `insertedModelsArray` holds the item and `(model as? ClipboardItem)?.id` returns the right UUID.
+  - property change (`userTitle`): `ins=0 chg=1 del=0`, `changedModelsArray` holds the item, id readable.
+  - delete: `ins=0 chg=0 del=1`, `deletedModelsArray` holds the item and its `id` is readable and equals the original UUID.
+  - **Approach for Task 7:** observe `willSave` and read all three arrays; no explicit `recordDeletion(id:)` call sites are needed.
+- **Risk 2 (`@MainActor` `CKSyncEngineDelegate`): PASS.** `@MainActor final class SpikeDelegate: CKSyncEngineDelegate` with `handleEvent(_:syncEngine:) async` and `nextRecordZoneChangeBatch(_:syncEngine:) async -> CKSyncEngine.RecordZoneChangeBatch?` as empty stubs builds in `ClipbaraMAS` (`CODE_SIGNING_ALLOWED=NO`, strict concurrency `complete`): `** BUILD SUCCEEDED **`, with zero errors or warnings from the scratch file. The only warning in the log is the existing `PanelController.swift:147` weak-capture one.
+  - **Approach for Task 9:** the delegate is a `@MainActor` class; no actor-with-hop is needed.
+
 ---
 
 ### Task 2: Copyd identity, signing and entitlements
