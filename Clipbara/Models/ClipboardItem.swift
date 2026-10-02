@@ -17,6 +17,7 @@ final class ClipboardItem {
     var copiedAt: Date
     var userTitle: String?
     var isPinned: Bool
+    var syncSystemFields: Data?
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }

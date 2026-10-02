@@ -7,6 +7,7 @@ final class Pinboard {
     var name: String
     var displayOrder: Int
     var createdAt: Date
+    var syncSystemFields: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \PinboardEntry.pinboard)
     var entries: [PinboardEntry]

@@ -6,6 +6,7 @@ final class PinboardEntry {
     var id: UUID
     var displayOrder: Int
     var addedAt: Date
+    var syncSystemFields: Data?
 
     var clipboardItem: ClipboardItem?
     var pinboard: Pinboard?

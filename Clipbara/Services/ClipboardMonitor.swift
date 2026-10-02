@@ -92,7 +92,7 @@ final class ClipboardMonitor {
 
         // Generate thumbnail for images
         if content.contentType == .image {
-            item.thumbnailData = generateThumbnail(from: content.rawData)
+            item.thumbnailData = Thumbnail.png(from: content.rawData)
         }
 
         modelContext?.insert(item)
@@ -146,26 +146,6 @@ final class ClipboardMonitor {
         let descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
         let count = (try? modelContext.fetchCount(descriptor)) ?? 0
         return count > 0
-    }
-
-    private func generateThumbnail(from data: Data) -> Data? {
-        guard let image = NSImage(data: data) else { return nil }
-        let maxSize: CGFloat = 320
-        let size = image.size
-        let scale = min(maxSize / size.width, maxSize / size.height, 1.0)
-        let newSize = NSSize(width: size.width * scale, height: size.height * scale)
-
-        let thumbnail = NSImage(size: newSize)
-        thumbnail.lockFocus()
-        image.draw(in: NSRect(origin: .zero, size: newSize))
-        thumbnail.unlockFocus()
-
-        guard let tiffData = thumbnail.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else {
-            return nil
-        }
-        return pngData
     }
 
     func skipNextChange() {
