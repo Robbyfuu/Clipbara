@@ -49,10 +49,12 @@ struct CopydApp: App {
     }()
 
     var body: some Scene {
-        MenuBarExtra("Clipbara", systemImage: "clipboard") {
+        MenuBarExtra {
             MenuBarContentView()
                 .environment(appState)
                 .modelContainer(sharedModelContainer)
+        } label: {
+            Image("MenuBarMark")
         }
         .menuBarExtraStyle(.window)
 

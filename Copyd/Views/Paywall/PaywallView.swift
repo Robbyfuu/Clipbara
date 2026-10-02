@@ -72,7 +72,7 @@ final class PaywallModel {
         case .completed:
             completion = completed()
         case .pending:
-            message = String(localized: "Your purchase is waiting for approval. Clipbara unlocks as soon as it goes through.")
+            message = String(localized: "Your purchase is waiting for approval. Copyd unlocks as soon as it goes through.")
         case .failed:
             message = String(localized: "The purchase couldn't be completed. Please try again.")
         case .cancelled:
@@ -152,20 +152,20 @@ struct PaywallView: View {
                     row(
                         symbol: "tray.full",
                         title: "Your history is safe",
-                        detail: Text("Clipbara kept recording what you copy. Settings, including backup export, stay available.")
+                        detail: Text("Copyd kept recording what you copy. Settings, including backup export, stay available.")
                     )
                 } else {
                     row(
                         symbol: "lock",
                         title: "When the trial ends",
-                        detail: Text("Opening your clipboard history and pasting clips from Clipbara stop until you unlock. Copying is still recorded, and Settings, including backup export, stay available.")
+                        detail: Text("Opening your clipboard history and pasting clips from Copyd stop until you unlock. Copying is still recorded, and Settings, including backup export, stay available.")
                     )
                 }
                 row(
                     symbol: "checkmark.seal",
                     title: "One-time purchase, no subscription",
-                    detail: price.map { Text("Unlock Clipbara for \($0) and keep full access.") }
-                        ?? Text("Unlock Clipbara with a single purchase and keep full access.")
+                    detail: price.map { Text("Unlock Copyd for \($0) and keep full access.") }
+                        ?? Text("Unlock Copyd with a single purchase and keep full access.")
                 )
             }
             .padding(.top, 24)
@@ -200,18 +200,18 @@ struct PaywallView: View {
         VStack(spacing: 7) {
             switch entitlements.state {
             case .trialNotStarted:
-                title(Text("Try Clipbara free for 7 days"))
-                subtitle(Text("Full access to everything. When the trial ends, keep using Clipbara with a one-time purchase."))
+                title(Text("Try Copyd free for 7 days"))
+                subtitle(Text("Full access to everything. When the trial ends, keep using Copyd with a one-time purchase."))
             case .trialActive:
-                title(Text("Unlock Clipbara"))
+                title(Text("Unlock Copyd"))
                 if let end = entitlements.trialEndDate {
                     subtitle(Text("Your free trial ends on \(end, format: .dateTime.month(.wide).day().hour().minute())."))
                 }
             case .trialExpired:
                 title(Text("Your free trial has ended"))
-                subtitle(Text("Unlock Clipbara to open your clipboard history again. Everything you copied in the meantime has been kept."))
+                subtitle(Text("Unlock Copyd to open your clipboard history again. Everything you copied in the meantime has been kept."))
             case .unlocked:
-                title(Text("Unlock Clipbara"))
+                title(Text("Unlock Copyd"))
             }
         }
     }
@@ -275,7 +275,7 @@ struct PaywallView: View {
                 }
             } else {
                 primaryButton(
-                    price.map { Text("Unlock for \($0)") } ?? Text("Unlock Clipbara"),
+                    price.map { Text("Unlock for \($0)") } ?? Text("Unlock Copyd"),
                     action: model.unlock
                 )
                 .disabled(price == nil)
@@ -363,11 +363,11 @@ struct PaywallView: View {
                 case .trialStarted:
                     title(Text("Your free trial has started"))
                     if let end = entitlements.trialEndDate {
-                        subtitle(Text("It ends on \(end, format: .dateTime.month(.wide).day().hour().minute()). You can unlock Clipbara anytime from the menu bar."))
+                        subtitle(Text("It ends on \(end, format: .dateTime.month(.wide).day().hour().minute()). You can unlock Copyd anytime from the menu bar."))
                     }
                 case .unlocked:
-                    title(Text("Clipbara is unlocked"))
-                    subtitle(Text("Thank you for supporting Clipbara."))
+                    title(Text("Copyd is unlocked"))
+                    subtitle(Text("Thank you for supporting Copyd."))
                 }
             }
             .padding(.top, 18)

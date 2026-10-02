@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 struct PasteService {
 
-    private static let tempDir = NSTemporaryDirectory() + "Clipbara/"
+    private static let tempDir = NSTemporaryDirectory() + "Copyd/"
 
     /// Backing key for the "Always Paste as Plain Text" setting (Settings > General).
     nonisolated static let alwaysPlainTextDefaultsKey = "alwaysPastePlainText"
@@ -128,7 +128,7 @@ struct PasteService {
             .unicodeScalars.filter { asciiOnly.contains($0) }
             .reduce(into: "") { $0.append(String($1)) }
             .trimmingCharacters(in: .whitespaces)
-        let appName = (safeName?.isEmpty ?? true) ? "Clipbara" : safeName!
+        let appName = (safeName?.isEmpty ?? true) ? "Copyd" : safeName!
         let timestamp = filenameDateFormatter.string(from: Date())
         let filename = "\(appName) \(timestamp).png" as String
         let url = URL(fileURLWithPath: tempDir + filename)

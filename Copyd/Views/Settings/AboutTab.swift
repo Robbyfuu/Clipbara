@@ -18,7 +18,7 @@ struct AboutTab: View {
                 .font(.system(size: 64))
                 .foregroundStyle(.tint)
 
-            Text(verbatim: "Clipbara")
+            Text(verbatim: "Copyd")
                 .font(.title.bold())
 
             Text("Version \(appVersion) (\(buildNumber))")

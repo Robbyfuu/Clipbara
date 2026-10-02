@@ -3,7 +3,7 @@ import StoreKit
 
 /// Asks for an App Store rating with Apple's own review prompt.
 ///
-/// Only the Mac App Store build ever shows the prompt: DMG and Homebrew users
+/// Only the Mac App Store build ever shows the prompt: other builds
 /// can't rate the App Store listing. Usage is still counted in every build so the
 /// logic stays identical, it just never presents outside the App Store build.
 @MainActor
@@ -12,7 +12,7 @@ enum ReviewPrompter {
 
     /// Opens the App Store listing on its "Write a Review" page.
     static let writeReviewURL = URL(string: "macappstore://apps.apple.com/app/id\(appStoreID)?action=write-review")!
-    static let feedbackURL = URL(string: "https://github.com/mobrava/Clipbara/issues/new/choose")!
+    static let feedbackURL = URL(string: "https://github.com/Robbyfuu/Clipbara/issues")!
 
     /// How long to wait after the panel closes, so the prompt never lands on top
     /// of the paste the user is about to make.
@@ -52,7 +52,7 @@ enum ReviewPrompter {
         }
     }
 
-    /// Clipbara is a menu bar agent with no window of its own, and StoreKit wants a
+    /// Copyd is a menu bar agent with no window of its own, and StoreKit wants a
     /// view controller to present from. Host the request in a tiny transparent
     /// window. It is ordered in without activating the app, so the user's focus
     /// stays in the app they just pasted into.

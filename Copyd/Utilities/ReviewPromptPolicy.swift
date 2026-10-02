@@ -1,6 +1,6 @@
 import Foundation
 
-/// Decides when Clipbara may ask for an App Store rating.
+/// Decides when Copyd may ask for an App Store rating.
 ///
 /// Kept free of AppKit and StoreKit so the rules can be unit tested on their own.
 /// Apple still decides whether the prompt actually appears (at most three times a

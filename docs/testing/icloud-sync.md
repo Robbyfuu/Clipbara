@@ -6,8 +6,8 @@ Status: **pending**. Mac A is set up; Mac B is not.
 
 | Step | Mac A (2026-10-02) | Mac B |
 |---|---|---|
-| Build `ClipbaraMAS` Debug → `Copyd.app` | done | pending |
-| Launch with `--args -ClipbaraDebugOriginalAppVersion 1.0` | done | pending |
+| Build `Copyd` Debug → `Copyd.app` | done | pending |
+| Launch with `--args -CopydDebugOriginalAppVersion 1.0` | done | pending |
 | Settings → General → Sync with iCloud on | done; first upload finished 09:41:39 with no CloudKit errors | pending |
 
 Mac B, same Apple ID in iCloud and in Xcode → Settings → Accounts:
@@ -15,8 +15,8 @@ Mac B, same Apple ID in iCloud and in Xcode → Settings → Accounts:
 ```sh
 git clone https://github.com/Robbyfuu/Clipbara.git ~/Code/Copyd && cd ~/Code/Copyd && git checkout feat/icloud-sync
 brew install xcodegen && xcodegen generate
-xcodebuild -project Clipbara.xcodeproj -scheme ClipbaraMAS -configuration Debug -derivedDataPath DerivedData -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
-open -n "$PWD/DerivedData/Build/Products/Debug/Copyd.app" --args -ClipbaraDebugOriginalAppVersion 1.0
+xcodebuild -project Copyd.xcodeproj -scheme Copyd -configuration Debug -derivedDataPath DerivedData -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+open -n "$PWD/DerivedData/Build/Products/Debug/Copyd.app" --args -CopydDebugOriginalAppVersion 1.0
 ```
 
 Quit other clipboard managers on both Macs during the test. The CloudKit Development database already holds a few `copyd-sync-check-…` test clips.
@@ -31,7 +31,7 @@ Quit other clipboard managers on both Macs during the test. The CloudKit Develop
 | 4 | A 5 MB image arrives intact with a thumbnail | | |
 | 5 | A Universal Clipboard copy ends as one clip on both Macs | | |
 | 6 | CloudKit Console (Development, zone `Clipboard`): `Clip` records show only encrypted fields and an asset | | |
-| 7 | DMG `Clipbara` target builds and the unit tests pass | pass (2026-10-02, 129 tests) | |
+| 7 | `Copyd` target builds and the unit tests pass | pass (2026-10-02, 129 tests) | |
 
 ## Plan risks checked here
 

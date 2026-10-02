@@ -40,7 +40,7 @@ final class PanelController {
     /// The display the user is actually working on.
     ///
     /// `NSScreen.main` resolves to the screen owning the key window, not the
-    /// screen the user is looking at. Clipbara is a menu bar app and is never
+    /// screen the user is looking at. Copyd is a menu bar app and is never
     /// the active app when the hotkey fires, so `NSScreen.main` can point at
     /// whichever display last held focus and the panel slides in on the wrong
     /// screen. The pointer location matches the user's intent, so prefer it and

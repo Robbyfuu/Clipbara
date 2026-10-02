@@ -185,7 +185,7 @@ struct OnboardingView: View {
 
     private var welcomeStep: some View {
         VStack(spacing: 0) {
-            Text("Welcome to \(Text(verbatim: "Clipbara").foregroundStyle(accent))")
+            Text("Welcome to \(Text(verbatim: "Copyd").foregroundStyle(accent))")
                 .font(.system(size: 27, weight: .bold))
                 .padding(.top, 28)
             Text("Everything you copy, saved automatically.\nFind it and paste it again whenever you need.")
@@ -264,7 +264,7 @@ struct OnboardingView: View {
 
             VStack(spacing: 10) {
                 shortcutRow(
-                    title: "Open Clipbara",
+                    title: "Open Copyd",
                     detail: "Works globally, in any app.",
                     info: "Combine at least one of \u{2318}, \u{2325} or \u{2303} with a key, like \u{2325}V or \u{2303}\u{21e7}P. Function keys (F1\u{2013}F12) work on their own. Shift alone isn't supported by macOS."
                 ) {
@@ -273,7 +273,7 @@ struct OnboardingView: View {
                 shortcutRow(
                     title: "Preview a clip",
                     detail: "Full-screen Quick Look for the selected card.",
-                    info: "A single key with no modifiers. It only works while the Clipbara panel is open, so it won't clash with other apps."
+                    info: "A single key with no modifiers. It only works while the Copyd panel is open, so it won't clash with other apps."
                 ) {
                     LocalKeyRecorderView()
                 }
@@ -362,7 +362,7 @@ struct OnboardingView: View {
             Text("You're all set")
                 .font(.system(size: 27, weight: .bold))
                 .padding(.top, 28)
-            Text("Copy something, press \(Text(verbatim: currentPanelShortcutText).bold().foregroundStyle(Color.primary)), and it'll be there.\nClipbara runs quietly in your menu bar.")
+            Text("Copy something, press \(Text(verbatim: currentPanelShortcutText).bold().foregroundStyle(Color.primary)), and it'll be there.\nCopyd runs quietly in your menu bar.")
                 .font(.system(size: 13.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -371,11 +371,11 @@ struct OnboardingView: View {
 
             VStack(spacing: 10) {
                 hintRow(symbol: "clipboard") {
-                    Text("Find Clipbara anytime via the \(Text("clipboard icon").bold().foregroundStyle(Color.primary)) in your menu bar. History, pinboards and settings live there.")
+                    Text("Find Copyd anytime via the \(Text("clipboard icon").bold().foregroundStyle(Color.primary)) in your menu bar. History, pinboards and settings live there.")
                 } action: { EmptyView() }
                 hintRow(symbol: "square.and.arrow.down") {
                     HStack(spacing: 5) {
-                        Text("Coming from \(Text(verbatim: "PasteClip").bold().foregroundStyle(Color.primary)) or another Mac?\nRestore your clips from a backup file.")
+                        Text("Coming from \(Text(verbatim: "Clipbara").bold().foregroundStyle(Color.primary)) or another Mac?\nRestore your clips from a backup file.")
                         InfoHoverButton(text: "In your previous app, go to Settings > General > Backup > Export to save a JSON backup file. Then click Import and select that file. Existing clips are kept and duplicates are skipped.")
                     }
                 } action: {
@@ -464,7 +464,7 @@ struct OnboardingView: View {
                 }
             }
             Button(action: advance) {
-                (step == 2 ? Text("Start Using Clipbara") : Text("Continue"))
+                (step == 2 ? Text("Start Using Copyd") : Text("Continue"))
                     .font(.system(size: 14.5, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)

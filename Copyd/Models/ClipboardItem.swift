@@ -57,14 +57,14 @@ final class ClipboardItem {
                let tiff = image.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: tiff),
                let pngData = bitmap.representation(using: .png, properties: [:]) {
-                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Clipbara", isDirectory: true)
+                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Copyd", isDirectory: true)
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let asciiOnly = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_")
                 let safeName = sourceAppName?
                     .unicodeScalars.filter { asciiOnly.contains($0) }
                     .reduce(into: "") { $0.append(String($1)) }
                     .trimmingCharacters(in: .whitespaces)
-                let appName = (safeName?.isEmpty ?? true) ? "Clipbara" : safeName!
+                let appName = (safeName?.isEmpty ?? true) ? "Copyd" : safeName!
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
                 let filename = "\(appName) \(formatter.string(from: copiedAt)).png"

@@ -47,7 +47,7 @@ enum AccessPolicy {
     /// 28, 29) is below this. Update it if 1.4 ships with a different build number.
     static let trialModelBuildNumber = 31
     /// A single component at least this large is read as a build number. No
-    /// marketing version of Clipbara comes anywhere close.
+    /// marketing version of Copyd comes anywhere close.
     private static let bareBuildNumberThreshold = 20
 
     /// - Parameters:
@@ -90,7 +90,7 @@ enum AccessPolicy {
         case unknown
     }
 
-    /// Clipbara was only sold before 1.4 on the Mac. With universal purchase, someone
+    /// Copyd was only sold before 1.4 on the Mac. With universal purchase, someone
     /// who first got it on iPhone never had the old Mac app, whatever version string the
     /// App Store reports for them (the iPhone app's own versions could read as older
     /// than 1.4). Without the platform, fall back to the version alone.

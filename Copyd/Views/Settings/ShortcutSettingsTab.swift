@@ -19,7 +19,7 @@ struct ShortcutSettingsTab: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 5) {
                         Text("Quick Look Preview")
-                        InfoHoverButton(text: "A single key with no modifiers. It only works while the Clipbara panel is open, so it won't clash with other apps.")
+                        InfoHoverButton(text: "A single key with no modifiers. It only works while the Copyd panel is open, so it won't clash with other apps.")
                     }
                     Text("Pressed inside the panel with a card selected.")
                         .font(.system(size: 11))

@@ -37,7 +37,7 @@ final class PaywallWindowController: NSObject, NSWindowDelegate {
             hosting.sizingOptions = []
 
             let newWindow = NSWindow(contentViewController: hosting)
-            newWindow.title = String(localized: "Unlock Clipbara")
+            newWindow.title = String(localized: "Unlock Copyd")
             newWindow.styleMask = [.titled, .closable, .fullSizeContentView]
             newWindow.titlebarAppearsTransparent = true
             newWindow.titleVisibility = .hidden
