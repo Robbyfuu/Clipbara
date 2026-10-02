@@ -79,7 +79,7 @@ Risks 3 (push delivery) and 4 (`network.client`) need the signed app and a conta
   - insert: `ins=1 chg=0 del=0`, `insertedModelsArray` holds the item and `(model as? ClipboardItem)?.id` returns the right UUID.
   - property change (`userTitle`): `ins=0 chg=1 del=0`, `changedModelsArray` holds the item, id readable.
   - delete: `ins=0 chg=0 del=1`, `deletedModelsArray` holds the item and its `id` is readable and equals the original UUID.
-  - **Approach for Task 7:** observe `willSave` and read all three arrays; no explicit `recordDeletion(id:)` call sites are needed.
+  - **Approach for Task 7:** observe `willSave` and read all three arrays; no explicit `recordDeletion(id:)` call sites are needed. Verified on an in-memory store with single-object deletes on mainContext. As of d628641 the app has no batch deletes (`delete(model:where:)`) and no secondary ModelContext; Task 7 re-checks this if either is introduced.
 - **Risk 2 (`@MainActor` `CKSyncEngineDelegate`): PASS.** `@MainActor final class SpikeDelegate: CKSyncEngineDelegate` with `handleEvent(_:syncEngine:) async` and `nextRecordZoneChangeBatch(_:syncEngine:) async -> CKSyncEngine.RecordZoneChangeBatch?` as empty stubs builds in `ClipbaraMAS` (`CODE_SIGNING_ALLOWED=NO`, strict concurrency `complete`): `** BUILD SUCCEEDED **`, with zero errors or warnings from the scratch file. The only warning in the log is the existing `PanelController.swift:147` weak-capture one.
   - **Approach for Task 9:** the delegate is a `@MainActor` class; no actor-with-hop is needed.
 
