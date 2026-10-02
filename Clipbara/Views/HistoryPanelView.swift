@@ -3,15 +3,29 @@ import SwiftData
 
 struct HistoryPanelView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse)
     private var items: [ClipboardItem]
 
+    private var shelfShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 20,
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: 20,
+            style: .continuous
+        )
+    }
+
     var body: some View {
         ZStack {
-            VisualEffectBackground(
-                material: colorScheme == .dark ? .hudWindow : .popover
-            )
+            shelfShape
+                .fill(DesignTokens.Brand.shelf)
+                .overlay(alignment: .top) {
+                    // Hairline along the top curve only.
+                    shelfShape
+                        .stroke(DesignTokens.Brand.line, lineWidth: 1)
+                        .mask(alignment: .top) { Rectangle().frame(height: 20) }
+                }
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {

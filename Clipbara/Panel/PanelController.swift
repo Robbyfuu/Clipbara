@@ -24,13 +24,7 @@ final class PanelController {
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
 
-    private let baseHeight: CGFloat = 280
-    private let minimumPanelWidth: CGFloat = 720
-    private let maximumScreenWidthRatio: CGFloat = 0.90
-    private let estimatedCardWidth: CGFloat = 228
-    private let estimatedCardSpacing: CGFloat = 8
-    private let contentHorizontalPadding: CGFloat = 32
-    private let maximumVisibleCardCount = 6
+    private let baseHeight = PanelGeometry.height
 
     // MARK: - Screen Selection
 
@@ -74,7 +68,7 @@ final class PanelController {
         // the screen would hand it to a display stacked underneath before the
         // first hotkey press ever happens. It stays invisible via `alphaValue`.
         let screenFrame = activeScreen.visibleFrame
-        let frame = panelFrame(in: screenFrame, itemCount: 0, y: screenFrame.origin.y)
+        let frame = panelFrame(in: screenFrame, y: screenFrame.origin.y)
 
         let warm = ClipbaraPanel(contentRect: frame)
         warm.alphaValue = 0
@@ -93,8 +87,7 @@ final class PanelController {
 
         let screen = activeScreen
         let screenFrame = screen.visibleFrame
-        let itemCount = visibleItemCount(modelContainer: modelContainer, selectedTab: appState.selectedTab)
-        let endFrame = panelFrame(in: screenFrame, itemCount: itemCount, y: screenFrame.origin.y)
+        let endFrame = panelFrame(in: screenFrame, y: screenFrame.origin.y)
         presentedScreen = screen
 
         if panel == nil {
@@ -157,29 +150,6 @@ final class PanelController {
         installMouseMonitor()
         installScrollMonitor()
         installKeyMonitor()
-    }
-
-    func resizeToContentItemCount(_ itemCount: Int, animated: Bool = true) {
-        guard isVisible, let panel else { return }
-
-        let screen = presentedScreen ?? panel.screen ?? activeScreen
-        let screenFrame = screen.visibleFrame
-        let targetFrame = panelFrame(in: screenFrame, itemCount: itemCount, y: panel.frame.origin.y)
-
-        guard abs(panel.frame.width - targetFrame.width) > 1 ||
-              abs(panel.frame.origin.x - targetFrame.origin.x) > 1 else {
-            return
-        }
-
-        if animated {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.18
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                panel.animator().setFrame(targetFrame, display: true)
-            }
-        } else {
-            panel.setFrame(targetFrame, display: true)
-        }
     }
 
     func restoreKeyboardNavigationFocus(activateApp: Bool = false) {
@@ -596,26 +566,6 @@ final class PanelController {
         }
     }
 
-    private func visibleItemCount(modelContainer: ModelContainer, selectedTab: PanelTab) -> Int {
-        let context = modelContainer.mainContext
-
-        switch selectedTab {
-        case .history:
-            let descriptor = FetchDescriptor<ClipboardItem>()
-            return (try? context.fetchCount(descriptor)) ?? 0
-
-        case .pinboard(let pinboardId):
-            var descriptor = FetchDescriptor<Pinboard>(
-                predicate: #Predicate { pinboard in
-                    pinboard.id == pinboardId
-                }
-            )
-            descriptor.fetchLimit = 1
-            guard let pinboard = try? context.fetch(descriptor).first else { return 0 }
-            return pinboard.entries.filter { !$0.isDeleted && $0.clipboardItem != nil }.count
-        }
-    }
-
     /// Wraps the SwiftUI content in a plain container so it can be offset
     /// inside the panel. Anything pushed outside the panel frame is clipped by
     /// the window surface, which is what makes the slide read as a reveal.
@@ -641,28 +591,10 @@ final class PanelController {
         return container
     }
 
-    private func panelFrame(in screenFrame: NSRect, itemCount: Int, y: CGFloat) -> NSRect {
-        let panelWidth = targetPanelWidth(for: itemCount, screenWidth: screenFrame.width)
-        let panelX = screenFrame.midX - panelWidth / 2
-
-        return NSRect(
-            x: panelX,
-            y: y,
-            width: panelWidth,
-            height: baseHeight
-        )
-    }
-
-    private func targetPanelWidth(for itemCount: Int, screenWidth: CGFloat) -> CGFloat {
-        let screenMaxWidth = max(360, screenWidth - 48)
-        let maxWidth = min(screenMaxWidth, max(minimumPanelWidth, screenWidth * maximumScreenWidthRatio))
-        let minWidth = min(minimumPanelWidth, maxWidth)
-        let visibleCardCount = min(max(itemCount, 1), maximumVisibleCardCount)
-        let cardContentWidth =
-            CGFloat(visibleCardCount) * estimatedCardWidth +
-            CGFloat(max(visibleCardCount - 1, 0)) * estimatedCardSpacing +
-            contentHorizontalPadding
-
-        return min(max(minWidth, cardContentWidth), maxWidth)
+    /// Full-width shelf frame; `y` lets the slide animation park it lower.
+    private func panelFrame(in screenFrame: NSRect, y: CGFloat) -> NSRect {
+        var frame = PanelGeometry.frame(visibleFrame: screenFrame, height: baseHeight)
+        frame.origin.y = y
+        return frame
     }
 }

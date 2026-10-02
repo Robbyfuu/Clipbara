@@ -101,6 +101,7 @@ targets:
     platform: macOS
     sources:
       - path: Tests
+      - path: Clipbara/Utilities/PanelGeometry.swift
       - path: Clipbara/Utilities/PanelTabShortcut.swift
       - path: Clipbara/Utilities/QuickPasteShortcut.swift
       - path: Clipbara/Utilities/PinboardDot.swift

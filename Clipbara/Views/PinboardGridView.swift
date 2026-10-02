@@ -125,7 +125,6 @@ struct PinboardGridView: View {
             orderedEntries = current
         }
         syncNavigationItems(current.compactMap(\.clipboardItem))
-        appState.panelController.resizeToContentItemCount(current.count)
     }
 
     private func syncNavigationItems(_ items: [ClipboardItem]) {
