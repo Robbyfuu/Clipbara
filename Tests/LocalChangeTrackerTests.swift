@@ -124,4 +124,24 @@ final class LocalChangeTrackerTests: XCTestCase {
         try tracker.suppressing([a.id]) { try context.save() }
         XCTAssertEqual(changes, [save(b.id)])
     }
+
+    func testChangeThenDeleteQueuesDelete() throws {
+        let clip = makeClip()
+        context.insert(clip)
+        try context.save()
+        changes = []
+        let id = clip.id
+        clip.userTitle = "x"
+        context.delete(clip)
+        try context.save()
+        XCTAssertEqual(changes, [.deleteRecord(SyncRecordMapper.recordID(for: id))])
+    }
+
+    func testInsertThenDeleteInSameSaveQueuesNothing() throws {
+        let clip = makeClip()
+        context.insert(clip)
+        context.delete(clip)
+        try context.save()
+        XCTAssertTrue(changes.isEmpty)
+    }
 }

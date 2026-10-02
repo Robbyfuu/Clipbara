@@ -39,6 +39,17 @@ import SwiftData
             out.append(delete ? .deleteRecord(rid) : .saveRecord(rid))
         }
 
+        // Deletes win over saves; a record inserted and deleted in the same save never reached the server.
+        let insertedIDs = Set(context.insertedModelsArray.compactMap(Self.syncID))
+        for model in context.deletedModelsArray {
+            if let id = Self.syncID(model), insertedIDs.contains(id) { seen.insert(id); continue }
+            switch model {
+            case let clip as ClipboardItem where clip.isSyncEligible: add(clip.id, delete: true)
+            case let board as Pinboard: add(board.id, delete: true)
+            case let entry as PinboardEntry where entry.clipboardItem?.isSyncEligible == true: add(entry.id, delete: true)
+            default: break
+            }
+        }
         for model in context.insertedModelsArray + context.changedModelsArray {
             switch model {
             case let clip as ClipboardItem where clip.isSyncEligible: add(clip.id, delete: false)
@@ -48,14 +59,15 @@ import SwiftData
             default: break
             }
         }
-        for model in context.deletedModelsArray {
-            switch model {
-            case let clip as ClipboardItem where clip.isSyncEligible: add(clip.id, delete: true)
-            case let board as Pinboard: add(board.id, delete: true)
-            case let entry as PinboardEntry where entry.clipboardItem?.isSyncEligible == true: add(entry.id, delete: true)
-            default: break
-            }
-        }
         if !out.isEmpty { onChanges(out) }
+    }
+
+    private static func syncID(_ model: any PersistentModel) -> UUID? {
+        switch model {
+        case let m as ClipboardItem: m.id
+        case let m as Pinboard: m.id
+        case let m as PinboardEntry: m.id
+        default: nil
+        }
     }
 }
