@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restyle the bottom history panel in the Copyd brand, make it span the full screen width, improve card previews, and add ⌘1–9 quick paste of visible cards.
+**Goal:** Restyle the bottom history panel in the Copyd brand, make it span the full screen width, improve card previews, and add ⌘1–9 quick paste of visible cards. Then rename the whole app to Copyd and drop the DMG build (Tasks 7–9, spec `docs/superpowers/specs/2026-10-02-copyd-rename-design.md`).
 
 **Architecture:** The pure units (`QuickPasteShortcut`, `PanelGeometry`, `PinboardDot`) carry all logic that can be unit-tested. The SwiftUI views get restyled against new brand tokens in `DesignTokens`. `PanelController` gets a full-width frame and a `flagsChanged` monitor. `AppState` gains two observable fields that the grids and cards read.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - macOS 14 deployment target. Swift 6 with `SWIFT_STRICT_CONCURRENCY: complete`. No new SPM dependencies, no bundled fonts (use the system font).
-- Both targets (`Clipbara`, `ClipbaraMAS`) get the redesign. Only the sync chip is behind `#if CLOUDSYNC`.
+- Tasks 1–6: both targets (`Clipbara`, `ClipbaraMAS`) get the redesign, and only the sync chip is behind `#if CLOUDSYNC`. Task 7 removes the DMG target. From Task 8 on, every path, target and scheme is named Copyd.
 - Colors come only from `DesignTokens` tokens, never from inline literals in views. Brand values (light / dark): shelf `#F2F0E9`/`#12121A`, card `#FEFDFB`/`#1E1E29`, line `#D8D8E0`/`#32323D`, ink `#191926`/`#F3F2ED`, ink2 `#575763`/`#A9AAB4`, chip `#E4E1D9`/`#2A2A35`, butter `#F8D14F` (both), onButter `#191926` (both).
 - Radii: panel top 20, card 16, preview well 10, search 10, pills capsule. Panel height 300. Cards 200 × 220, 12 apart, 16 strip padding.
 - Shortcuts: ⌘1–9 paste the Nth visible card, ⇧⌘1–9 paste it as plain text, ⌥⌘1–9 switch tabs. Number row and keypad both work.
@@ -272,11 +272,116 @@
 
 ---
 
-### Task 7: Visual and behavior check with the user
+### Task 7: Drop the DMG build and Sparkle
+
+**Spec:** `docs/superpowers/specs/2026-10-02-copyd-rename-design.md` §5. The user approved the deletion list on 2026-10-02.
+
+**Files:**
+- Delete with `/usr/bin/git rm`, exactly these six and nothing else:
+  - `Clipbara/Info.plist`
+  - `Clipbara/Clipbara.entitlements`
+  - `Clipbara/Services/UpdaterService.swift`
+  - `scripts/build-release.sh`
+  - `appcast.xml`
+  - `Casks/clipbara.rb`
+- Modify:
+  - `project.yml`: remove the `Clipbara` target and the `Sparkle` package; remove `APPSTORE` and `CLOUDSYNC` from the conditions.
+  - Every Swift file with `#if APPSTORE`, `#if !APPSTORE` or `#if CLOUDSYNC` (24 sites; `/usr/bin/grep -rn "#if !\?APPSTORE\|#if CLOUDSYNC" Clipbara` lists them).
+
+- [ ] **Step 1: Delete the six files** and remove the target and the package from `project.yml`. In `ClipbaraMAS`, the `excludes: ["Info.plist"]` entry goes away, because the file no longer exists.
+- [ ] **Step 2: Resolve every conditional.**
+  - `APPSTORE` and `CLOUDSYNC` are true: keep that branch's code, unwrapped.
+  - `!APPSTORE` is false: delete that branch.
+  - Remove `CheckForUpdatesViewModel` and every `updaterViewModel` reference: the `@StateObject` and both `.environmentObject` calls in `ClipbaraApp.swift`, plus the "Check for Updates..." item in `MenuBarContentView.swift` and its counterpart in `AboutTab.swift`.
+  - Set `SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"`.
+- [ ] **Step 3: Verify.**
+  1. Run `xcodegen generate`.
+  2. Build `ClipbaraMAS`. Expected: BUILD SUCCEEDED.
+  3. Run the full suite. Expected: all tests pass.
+  4. `/usr/bin/grep -rn "APPSTORE\|CLOUDSYNC\|Sparkle\|SUFeedURL" Clipbara project.yml` prints nothing.
+- [ ] **Step 4: Commit** `[build] Drop the DMG build and Sparkle so the fork ships only Copyd`.
+
+---
+
+### Task 8: Rename code, project, targets and identifiers to Copyd
+
+**Spec:** rename spec §4 (kept identifiers) and §6 (renames).
+
+**Files:** every tracked file under `Clipbara/`, plus `Tests/`, `project.yml`, `StoreKit/`, `scripts/test-and-launch.sh` and `scripts/build-mas.sh`.
+
+- [ ] **Step 1: Move the source folder.** Run `/usr/bin/git mv Clipbara Copyd`. Then rename the remaining files:
+  - `Copyd/Info-MAS.plist` → `Copyd/Info.plist`
+  - `Copyd/Clipbara-MAS.entitlements` → `Copyd/Copyd.entitlements`
+  - `StoreKit/Clipbara.storekit` → `StoreKit/Copyd.storekit`
+  - Every Swift file whose name contains Clipbara, for example `ClipbaraApp.swift` → `CopydApp.swift` and `Panel/ClipbaraPanel.swift` → `Panel/CopydPanel.swift`
+- [ ] **Step 2: Update `project.yml`.**
+  - `name: Copyd` and `bundleIdPrefix: com.robbyfuu`.
+  - Target `ClipbaraMAS` → `Copyd`, with sources from `Copyd`, `INFOPLIST_FILE: Copyd/Info.plist`, `CODE_SIGN_ENTITLEMENTS: Copyd/Copyd.entitlements`, and `storeKitConfiguration: StoreKit/Copyd.storekit`. Debug launch arguments move to `-CopydDebug…`.
+  - Test target → `CopydTests`, bundle `com.robbyfuu.copyd.tests`, with its explicit source paths moved to `Copyd/…`.
+  - Rename `.gitignore`'s `Clipbara.xcodeproj` only if it is named explicitly. The current `*.xcodeproj` pattern already covers it.
+- [ ] **Step 3: Rename Swift symbols and identifiers** from §6 of the rename spec.
+  - Symbols: `ClipbaraApp` → `CopydApp`, `ClipbaraPanel` → `CopydPanel`, `pasteClipClipboardItemID` → `copydClipboardItemID`, and every other type, func or var containing Clipbara or PasteClip.
+  - UTType string `com.robbyfuu.copyd.clipboard-item-id`, also in the Info.plist `UTExportedTypeDeclarations`.
+  - Logger subsystems `com.robbyfuu.copyd`.
+  - StoreKit product IDs `com.robbyfuu.copyd.trial7day` and `com.robbyfuu.copyd.lifetime`, in `Entitlements.swift` and `Copyd.storekit`.
+  - Debug keys `CopydDebugOriginalAppVersion` and `CopydDebugTrialShiftDays`.
+  - Keep the §4 identifiers in `StoreManager.swift` unchanged, and add the comment `// Kept from Clipbara: the store lives at this path inside the com.robbyfuu.copyd container; renaming it would orphan existing history.`
+  - Update the two scripts' scheme, product and target names.
+- [ ] **Step 4: Verify.**
+  - Run `xcodegen generate`. It must produce `Copyd.xcodeproj`.
+  - Build: `xcodebuild -project Copyd.xcodeproj -scheme Copyd -configuration Debug -derivedDataPath DerivedData -allowProvisioningUpdates build`. Expected: BUILD SUCCEEDED, and the product at `DerivedData/Build/Products/Debug/Copyd.app` has bundle id `com.robbyfuu.copyd`.
+  - Tests: `xcodebuild test -project Copyd.xcodeproj -scheme CopydTests -destination 'platform=macOS' -derivedDataPath DerivedData`. Expected: all tests pass.
+  - `/usr/bin/grep -rIn "Clipbara\|PasteClip\|minsang" Copyd Tests project.yml StoreKit scripts` may list only the three §4 store constants and their comment, plus user-visible strings that Task 9 still owns. List those in the report.
+- [ ] **Step 5: Commit** `[refactor] Rename the code, project and identifiers to Copyd`.
+
+---
+
+### Task 9: Visible name, icons and docs
+
+**Spec:** rename spec §6 (visible strings and onboarding hint), §7 (icons), §8 (docs).
+
+**Files:**
+- `Copyd/Resources/Localizable.xcstrings`
+- every Swift file with a visible "Clipbara" string
+- `Copyd/Resources/Assets.xcassets/AppIcon.appiconset/*.png`
+- create `design/icon/copyd-icon.svg`
+- create `design/icon/copyd-menubar.svg`
+- create `Copyd/Resources/Assets.xcassets/MenuBarMark.imageset/`
+- `README.md`, `README.zh-CN.md`, `docs/testing/icloud-sync.md`
+
+- [ ] **Step 1: Strings.**
+  - Replace every visible "Clipbara" with "Copyd": Swift string literals, `Text(verbatim:)`, and every language's value in `Localizable.xcstrings`, including the `MenuBarExtra` title and the "Quit Clipbara" item.
+  - Edit the xcstrings JSON with a script that parses and rewrites it. Never sed raw JSON blindly. Confirm afterwards that it is valid JSON.
+  - The onboarding "Coming from PasteClip" line becomes "Coming from Clipbara?".
+- [ ] **Step 2: App icon.**
+  - Write `design/icon/copyd-icon.svg`: a 1024 × 1024 canvas, a centered 824 × 824 squircle with rx 185, ink `#191926` fill, and a soft drop shadow matching the old icon's `iconSh` filter.
+  - Draw the logo-B mark centered and scaled to about 58 % of the squircle: the butter `#F8D14F` card with its counter hole (even-odd) and a paper `#FEFDFB` stem.
+  - The mark's geometry in its 64-unit space: card `M20 20H32A14 14 0 0 1 46 34V46A14 14 0 0 1 32 60H20A14 14 0 0 1 6 46V34A14 14 0 0 1 20 20ZM12 40A7 7 0 1 0 26 40A7 7 0 1 0 12 40Z`, stem rect `(32, 4, 14, 56) rx 7`, viewBox `-6 0 64 64`.
+  - Render each existing PNG at its current pixel size with `rsvg-convert -w N -h N design/icon/copyd-icon.svg -o …`. Keep `Contents.json` unchanged.
+- [ ] **Step 3: Menu bar icon.**
+  - Write `design/icon/copyd-menubar.svg`: the mark in solid black, with card and stem merged in one path so the hole stays a hole.
+  - Render it to `MenuBarMark.imageset/MenuBarMark.pdf` with `rsvg-convert -f pdf -w 18 -h 18`.
+  - `Contents.json` sets `"template-rendering-intent": "template"` and `"preserves-vector-representation": true`.
+  - `MenuBarExtra` uses `Image("MenuBarMark")`, through the `label:` initializer.
+- [ ] **Step 4: Docs.**
+  - READMEs: the name becomes Copyd, the DMG and Homebrew install sections are replaced with "Build from source" (the Task 8 build command) plus "App Store build coming", and the attribution line from spec §8 is added.
+  - `docs/testing/icloud-sync.md`: the commands use `Copyd.xcodeproj`, scheme `Copyd`, and `-CopydDebugOriginalAppVersion`.
+- [ ] **Step 5: Verify.**
+  - Build and run the full suite. Expected: both pass.
+  - `/usr/bin/grep -rIn "Clipbara\|PasteClip\|minsang" Copyd Tests project.yml StoreKit scripts README*.md` may list only:
+    - the three §4 store constants and their comment;
+    - the onboarding "Coming from Clipbara?" line, plus any JSON-import code that names the Clipbara backup format;
+    - the README attribution line.
+  - `plutil -lint` passes on the xcstrings file, after converting it with `plutil -convert json -o /dev/null`, or with `python3 -m json.tool`.
+- [ ] **Step 6: Commit** `[feat] Show the Copyd name, app icon and menu bar mark everywhere`.
+
+---
+
+### Task 10: Visual and behavior check with the user
 
 **Files:** none, unless a defect is found. Each defect is fixed in the owning task's files and committed as `[fix] …`.
 
-- [ ] **Step 1: Prepare the app.** Build `ClipbaraMAS` last and launch it with `open -n "$PWD/DerivedData/Build/Products/Debug/Copyd.app" --args -ClipbaraDebugOriginalAppVersion 1.0`. Kill any earlier instance by its full path first.
+- [ ] **Step 1: Prepare the app.** Build the `Copyd` scheme and launch it with `open -n "$PWD/DerivedData/Build/Products/Debug/Copyd.app" --args -CopydDebugOriginalAppVersion 1.0`. Kill any earlier instance by its full path first. Check that the history synced before the rename is still there and that Settings reaches "Up to date".
 - [ ] **Step 2: The user runs the checks from spec §10 and Review Focus 1, 2 and 4.** The orchestrator lists them one at a time:
   - light and dark mode
   - the panel's width on this screen
