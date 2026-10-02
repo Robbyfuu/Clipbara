@@ -23,16 +23,17 @@ struct RemoteApplier {
                deletions: [UUID], systemFields: [UUID: Data]) -> Outcome {
         var out = Outcome()
         for s in clips {
-            do {
-                try upsert(s, &out)
-                try mergeDuplicates(of: s.id, &out)
-            } catch { Self.log.error("Clip \(s.id) not applied: \(error)") }
+            do { try upsert(s, &out) } catch { Self.log.error("Clip \(s.id) not applied: \(error)") }
         }
         for s in pinboards {
             do { try upsert(s, &out) } catch { Self.log.error("Pinboard \(s.id) not applied: \(error)") }
         }
         for s in entries {
             do { try upsert(s, &out) } catch { Self.log.error("Entry \(s.id) not applied: \(error)") }
+        }
+        // After entries, so a same-batch entry of a losing clip is moved to the survivor, not orphaned.
+        for s in clips {
+            do { try mergeDuplicates(of: s.id, &out) } catch { Self.log.error("Merge for \(s.id) failed: \(error)") }
         }
         for id in deletions {
             do { try delete(id, &out) } catch { Self.log.error("Deletion \(id) not applied: \(error)") }
@@ -133,11 +134,16 @@ struct RemoteApplier {
             return
         }
         out.touched.insert(s.id)
+        // Linking updates the inverse Pinboard.entries, so the local tracker sees those pinboards as changed too.
+        out.touched.insert(p.id)
         if let m = existing {
             m.displayOrder = s.displayOrder
             m.addedAt = s.addedAt
             if m.clipboardItem?.id != c.id { m.clipboardItem = c }
-            if m.pinboard?.id != p.id { m.pinboard = p }
+            if m.pinboard?.id != p.id {
+                if let old = m.pinboard?.id { out.touched.insert(old) }
+                m.pinboard = p
+            }
         } else {
             let m = PinboardEntry(clipboardItem: c, pinboard: p, displayOrder: s.displayOrder)
             m.id = s.id
@@ -165,6 +171,7 @@ struct RemoteApplier {
             for e in try entries(ofClip: loser.id, excluding: out.deletes) {
                 out.touched.insert(e.id)
                 if let pid = e.pinboard?.id, survivorBoards.contains(pid) {
+                    out.touched.insert(pid)
                     context.delete(e)
                     out.deletes.insert(e.id)
                 } else {
@@ -184,6 +191,7 @@ struct RemoteApplier {
     private func delete(_ id: UUID, _ out: inout Outcome) throws {
         if let c = try clip(id) {
             for e in try entries(ofClip: id, excluding: out.deletes) {
+                if let pid = e.pinboard?.id { out.touched.insert(pid) }
                 context.delete(e)
                 out.touched.insert(e.id)
             }
@@ -192,6 +200,7 @@ struct RemoteApplier {
             for e in p.entries { out.touched.insert(e.id) }
             context.delete(p)
         } else if let e = try entry(id) {
+            if let pid = e.pinboard?.id { out.touched.insert(pid) }
             context.delete(e)
         } else {
             return

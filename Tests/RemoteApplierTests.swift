@@ -144,6 +144,29 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertEqual(e.displayOrder, 9)
     }
 
+    func testLinkingEntryTouchesExistingPinboardNotInBatch() throws {
+        try apply(clips: [clip(1)], pinboards: [board(2)])
+        let out = try apply(entries: [entry(3, clip: 1, board: 2)])
+        XCTAssertEqual(out.touched, [id(2), id(3)])
+    }
+
+    func testRelinkTouchesOldAndNewPinboard() throws {
+        try apply(clips: [clip(1)], pinboards: [board(2), board(4)], entries: [entry(3, clip: 1, board: 2)])
+        let out = try apply(entries: [entry(3, clip: 1, board: 4)])
+        XCTAssertEqual(try entries().first?.pinboard?.id, id(4))
+        XCTAssertEqual(out.touched, [id(2), id(3), id(4)])
+    }
+
+    func testSameBatchLoserEntryMovesToSurvivor() throws {
+        try apply(clips: [clip(1)])
+        let out = try apply(clips: [clip(2, dt: 5)], pinboards: [board(3)], entries: [entry(4, clip: 2, board: 3)])
+        XCTAssertTrue(out.orphans.isEmpty)
+        XCTAssertEqual(try clips().map(\.id), [id(1)])
+        XCTAssertEqual(try entries().first?.clipboardItem?.id, id(1))
+        XCTAssertTrue(out.saves.contains(id(4)))
+        XCTAssertTrue(out.deletes.contains(id(2)))
+    }
+
     // MARK: Deletions
 
     func testDeletingClipRemovesItsEntries() throws {
@@ -152,7 +175,7 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertTrue(try clips().isEmpty)
         XCTAssertTrue(try entries().isEmpty)
         XCTAssertEqual(try boards().count, 1)
-        XCTAssertEqual(out.touched, [id(1), id(3)])
+        XCTAssertEqual(out.touched, [id(1), id(2), id(3)])
     }
 
     func testDeletingPinboardCascadesEntries() throws {
@@ -180,7 +203,7 @@ final class RemoteApplierTests: XCTestCase {
         try apply(clips: [clip(1)], pinboards: [board(2)], entries: [entry(3, clip: 1, board: 2)])
         let out = try apply(deletions: [id(3)])
         XCTAssertTrue(try entries().isEmpty)
-        XCTAssertEqual(out.touched, [id(3)])
+        XCTAssertEqual(out.touched, [id(2), id(3)])
     }
 
     // MARK: Thumbnails
