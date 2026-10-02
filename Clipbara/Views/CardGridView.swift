@@ -9,6 +9,7 @@ struct CardGridView: View {
     private var pinboards: [Pinboard]
 
     @State private var filteredItems: [ClipboardItem] = []
+    @State private var lastOffset: CGFloat = 0
 
     var body: some View {
         Group {
@@ -52,10 +53,9 @@ struct CardGridView: View {
                             }
                             .padding(.horizontal, DesignTokens.Card.gridLeadingPadding)
                             .padding(.vertical, 8)
-                            .trackFirstVisibleIndex(space: "cardGridScroll") { index in
-                                if appState.selectedTab == .history, appState.firstVisibleIndex != index {
-                                    appState.firstVisibleIndex = index
-                                }
+                            .trackScrollOffset(space: "cardGridScroll") { offset in
+                                lastOffset = offset
+                                syncFirstVisibleIndex()
                             }
                         }
                         .coordinateSpace(name: "cardGridScroll")
@@ -77,6 +77,7 @@ struct CardGridView: View {
         }
         .onChange(of: appState.selectedTab) { _, newTab in
             if newTab == .history {
+                syncFirstVisibleIndex()
                 updateFilteredItems(from: items)
             }
         }
@@ -105,6 +106,14 @@ struct CardGridView: View {
         }
     }
 
+    /// Writes the index only while History is the active tab; re-run on activation
+    /// because this view stays mounted while another tab is shown.
+    private func syncFirstVisibleIndex() {
+        guard appState.selectedTab == .history else { return }
+        let index = QuickPasteShortcut.firstVisibleIndex(scrollOffset: lastOffset)
+        if appState.firstVisibleIndex != index { appState.firstVisibleIndex = index }
+    }
+
     private func updateFilteredItems(from sourceItems: [ClipboardItem]) {
         let updated = appState.searchState.filteredItems(from: sourceItems)
         filteredItems = updated
@@ -123,28 +132,29 @@ struct CardGridView: View {
     }
 }
 
-/// Reports the horizontal scroll offset of a grid's content (positive when scrolled right)
-/// as the first visible card index. Programmatic `scrollTo` moves are seen too.
-private struct GridOffsetKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 extension View {
-    func trackFirstVisibleIndex(space: String, onChange: @escaping (Int) -> Void) -> some View {
+    /// Reports the content's horizontal scroll offset (0 at rest, positive when scrolled right).
+    /// Uses `onChange` inside a GeometryReader: `onPreferenceChange` does not refire on scroll.
+    func trackScrollOffset(space: String, onChange: @escaping (CGFloat) -> Void) -> some View {
         background(
             GeometryReader { geo in
-                Color.clear.preference(key: GridOffsetKey.self, value: -geo.frame(in: .named(space)).minX)
+                let offset = -geo.frame(in: .named(space)).minX
+                Color.clear.onChange(of: offset, initial: true) { _, value in
+                    onChange(value)
+                }
             }
         )
-        .onPreferenceChange(GridOffsetKey.self) { offset in
-            onChange(QuickPasteShortcut.firstVisibleIndex(
-                scrollOffset: offset,
-                cardWidth: DesignTokens.Card.width,
-                spacing: DesignTokens.Card.gridSpacing,
-                leadingPadding: DesignTokens.Card.gridLeadingPadding
-            ))
-        }
+    }
+}
+
+extension QuickPasteShortcut {
+    static func firstVisibleIndex(scrollOffset: CGFloat) -> Int {
+        firstVisibleIndex(
+            scrollOffset: scrollOffset,
+            cardWidth: DesignTokens.Card.width,
+            spacing: DesignTokens.Card.gridSpacing,
+            leadingPadding: DesignTokens.Card.gridLeadingPadding
+        )
     }
 }
 

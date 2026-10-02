@@ -12,6 +12,7 @@ struct PinboardGridView: View {
 
     @State private var orderedEntries: [PinboardEntry] = []
     @State private var draggingEntry: PinboardEntry?
+    @State private var lastOffset: CGFloat = 0
 
     private var pinboard: Pinboard? {
         allPinboards.first { $0.id == pinboardId }
@@ -46,10 +47,9 @@ struct PinboardGridView: View {
                             }
                             .padding(.horizontal, DesignTokens.Card.gridLeadingPadding)
                             .padding(.vertical, 8)
-                            .trackFirstVisibleIndex(space: "pinboardGridScroll") { index in
-                                if appState.selectedTab == .pinboard(pinboardId), appState.firstVisibleIndex != index {
-                                    appState.firstVisibleIndex = index
-                                }
+                            .trackScrollOffset(space: "pinboardGridScroll") { offset in
+                                lastOffset = offset
+                                syncFirstVisibleIndex()
                             }
                         }
                         .coordinateSpace(name: "pinboardGridScroll")
@@ -71,6 +71,9 @@ struct PinboardGridView: View {
             }
         }
         .onAppear { syncEntries() }
+        .onChange(of: appState.selectedTab) { _, newTab in
+            if newTab == .pinboard(pinboardId) { syncFirstVisibleIndex() }
+        }
         .onChange(of: pinboard?.entries.count) { _, _ in syncEntries() }
         .onChange(of: appState.panelPresentationID) { _, _ in
             if appState.selectedTab == .pinboard(pinboardId) {
@@ -117,6 +120,13 @@ struct PinboardGridView: View {
             draggingEntry: $draggingEntry,
             commitOrder: commitOrder
         ))
+    }
+
+    /// Writes the index only while this pinboard is the active tab; re-run on activation.
+    private func syncFirstVisibleIndex() {
+        guard appState.selectedTab == .pinboard(pinboardId) else { return }
+        let index = QuickPasteShortcut.firstVisibleIndex(scrollOffset: lastOffset)
+        if appState.firstVisibleIndex != index { appState.firstVisibleIndex = index }
     }
 
     private func syncEntries() {
