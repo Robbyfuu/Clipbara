@@ -139,7 +139,7 @@ enum DesignTokens {
     // MARK: - Navigation Bar
 
     enum Nav {
-        static let height: CGFloat = 44
+        static let height: CGFloat = 56
         static let horizontalPadding: CGFloat = 16
         static let tabHeight: CGFloat = 28
         static let tabCornerRadius: CGFloat = 8

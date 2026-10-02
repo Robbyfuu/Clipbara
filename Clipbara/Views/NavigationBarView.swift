@@ -30,7 +30,7 @@ struct NavigationBarView: View {
 
     var body: some View {
         navigationBar
-        .frame(height: 56)
+        .frame(height: DesignTokens.Nav.height)
         .onAppear { appState.orderedPinboardIDs = pinboards.map(\.id) }
         .onChange(of: pinboards.map(\.id)) { _, ids in
             appState.orderedPinboardIDs = ids
@@ -103,6 +103,7 @@ struct NavigationBarView: View {
             // Command-F focuses the search field; nothing else handled it before.
             Button("") { isSearchFocused = true }
                 .keyboardShortcut("f", modifiers: .command)
+                .focusable(false)
                 .opacity(0)
                 .accessibilityHidden(true)
         )
@@ -120,7 +121,7 @@ struct NavigationBarView: View {
                         appState.panelController.selectTab(.history)
                     }
                     .id(PanelTab.history)
-                    .help(PanelTabShortcut.hint(at: 0).map { "History (\($0))" } ?? "History")
+                    .help(PanelTabShortcut.hint(at: 0).map { String(localized: "History (\($0))") } ?? String(localized: "History"))
 
                     ForEach(Array(pinboards.enumerated()), id: \.element.id) { index, pinboard in
                         navTab(
@@ -172,20 +173,28 @@ struct NavigationBarView: View {
     private var actionGroup: some View {
         HStack(spacing: 4) {
 #if CLOUDSYNC
-            if let engine = appState.cloudSync,
-               let text = SyncChip.text(for: engine.status, now: Date()) {
-                Button { openSettings() } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "lock.fill").font(.system(size: 11))
-                        Text(text).font(.system(size: 12, weight: .semibold))
+            if let engine = appState.cloudSync, engine.status != .off {
+                TimelineView(.everyMinute) { context in
+                    if let text = SyncChip.text(for: engine.status, now: context.date) {
+                        Button {
+                            // Panel is non-activating and floating: hide it so Settings is not covered.
+                            appState.hidePanel()
+                            openSettings()
+                            NSApp.activate(ignoringOtherApps: true)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "lock.fill").font(.system(size: 11))
+                                Text(text).font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundStyle(DesignTokens.Brand.ink2)
+                            .padding(.horizontal, 10)
+                            .frame(height: 28)
+                            .background(DesignTokens.Brand.chip, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("iCloud Sync")
                     }
-                    .foregroundStyle(DesignTokens.Brand.ink2)
-                    .padding(.horizontal, 10)
-                    .frame(height: 28)
-                    .background(DesignTokens.Brand.chip, in: Capsule())
                 }
-                .buttonStyle(.plain)
-                .help("iCloud Sync")
             }
 #endif
 
