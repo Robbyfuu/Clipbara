@@ -3,35 +3,41 @@ import SwiftUI
 struct LinkCardContent: View {
     let item: ClipboardItem
     var searchText: String = ""
-    @Environment(\.colorScheme) private var colorScheme
 
     private var urlString: String {
         item.textContent ?? ""
     }
 
+    private var parsed: URL? { URL(string: urlString) }
+
     private var domain: String {
-        guard let url = URL(string: urlString) else { return urlString }
-        return url.host ?? urlString
+        parsed?.host ?? urlString
+    }
+
+    private var path: String {
+        guard let url = parsed, url.host != nil else { return "" }
+        let tail = url.path + (url.query.map { "?\($0)" } ?? "")
+        return tail == "/" ? "" : tail
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "globe")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.blue.opacity(0.8))
+        VStack(alignment: .leading, spacing: 4) {
+            Spacer(minLength: 0)
 
-                Text(TextHighlighter.highlight(domain, query: searchText))
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(DesignTokens.Body.textColor(for: colorScheme).opacity(0.95))
+            Text(TextHighlighter.highlight(domain, query: searchText))
+                .font(.system(size: 17, weight: .bold))
+                .lineLimit(2)
+                .foregroundStyle(DesignTokens.Brand.ink)
+
+            if !path.isEmpty {
+                Text(TextHighlighter.highlight(path, query: searchText))
+                    .font(.system(size: 11).monospaced())
+                    .lineLimit(3)
+                    .foregroundStyle(DesignTokens.Brand.ink2)
             }
-
-            Text(TextHighlighter.highlight(urlString, query: searchText))
-                .font(.system(size: 10))
-                .lineLimit(3)
-                .foregroundStyle(DesignTokens.Body.textColor(for: colorScheme).opacity(0.58))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .background(DesignTokens.Brand.chip)
     }
 }

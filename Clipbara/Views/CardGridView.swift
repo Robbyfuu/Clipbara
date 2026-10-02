@@ -21,22 +21,18 @@ struct CardGridView: View {
                         : "Your clipboard history will appear here"
                 )
             } else {
-                GeometryReader { geo in
-                    let cardH = min(max(geo.size.height - 26, 164), 188)
-                    let cardW = min(max(cardH * 1.16, 206), 228)
-                    let rows = [GridItem(.fixed(cardH), spacing: 10)]
+                Group {
+                    let rows = [GridItem(.fixed(DesignTokens.Card.height))]
 
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHGrid(rows: rows, spacing: 8) {
+                            LazyHGrid(rows: rows, spacing: 12) {
                                 ForEach(filteredItems.indices, id: \.self) { index in
                                     let item = filteredItems[index]
                                     ClipboardCardView(
                                         item: item,
                                         isSelected: appState.searchState.selectedIndex == index,
                                         searchText: appState.searchState.debouncedSearchText,
-                                        cardWidth: cardW,
-                                        cardHeight: cardH,
                                         pinboards: pinboards,
                                         onSelect: { _ in
                                             appState.searchState.selectedIndex = index
@@ -54,7 +50,7 @@ struct CardGridView: View {
                                 }
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 9)
+                            .padding(.vertical, 8)
                         }
                         .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
                             if let idx = newIndex, idx < filteredItems.count {

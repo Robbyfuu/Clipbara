@@ -27,6 +27,8 @@ final class AppState {
     var panelToast: PanelToast?
     var panelPresentationID = 0
     var draggedClipboardItemID: UUID?
+    var firstVisibleIndex: Int = 0
+    var isCommandHeld: Bool = false
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     private(set) var modelContainer: ModelContainer?
 

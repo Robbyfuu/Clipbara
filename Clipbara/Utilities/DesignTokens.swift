@@ -45,95 +45,26 @@ enum DesignTokens {
         Color(red: Double(($0 >> 16) & 0xFF) / 255, green: Double(($0 >> 8) & 0xFF) / 255, blue: Double($0 & 0xFF) / 255)
     }
 
-    static func headerColor(for contentType: ContentType, itemColor: String? = nil) -> Color {
-        typeTint(for: contentType, itemColor: itemColor)
-    }
-
     // MARK: - Card
 
     enum Card {
-        static let cornerRadius: CGFloat = 8
-        static let topPadding: CGFloat = 8
-        static let horizontalPadding: CGFloat = 10
-        static let contentSpacing: CGFloat = 6
-
-        static func backgroundColor(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color(white: 0.115)
-                : Color(white: 0.99)
-        }
-
-        static func borderColor(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color.white.opacity(0.10)
-                : Color.black.opacity(0.08)
-        }
-    }
-
-    // MARK: - Card Header
-
-    enum Header {
-        static let titleFont: Font = .system(size: 12, weight: .semibold)
-        static let subtitleFont: Font = .system(size: 11, weight: .regular)
-        static let subtitleOpacity: Double = 0.8
-        static let appIconSize: CGFloat = 26
-        static let appIconCornerRadius: CGFloat = 6
-        static let badgeVerticalPadding: CGFloat = 3
-        static let badgeHorizontalPadding: CGFloat = 7
-        static let badgeCornerRadius: CGFloat = 6
-    }
-
-    // MARK: - Card Body
-
-    enum Body {
+        static let width: CGFloat = 200
+        static let height: CGFloat = 220
         static let padding: CGFloat = 10
-        static let fontSize: CGFloat = 12
-        static let lineSpacing: CGFloat = 4
-        static let maxLines: Int = 4
-
-        static func textColor(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color(white: 0.88)
-                : Color(white: 0.20)
-        }
-    }
-
-    // MARK: - Card Footer Badge
-
-    enum Badge {
-        static let font: Font = .system(size: 11, weight: .medium)
-        static let verticalPadding: CGFloat = 4
-        static let horizontalPadding: CGFloat = 8
-        static let cornerRadius: CGFloat = 8
-
-        static func backgroundColor(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color.white.opacity(0.08)
-                : Color.black.opacity(0.06)
-        }
-
-        static func textColor(for colorScheme: ColorScheme) -> Color {
-            colorScheme == .dark
-                ? Color(white: 0.62)
-                : Color(white: 0.40)
-        }
+        static let cornerRadius: CGFloat = 16
+        static let wellRadius: CGFloat = 10
+        static let ringWidth: CGFloat = 3
     }
 
     // MARK: - Card Selection
 
     enum Selection {
-        static let borderColor = Brand.butter
-        static let borderWidth: CGFloat = 2.25
-        static let defaultBorderWidth: CGFloat = 0.75
-        static let selectedShadowOpacity: Double = 0.24
-        static let selectedShadowRadius: CGFloat = 12
         static let defaultShadowOpacity: Double = 0.06
         static let defaultShadowRadius: CGFloat = 2
         static let hoverShadowOpacity: Double = 0.20
         static let hoverShadowRadius: CGFloat = 12
         static let hoverScale: CGFloat = 1.035
         static let hoverLift: CGFloat = -3
-        static let hoverBorderWidth: CGFloat = 1.25
     }
 
     // MARK: - Navigation Bar
@@ -172,14 +103,6 @@ enum DesignTokens {
                 ? Color(white: 0.75)
                 : Color(white: 0.38)
         }
-    }
-
-    // MARK: - Checkerboard
-
-    enum Checkerboard {
-        static let cellSize: CGFloat = 8
-        static let lightColor = Color.white
-        static let darkColor = Color(white: 0.96) // #F5F5F5
     }
 }
 

@@ -26,30 +26,26 @@ struct PinboardGridView: View {
                     message: "Drag clips here or use the card menu"
                 )
             } else {
-                GeometryReader { geo in
-                    let cardH = min(max(geo.size.height - 26, 164), 188)
-                    let cardW = min(max(cardH * 1.16, 206), 228)
-                    let rows = [GridItem(.fixed(cardH), spacing: 10)]
+                Group {
+                    let rows = [GridItem(.fixed(DesignTokens.Card.height))]
                     let pinboardItems = orderedEntries.compactMap(\.clipboardItem)
 
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHGrid(rows: rows, spacing: 8) {
+                            LazyHGrid(rows: rows, spacing: 12) {
                                 ForEach(Array(orderedEntries.enumerated()), id: \.element.id) { index, entry in
                                     if let item = entry.clipboardItem {
                                         cardView(
                                             entry: entry,
                                             item: item,
-                                            index: index,
-                                            cardWidth: cardW,
-                                            cardHeight: cardH
+                                            index: index
                                         )
                                         .id(entry.id)
                                     }
                                 }
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 9)
+                            .padding(.vertical, 8)
                         }
                         .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
                             if let idx = newIndex, idx < orderedEntries.count {
@@ -78,15 +74,13 @@ struct PinboardGridView: View {
     }
 
     @ViewBuilder
-    private func cardView(entry: PinboardEntry, item: ClipboardItem, index: Int, cardWidth: CGFloat, cardHeight: CGFloat) -> some View {
+    private func cardView(entry: PinboardEntry, item: ClipboardItem, index: Int) -> some View {
         let isDragging = draggingEntry?.id == entry.id
 
         ClipboardCardView(
             item: item,
             isSelected: appState.searchState.selectedIndex == index,
             searchText: "",
-            cardWidth: cardWidth,
-            cardHeight: cardHeight,
             pinboards: allPinboards,
             enableDrag: false,
             showsManagementMenu: false,
