@@ -9,6 +9,7 @@ struct CardGridView: View {
     private var pinboards: [Pinboard]
 
     @State private var filteredItems: [ClipboardItem] = []
+    @State private var leadingID: UUID?
 
     var body: some View {
         Group {
@@ -27,13 +28,14 @@ struct CardGridView: View {
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
                             LazyHGrid(rows: rows, spacing: 12) {
-                                ForEach(filteredItems.indices, id: \.self) { index in
-                                    let item = filteredItems[index]
+                                ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
+                                    let n = index - appState.firstVisibleIndex
                                     ClipboardCardView(
                                         item: item,
                                         isSelected: appState.searchState.selectedIndex == index,
                                         searchText: appState.searchState.debouncedSearchText,
                                         pinboards: pinboards,
+                                        quickPasteNumber: (0...8).contains(n) ? n : nil,
                                         onSelect: { _ in
                                             appState.searchState.selectedIndex = index
                                         },
@@ -49,8 +51,16 @@ struct CardGridView: View {
                                     .id(item.id)
                                 }
                             }
+                            .scrollTargetLayout()
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
+                        }
+                        .scrollPosition(id: $leadingID, anchor: .leading)
+                        .onChange(of: leadingID) { _, id in
+                            guard appState.selectedTab == .history else { return }
+                            appState.firstVisibleIndex = id.flatMap { id in
+                                filteredItems.firstIndex { $0.id == id }
+                            } ?? 0
                         }
                         .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
                             if let idx = newIndex, idx < filteredItems.count {
@@ -101,6 +111,8 @@ struct CardGridView: View {
     private func updateFilteredItems(from sourceItems: [ClipboardItem]) {
         let updated = appState.searchState.filteredItems(from: sourceItems)
         filteredItems = updated
+        leadingID = nil
+        if appState.selectedTab == .history { appState.firstVisibleIndex = 0 }
         appState.currentFilteredItems = updated
         appState.searchState.ensureSelection(itemCount: updated.count)
     }

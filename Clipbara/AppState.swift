@@ -120,7 +120,20 @@ final class AppState {
         hidePanel()
     }
 
+    /// Command-number: paste the Nth visible card. `paste` already skips the
+    /// monitor's next change and hides the panel. No-op when no card is there.
+    func quickPaste(number: Int, plainText: Bool) {
+        guard let index = QuickPasteShortcut.itemIndex(
+            number: number,
+            firstVisibleIndex: max(firstVisibleIndex, 0),
+            itemCount: currentFilteredItems.count
+        ), currentFilteredItems.indices.contains(index) else { return }
+        paste(currentFilteredItems[index], asPlainText: plainText ? true : nil)
+    }
+
     func hidePanel() {
+        isCommandHeld = false
+        firstVisibleIndex = 0
         previewItem = nil
         panelToast = nil
         toastTask?.cancel()

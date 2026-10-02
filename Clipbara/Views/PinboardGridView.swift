@@ -12,6 +12,7 @@ struct PinboardGridView: View {
 
     @State private var orderedEntries: [PinboardEntry] = []
     @State private var draggingEntry: PinboardEntry?
+    @State private var leadingID: UUID?
 
     private var pinboard: Pinboard? {
         allPinboards.first { $0.id == pinboardId }
@@ -44,8 +45,16 @@ struct PinboardGridView: View {
                                     }
                                 }
                             }
+                            .scrollTargetLayout()
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
+                        }
+                        .scrollPosition(id: $leadingID, anchor: .leading)
+                        .onChange(of: leadingID) { _, id in
+                            guard appState.selectedTab == .pinboard(pinboardId) else { return }
+                            appState.firstVisibleIndex = id.flatMap { id in
+                                orderedEntries.firstIndex { $0.id == id }
+                            } ?? 0
                         }
                         .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
                             if let idx = newIndex, idx < orderedEntries.count {
@@ -76,12 +85,14 @@ struct PinboardGridView: View {
     @ViewBuilder
     private func cardView(entry: PinboardEntry, item: ClipboardItem, index: Int) -> some View {
         let isDragging = draggingEntry?.id == entry.id
+        let n = index - appState.firstVisibleIndex
 
         ClipboardCardView(
             item: item,
             isSelected: appState.searchState.selectedIndex == index,
             searchText: "",
             pinboards: allPinboards,
+            quickPasteNumber: (0...8).contains(n) ? n : nil,
             enableDrag: false,
             showsManagementMenu: false,
             onSelect: { _ in
@@ -112,6 +123,8 @@ struct PinboardGridView: View {
     }
 
     private func syncEntries() {
+        leadingID = nil
+        if appState.selectedTab == .pinboard(pinboardId) { appState.firstVisibleIndex = 0 }
         let current = (pinboard?.entries ?? [])
             .filter { !$0.isDeleted && $0.clipboardItem != nil }
             .sorted { $0.displayOrder < $1.displayOrder }

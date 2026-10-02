@@ -21,6 +21,7 @@ final class PanelController {
     private var scrollMonitor: Any?
     private var wheelTranslator = WheelScrollTranslation.Translator()
     private var keyMonitor: Any?
+private var flagsMonitor: Any?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
 
@@ -150,6 +151,7 @@ final class PanelController {
         installMouseMonitor()
         installScrollMonitor()
         installKeyMonitor()
+        installFlagsMonitor()
     }
 
     func restoreKeyboardNavigationFocus(activateApp: Bool = false) {
@@ -174,6 +176,9 @@ final class PanelController {
         removeMouseMonitor()
         removeScrollMonitor()
         removeKeyMonitor()
+        removeFlagsMonitor()
+        appState?.isCommandHeld = false
+        appState?.firstVisibleIndex = 0
 
         panel.hasShadow = false
 
@@ -376,6 +381,13 @@ final class PanelController {
                       self.quickLookPanel?.attachedSheet == nil,
                       NSApp.modalWindow == nil else { return false }
 
+                // Command-number paste: before the Quick Look branch and the
+                // search-field pass-through. Consumed even when no card exists.
+                if let match = QuickPasteShortcut.match(keyCode: keyCode, modifiers: event.modifierFlags) {
+                    self.appState?.quickPaste(number: match.number, plainText: match.plainText)
+                    return true
+                }
+
                 // Handle tab shortcuts before the search-field pass-through.
                 // Missing tabs are a no-op, not a shortcut for the frontmost app.
                 if let index = PanelTabShortcut.index(keyCode: keyCode, modifiers: event.modifierFlags) {
@@ -557,6 +569,25 @@ final class PanelController {
         quickLookItem = nil
         quickLookZoom = nil
         panel?.makeKey()
+    }
+
+    private func installFlagsMonitor() {
+        flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            let flags = event.modifierFlags
+            MainActor.assumeIsolated { [weak self] in
+                guard let self, self.isVisible else { return }
+                self.appState?.isCommandHeld =
+                    flags.intersection([.command, .option, .control, .shift]) == .command
+            }
+            return event
+        }
+    }
+
+    private func removeFlagsMonitor() {
+        if let monitor = flagsMonitor {
+            NSEvent.removeMonitor(monitor)
+            flagsMonitor = nil
+        }
     }
 
     private func removeKeyMonitor() {
