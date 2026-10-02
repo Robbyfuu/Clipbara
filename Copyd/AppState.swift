@@ -34,6 +34,8 @@ final class AppState {
 
     /// Cached filtered items for keyboard navigation (updated by CardGridView)
     var currentFilteredItems: [ClipboardItem] = []
+    /// Debounced search text that produced `currentFilteredItems`; quick paste is ignored while it lags the field.
+    var currentFilteredQuery: String = ""
 
     private(set) var cloudSync: CloudSyncEngine?
 
@@ -114,6 +116,7 @@ final class AppState {
     /// monitor's next change and hides the panel. Live Shift decides plain text
     /// exactly as it does for Return. No-op when no card is there.
     func quickPaste(number: Int) {
+        guard searchState.searchText == currentFilteredQuery else { return }
         guard let index = QuickPasteShortcut.itemIndex(
             number: number,
             firstVisibleIndex: max(firstVisibleIndex, 0),

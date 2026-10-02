@@ -118,6 +118,7 @@ struct CardGridView: View {
         let updated = appState.searchState.filteredItems(from: sourceItems)
         filteredItems = updated
         appState.currentFilteredItems = updated
+        appState.currentFilteredQuery = appState.searchState.debouncedSearchText
         appState.searchState.ensureSelection(itemCount: updated.count)
     }
 

@@ -62,9 +62,11 @@ final class QuickPasteShortcutTests: XCTestCase {
             QuickPasteShortcut.firstVisibleIndex(scrollOffset: o, cardWidth: 200, spacing: 12, leadingPadding: 16)
         }
         XCTAssertEqual(f(0), 0)
-        XCTAssertEqual(f(100), 0)
+        XCTAssertEqual(f(100), 1)
         XCTAssertEqual(f(130), 1)
-        XCTAssertEqual(f(2846), 13)
+        XCTAssertEqual(f(228), 1)
+        XCTAssertEqual(f(229), 2)
+        XCTAssertEqual(f(2846), 14)
         XCTAssertEqual(f(-40), 0)
     }
 }

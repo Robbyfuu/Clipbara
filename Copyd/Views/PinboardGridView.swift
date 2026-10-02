@@ -141,6 +141,7 @@ struct PinboardGridView: View {
 
     private func syncNavigationItems(_ items: [ClipboardItem]) {
         appState.currentFilteredItems = items
+        appState.currentFilteredQuery = appState.searchState.searchText
         appState.searchState.ensureSelection(itemCount: items.count)
     }
 
