@@ -106,6 +106,7 @@ targets:
       - path: Clipbara/Utilities/ReviewPromptPolicy.swift
       - path: Clipbara/Utilities/AccessPolicy.swift
       - path: Clipbara/Utilities/Thumbnail.swift
+      - path: Clipbara/Sync/AssetCrypto.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.minsang.ClipbaraTests
