@@ -10,12 +10,12 @@
       "internalID" : "6760000002",
       "localizations" : [
         {
-          "description" : "Unlock Clipbara with a one-time purchase.",
-          "displayName" : "Clipbara Lifetime",
+          "description" : "Unlock Copyd with a one-time purchase.",
+          "displayName" : "Copyd Lifetime",
           "locale" : "en_US"
         }
       ],
-      "productID" : "com.minsang.Clipbara.lifetime",
+      "productID" : "com.robbyfuu.copyd.lifetime",
       "referenceName" : "Lifetime Unlock",
       "type" : "NonConsumable"
     },
@@ -25,12 +25,12 @@
       "internalID" : "6760000001",
       "localizations" : [
         {
-          "description" : "Try every Clipbara feature free for 7 days.",
+          "description" : "Try every Copyd feature free for 7 days.",
           "displayName" : "7-day Trial",
           "locale" : "en_US"
         }
       ],
-      "productID" : "com.minsang.Clipbara.trial7day",
+      "productID" : "com.robbyfuu.copyd.trial7day",
       "referenceName" : "7-day Trial",
       "type" : "NonConsumable"
     }

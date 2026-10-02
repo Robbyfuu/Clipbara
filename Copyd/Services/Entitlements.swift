@@ -16,8 +16,8 @@ final class Entitlements {
     enum ProductID {
         /// Non-consumable at $0, named "7-day Trial" per App Review Guideline 3.1.1.
         /// Its original purchase date is the trial start, tied to the Apple Account.
-        static let trial = "com.minsang.Clipbara.trial7day"
-        static let lifetime = "com.minsang.Clipbara.lifetime"
+        static let trial = "com.robbyfuu.copyd.trial7day"
+        static let lifetime = "com.robbyfuu.copyd.lifetime"
         static let all = [trial, lifetime]
     }
 
@@ -49,7 +49,7 @@ final class Entitlements {
     @ObservationIgnored private var updatesTask: Task<Void, Never>?
     @ObservationIgnored private var hasStarted = false
 
-    private static let logger = Logger(subsystem: "com.minsang.PasteClip", category: "Entitlements")
+    private static let logger = Logger(subsystem: "com.robbyfuu.copyd", category: "Entitlements")
 
     private init() {}
 
@@ -273,12 +273,12 @@ final class Entitlements {
 /// Debug-only switches for testing the trial locally. Release builds never
 /// compile this, so shipped builds cannot read either key.
 ///
-/// Pass them as launch arguments in the ClipbaraMAS scheme, e.g.
-/// `-ClipbaraDebugOriginalAppVersion 1.4` (sandbox and Xcode report "1.0",
-/// which counts as grandfathered) and `-ClipbaraDebugTrialShiftDays 8`
+/// Pass them as launch arguments in the Copyd scheme, e.g.
+/// `-CopydDebugOriginalAppVersion 1.4` (sandbox and Xcode report "1.0",
+/// which counts as grandfathered) and `-CopydDebugTrialShiftDays 8`
 /// (pretends the trial started 8 days earlier than StoreKit says).
 enum DebugOverride {
-    static let originalAppVersionKey = "ClipbaraDebugOriginalAppVersion"
-    static let trialShiftDaysKey = "ClipbaraDebugTrialShiftDays"
+    static let originalAppVersionKey = "CopydDebugOriginalAppVersion"
+    static let trialShiftDaysKey = "CopydDebugTrialShiftDays"
 }
 #endif

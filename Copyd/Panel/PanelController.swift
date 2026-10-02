@@ -5,7 +5,7 @@ import SwiftData
 @MainActor
 @Observable
 final class PanelController {
-    private var panel: ClipbaraPanel?
+    private var panel: CopydPanel?
     /// The panel's SwiftUI content. Slid inside the fixed panel frame so the
     /// window itself never has to travel off screen to animate.
     private var contentHost: NSView?
@@ -71,7 +71,7 @@ final class PanelController {
         let screenFrame = activeScreen.visibleFrame
         let frame = panelFrame(in: screenFrame, y: screenFrame.origin.y)
 
-        let warm = ClipbaraPanel(contentRect: frame)
+        let warm = CopydPanel(contentRect: frame)
         warm.alphaValue = 0
         warm.contentView = makeContentView(modelContainer: modelContainer, appState: appState, size: frame.size)
         warm.orderFrontRegardless()
@@ -92,7 +92,7 @@ final class PanelController {
         presentedScreen = screen
 
         if panel == nil {
-            panel = ClipbaraPanel(contentRect: endFrame)
+            panel = CopydPanel(contentRect: endFrame)
             panel?.contentView = makeContentView(
                 modelContainer: modelContainer,
                 appState: appState,

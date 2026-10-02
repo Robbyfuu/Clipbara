@@ -4,10 +4,11 @@ import os.log
 enum StoreManager {
 
     static let logger = Logger(
-        subsystem: "com.minsang.PasteClip",
+        subsystem: "com.robbyfuu.copyd",
         category: "StoreManager"
     )
 
+    // Kept from Clipbara: the store lives at this path inside the com.robbyfuu.copyd container; renaming it would orphan existing history.
     private static let storeDirectoryName = "com.minsang.PasteClip"
     private static let storeFileName = "PasteClip.store"
     private static let legacyStoreFileName = "default.store"

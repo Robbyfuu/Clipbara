@@ -133,7 +133,7 @@ struct NavigationBarView: View {
                         .id(PanelTab.pinboard(pinboard.id))
                         .help(PanelTabShortcut.hint(at: index + 1).map { "\(pinboard.name) (\($0))" } ?? pinboard.name)
                         .onDrop(
-                            of: [.pasteClipClipboardItemID, .text, .url, .fileURL, .image, .data, .item],
+                            of: [.copydClipboardItemID, .text, .url, .fileURL, .image, .data, .item],
                             isTargeted: dropTargetBinding(for: pinboard.id)
                         ) { providers in
                             addDroppedClip(from: providers, to: pinboard.id)
@@ -331,12 +331,12 @@ struct NavigationBarView: View {
         }
 
         guard let provider = providers.first(where: {
-            $0.hasItemConformingToTypeIdentifier(UTType.pasteClipClipboardItemID.identifier)
+            $0.hasItemConformingToTypeIdentifier(UTType.copydClipboardItemID.identifier)
         }) else {
             return false
         }
 
-        provider.loadDataRepresentation(forTypeIdentifier: UTType.pasteClipClipboardItemID.identifier) { data, _ in
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.copydClipboardItemID.identifier) { data, _ in
             guard
                 let data,
                 let idString = String(data: data, encoding: .utf8),

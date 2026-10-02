@@ -1,6 +1,6 @@
-name: Clipbara
+name: Copyd
 options:
-  bundleIdPrefix: com.minsang
+  bundleIdPrefix: com.robbyfuu
   deploymentTarget:
     macOS: "14.0"
   xcodeVersion: "16.0"
@@ -20,22 +20,22 @@ packages:
 
 targets:
   # Mac App Store distribution (sandboxed)
-  ClipbaraMAS:
+  Copyd:
     type: application
     platform: macOS
     sources:
-      - path: Clipbara
+      - path: Copyd
       # Local StoreKit testing only. Listed so Xcode can open it; never bundled.
-      - path: StoreKit/Clipbara.storekit
+      - path: StoreKit/Copyd.storekit
         buildPhase: none
     resources:
-      - Clipbara/Resources
+      - Copyd/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
         PRODUCT_NAME: Copyd
-        INFOPLIST_FILE: Clipbara/Info-MAS.plist
-        CODE_SIGN_ENTITLEMENTS: Clipbara/Clipbara-MAS.entitlements
+        INFOPLIST_FILE: Copyd/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Copyd/Copyd.entitlements
         GENERATE_INFOPLIST_FILE: false
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
@@ -45,7 +45,7 @@ targets:
     dependencies:
       - package: KeyboardShortcuts
     entitlements:
-      path: Clipbara/Clipbara-MAS.entitlements
+      path: Copyd/Copyd.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
@@ -54,39 +54,39 @@ targets:
         com.apple.developer.aps-environment: development
     scheme:
       # Run with the local StoreKit products (trial + lifetime) instead of the sandbox.
-      storeKitConfiguration: StoreKit/Clipbara.storekit
+      storeKitConfiguration: StoreKit/Copyd.storekit
       # Debug-only trial switches, off by default. Tick them in Edit Scheme > Run > Arguments.
       commandLineArguments:
-        "-ClipbaraDebugOriginalAppVersion 1.4": false
-        "-ClipbaraDebugTrialShiftDays 8": false
+        "-CopydDebugOriginalAppVersion 1.4": false
+        "-CopydDebugTrialShiftDays 8": false
 
   # Unhosted unit tests: no app launch, clipboard monitor, or user store access.
-  ClipbaraTests:
+  CopydTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: Tests
-      - path: Clipbara/Utilities/PanelGeometry.swift
-      - path: Clipbara/Utilities/PanelTabShortcut.swift
-      - path: Clipbara/Utilities/QuickPasteShortcut.swift
-      - path: Clipbara/Utilities/PinboardDot.swift
-      - path: Clipbara/Utilities/WheelScrollTranslation.swift
-      - path: Clipbara/Utilities/ReviewPromptPolicy.swift
-      - path: Clipbara/Utilities/AccessPolicy.swift
-      - path: Clipbara/Utilities/Thumbnail.swift
-      - path: Clipbara/Sync/AssetCrypto.swift
-      - path: Clipbara/Sync/SyncRecordMapper.swift
-      - path: Clipbara/Sync/DuplicateRule.swift
-      - path: Clipbara/Sync/SyncBatchPlanner.swift
-      - path: Clipbara/Models
-      - path: Clipbara/Sync/ModelSnapshots.swift
-      - path: Clipbara/Sync/LocalChangeTracker.swift
-      - path: Clipbara/Sync/RemoteApplier.swift
+      - path: Copyd/Utilities/PanelGeometry.swift
+      - path: Copyd/Utilities/PanelTabShortcut.swift
+      - path: Copyd/Utilities/QuickPasteShortcut.swift
+      - path: Copyd/Utilities/PinboardDot.swift
+      - path: Copyd/Utilities/WheelScrollTranslation.swift
+      - path: Copyd/Utilities/ReviewPromptPolicy.swift
+      - path: Copyd/Utilities/AccessPolicy.swift
+      - path: Copyd/Utilities/Thumbnail.swift
+      - path: Copyd/Sync/AssetCrypto.swift
+      - path: Copyd/Sync/SyncRecordMapper.swift
+      - path: Copyd/Sync/DuplicateRule.swift
+      - path: Copyd/Sync/SyncBatchPlanner.swift
+      - path: Copyd/Models
+      - path: Copyd/Sync/ModelSnapshots.swift
+      - path: Copyd/Sync/LocalChangeTracker.swift
+      - path: Copyd/Sync/RemoteApplier.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.minsang.ClipbaraTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests
         GENERATE_INFOPLIST_FILE: true
         SWIFT_STRICT_CONCURRENCY: complete
     scheme:
       testTargets:
-        - ClipbaraTests
+        - CopydTests

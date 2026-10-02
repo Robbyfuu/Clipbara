@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct ClipbaraApp: App {
+struct CopydApp: App {
     // Not @State: init() starts clipboard monitoring and registers the hotkeys on this
     // instance, but SwiftUI is free to discard the first @State value and build a new
     // one. Built with the Xcode 27 SDK it does exactly that, so the started instance

@@ -94,7 +94,7 @@ final class ClipboardItem {
         }
 
         provider.registerDataRepresentation(
-            forTypeIdentifier: UTType.pasteClipClipboardItemID.identifier,
+            forTypeIdentifier: UTType.copydClipboardItemID.identifier,
             visibility: .ownProcess
         ) { [id] completion in
             completion(id.uuidString.data(using: .utf8), nil)
@@ -106,5 +106,5 @@ final class ClipboardItem {
 }
 
 extension UTType {
-    static let pasteClipClipboardItemID = UTType(exportedAs: "com.minsang.PasteClip.clipboard-item-id")
+    static let copydClipboardItemID = UTType(exportedAs: "com.robbyfuu.copyd.clipboard-item-id")
 }

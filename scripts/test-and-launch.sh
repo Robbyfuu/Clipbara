@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run the unhosted unit tests, then build and relaunch Clipbara.
+# Run the unhosted unit tests, then build and relaunch Copyd.
 # Usage: bash scripts/test-and-launch.sh [output-directory]
 set -euo pipefail
 
@@ -22,8 +22,8 @@ xcodegen generate
 
 echo "==> Running unit tests (no app launch, no store access)..."
 xcodebuild \
-  -project Clipbara.xcodeproj \
-  -scheme ClipbaraTests \
+  -project Copyd.xcodeproj \
+  -scheme CopydTests \
   -configuration Debug \
   -destination 'platform=macOS' \
   -derivedDataPath "$OUTPUT/DerivedData" \
@@ -32,21 +32,21 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   test
 
-echo "==> Building Clipbara (Debug)..."
+echo "==> Building Copyd (Debug)..."
 xcodebuild \
-  -project Clipbara.xcodeproj \
-  -scheme Clipbara \
+  -project Copyd.xcodeproj \
+  -scheme Copyd \
   -configuration Debug \
   -derivedDataPath "$OUTPUT/DerivedData" \
   build
 
 echo "==> Quitting the running app and launching the new build..."
-APP="$OUTPUT/DerivedData/Build/Products/Debug/Clipbara.app"
+APP="$OUTPUT/DerivedData/Build/Products/Debug/Copyd.app"
 test -d "$APP"
-pkill -f 'Clipbara.app/Contents/MacOS/Clipbara' || true
+pkill -f 'Copyd.app/Contents/MacOS/Copyd' || true
 sleep 2
-if pgrep -f 'Clipbara.app/Contents/MacOS/Clipbara' >/dev/null; then
-  echo "    FATAL: the previous instance is still running. Quit Clipbara and run this again."
+if pgrep -f 'Copyd.app/Contents/MacOS/Copyd' >/dev/null; then
+  echo "    FATAL: the previous instance is still running. Quit Copyd and run this again."
   echo "    A second instance would register the global shortcut twice."
   exit 1
 fi
