@@ -2,9 +2,7 @@ import Foundation
 
 /// Whether the Mac App Store build lets the user open their clipboard history.
 ///
-/// Only the App Store build ever evaluates this. The DMG and Homebrew builds are
-/// always fully unlocked and never reference it; it stays outside `#if APPSTORE`
-/// so the unit test target can compile it.
+/// Pure logic, kept free of StoreKit so the unit test target can compile it.
 enum AccessState: Equatable, Sendable {
     enum UnlockReason: Equatable, Sendable {
         /// First got the app before the trial model shipped, free or paid.

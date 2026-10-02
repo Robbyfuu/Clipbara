@@ -283,11 +283,7 @@ struct ClipboardCardView: View {
         case .url:
             return item.sourceAppName ?? String(localized: "Link")
         case .fileURL:
-            #if CLOUDSYNC
             return String(localized: "Stays on this Mac")
-            #else
-            return String(localized: "File")
-            #endif
         case .image:
             let size = ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
             guard let dims = imageDimensions else { return size }

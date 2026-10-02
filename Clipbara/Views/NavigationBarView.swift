@@ -24,9 +24,7 @@ struct NavigationBarView: View {
     @State private var isShowingClearAlert = false
     @State private var tabsWidth: CGFloat = 0
     @FocusState private var isSearchFocused: Bool
-#if CLOUDSYNC
     @Environment(\.openSettings) private var openSettings
-#endif
 
     var body: some View {
         navigationBar
@@ -172,7 +170,6 @@ struct NavigationBarView: View {
 
     private var actionGroup: some View {
         HStack(spacing: 4) {
-#if CLOUDSYNC
             if let engine = appState.cloudSync, engine.status != .off {
                 TimelineView(.everyMinute) { context in
                     if let text = SyncChip.text(for: engine.status, now: context.date) {
@@ -196,7 +193,6 @@ struct NavigationBarView: View {
                     }
                 }
             }
-#endif
 
             optionsMenuButton
 
@@ -486,7 +482,6 @@ private struct NavIconButton: View {
     }
 }
 
-#if CLOUDSYNC
 /// Maps the engine status to the top-bar chip text; nil hides the chip.
 enum SyncChip {
     static func text(for status: CloudSyncEngine.Status, now: Date) -> String? {
@@ -500,7 +495,6 @@ enum SyncChip {
         }
     }
 }
-#endif
 
 // MARK: - OptionsMenuButton (NSMenu-based for proper centering)
 

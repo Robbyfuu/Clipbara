@@ -1,4 +1,3 @@
-#if APPSTORE
 import Foundation
 import StoreKit
 import os.log
@@ -282,5 +281,4 @@ enum DebugOverride {
     static let originalAppVersionKey = "ClipbaraDebugOriginalAppVersion"
     static let trialShiftDaysKey = "ClipbaraDebugTrialShiftDays"
 }
-#endif
 #endif

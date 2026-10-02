@@ -5,7 +5,6 @@ struct MenuBarContentView: View {
     @Environment(\.openSettings) private var openSettings
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var updaterViewModel: CheckForUpdatesViewModel
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse)
     private var recentItems: [ClipboardItem]
 
@@ -63,7 +62,6 @@ struct MenuBarContentView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
 
-            #if APPSTORE
             if showsPurchaseItems {
                 Divider()
                     .padding(.vertical, 4)
@@ -88,19 +86,10 @@ struct MenuBarContentView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
             }
-            #endif
 
             Divider()
                 .padding(.vertical, 4)
 
-            #if !APPSTORE
-            Button("Check for Updates...") {
-                updaterViewModel.checkForUpdates()
-            }
-            .disabled(!updaterViewModel.canCheckForUpdates)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            #endif
 
             Button("Send Feedback...") {
                 NSWorkspace.shared.open(ReviewPrompter.feedbackURL)
@@ -108,13 +97,11 @@ struct MenuBarContentView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
 
-            #if APPSTORE
             Button("Rate on App Store") {
                 NSWorkspace.shared.open(ReviewPrompter.writeReviewURL)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
-            #endif
 
             Button("Settings...") {
                 openSettings()
@@ -133,12 +120,9 @@ struct MenuBarContentView: View {
             .padding(.bottom, 4)
         }
         .frame(width: 280)
-        #if APPSTORE
         .onAppear { Entitlements.shared.reevaluate() }
-        #endif
     }
 
-    #if APPSTORE
     /// Hidden once the app is owned, and while a StoreKit check has failed open.
     private var showsPurchaseItems: Bool {
         switch Entitlements.shared.state {
@@ -158,7 +142,6 @@ struct MenuBarContentView: View {
             EmptyView()
         }
     }
-    #endif
 }
 
 struct MenuBarItemRow: View {
@@ -167,12 +150,10 @@ struct MenuBarItemRow: View {
 
     var body: some View {
         Button {
-            #if APPSTORE
             guard Entitlements.shared.checkHistoryAccess() else {
                 PaywallWindowController.shared.show()
                 return
             }
-            #endif
             appState.clipboardMonitor.skipNextChange()
             appState.pasteService.paste(item: item)
         } label: {

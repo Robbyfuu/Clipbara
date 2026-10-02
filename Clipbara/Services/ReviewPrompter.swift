@@ -1,7 +1,5 @@
 import AppKit
-#if APPSTORE
 import StoreKit
-#endif
 
 /// Asks for an App Store rating with Apple's own review prompt.
 ///
@@ -41,7 +39,6 @@ enum ReviewPrompter {
 
     /// Called as the history panel starts to hide.
     static func panelWillHide(isPanelVisible: @escaping @MainActor () -> Bool) {
-        #if APPSTORE
         guard ReviewPromptPolicy.isRecentPaste(lastPasteDate),
               policy.isEligible(version: currentVersion) else { return }
 
@@ -53,10 +50,8 @@ enum ReviewPrompter {
                   policy.isEligible(version: currentVersion) else { return }
             present()
         }
-        #endif
     }
 
-    #if APPSTORE
     /// Clipbara is a menu bar agent with no window of its own, and StoreKit wants a
     /// view controller to present from. Host the request in a tiny transparent
     /// window. It is ordered in without activating the app, so the user's focus
@@ -99,5 +94,4 @@ enum ReviewPrompter {
             if hostWindow === window { hostWindow = nil }
         }
     }
-    #endif
 }

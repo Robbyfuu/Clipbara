@@ -8,14 +8,11 @@ struct GeneralSettingsTab: View {
     @Environment(AppState.self) private var appState
     @AppStorage("historyLimit") private var historyLimit: Int = 500
     @AppStorage(PasteService.alwaysPlainTextDefaultsKey) private var alwaysPastePlainText: Bool = false
-    #if CLOUDSYNC
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
-    #endif
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
     @State private var transferMessage: String?
     @State private var showTransferAlert = false
 
-    #if CLOUDSYNC
     @ViewBuilder
     private var syncStatusText: some View {
         switch appState.cloudSync?.status ?? .off {
@@ -29,7 +26,6 @@ struct GeneralSettingsTab: View {
         case .error(let message): Text("Sync error: \(message)")
         }
     }
-    #endif
 
     var body: some View {
         Form {
@@ -72,7 +68,6 @@ struct GeneralSettingsTab: View {
                 }
             }
 
-            #if CLOUDSYNC
             Section("iCloud Sync") {
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Sync with iCloud", isOn: $iCloudSyncEnabled)
@@ -88,7 +83,6 @@ struct GeneralSettingsTab: View {
                     }
                 }
             }
-            #endif
 
             Section("Backup") {
                 LabeledContent("Export history, pinboards, and settings to a JSON file.") {

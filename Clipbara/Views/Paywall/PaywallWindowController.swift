@@ -1,4 +1,3 @@
-#if APPSTORE
 import AppKit
 import SwiftUI
 
@@ -89,4 +88,3 @@ final class PaywallWindowController: NSObject, NSWindowDelegate {
         model.reset()
     }
 }
-#endif

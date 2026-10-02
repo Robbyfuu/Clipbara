@@ -1,4 +1,3 @@
-#if APPSTORE
 import SwiftUI
 import StoreKit
 
@@ -378,4 +377,3 @@ struct PaywallView: View {
         }
     }
 }
-#endif

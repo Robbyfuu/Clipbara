@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct AboutTab: View {
-    @EnvironmentObject private var updaterViewModel: CheckForUpdatesViewModel
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
@@ -30,12 +29,6 @@ struct AboutTab: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            #if !APPSTORE
-            Button("Check for Updates...") {
-                updaterViewModel.checkForUpdates()
-            }
-            .disabled(!updaterViewModel.canCheckForUpdates)
-            #endif
 
             Spacer()
         }

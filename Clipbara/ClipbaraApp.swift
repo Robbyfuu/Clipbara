@@ -8,7 +8,6 @@ struct ClipbaraApp: App {
     // one. Built with the Xcode 27 SDK it does exactly that, so the started instance
     // was deallocated right after launch and the UI got one that never started.
     private let appState = AppState.shared
-    @StateObject private var updaterViewModel = CheckForUpdatesViewModel()
 
     private var sharedModelContainer: ModelContainer { Self.sharedModelContainer }
 
@@ -53,7 +52,6 @@ struct ClipbaraApp: App {
         MenuBarExtra("Clipbara", systemImage: "clipboard") {
             MenuBarContentView()
                 .environment(appState)
-                .environmentObject(updaterViewModel)
                 .modelContainer(sharedModelContainer)
         }
         .menuBarExtraStyle(.window)
@@ -61,7 +59,6 @@ struct ClipbaraApp: App {
         Settings {
             SettingsView()
                 .environment(appState)
-                .environmentObject(updaterViewModel)
                 .modelContainer(sharedModelContainer)
         }
     }
