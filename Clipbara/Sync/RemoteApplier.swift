@@ -1,0 +1,201 @@
+import Foundation
+import OSLog
+import SwiftData
+
+/// Writes records fetched from iCloud into the local store. Never saves: the caller saves inside
+/// `tracker.suppressing(outcome.touched)`, so `touched` holds every id inserted, updated or deleted,
+/// including entries removed by a cascade or by deleting a clip.
+@MainActor
+struct RemoteApplier {
+    let context: ModelContext
+    let hasPendingSave: (UUID) -> Bool
+
+    struct Outcome: Equatable {
+        var saves: Set<UUID> = []
+        var deletes: Set<UUID> = []
+        var orphans: [EntrySnapshot] = []
+        var touched: Set<UUID> = []
+    }
+
+    private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
+
+    func apply(clips: [ClipSnapshot], pinboards: [PinboardSnapshot], entries: [EntrySnapshot],
+               deletions: [UUID], systemFields: [UUID: Data]) -> Outcome {
+        var out = Outcome()
+        for s in clips {
+            do {
+                try upsert(s, &out)
+                try mergeDuplicates(of: s.id, &out)
+            } catch { Self.log.error("Clip \(s.id) not applied: \(error)") }
+        }
+        for s in pinboards {
+            do { try upsert(s, &out) } catch { Self.log.error("Pinboard \(s.id) not applied: \(error)") }
+        }
+        for s in entries {
+            do { try upsert(s, &out) } catch { Self.log.error("Entry \(s.id) not applied: \(error)") }
+        }
+        for id in deletions {
+            do { try delete(id, &out) } catch { Self.log.error("Deletion \(id) not applied: \(error)") }
+        }
+        let gone = out.deletes.union(deletions)
+        for (id, data) in systemFields where !gone.contains(id) {
+            do {
+                if let m = try clip(id) {
+                    m.syncSystemFields = data
+                } else if let m = try pinboard(id) {
+                    m.syncSystemFields = data
+                } else if let m = try entry(id) {
+                    m.syncSystemFields = data
+                } else {
+                    continue
+                }
+                out.touched.insert(id)
+            } catch { Self.log.error("System fields for \(id) not stored: \(error)") }
+        }
+        return out
+    }
+
+    /// Does not save. The caller must save inside `tracker.suppressing` over all ids.
+    static func clearSystemFields(in context: ModelContext) {
+        do {
+            for m in try context.fetch(FetchDescriptor<ClipboardItem>()) { m.syncSystemFields = nil }
+            for m in try context.fetch(FetchDescriptor<Pinboard>()) { m.syncSystemFields = nil }
+            for m in try context.fetch(FetchDescriptor<PinboardEntry>()) { m.syncSystemFields = nil }
+        } catch { log.error("clearSystemFields failed: \(error)") }
+    }
+
+    // MARK: Lookups (throwing: a fetch error must never read as "not found")
+
+    private func clip(_ id: UUID) throws -> ClipboardItem? {
+        var d = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+
+    private func pinboard(_ id: UUID) throws -> Pinboard? {
+        var d = FetchDescriptor<Pinboard>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+
+    private func entry(_ id: UUID) throws -> PinboardEntry? {
+        var d = FetchDescriptor<PinboardEntry>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+
+    // ponytail: in-memory filter over all entries; pinboards are small, add a predicate if that changes.
+    private func entries(ofClip id: UUID, excluding gone: Set<UUID>) throws -> [PinboardEntry] {
+        try context.fetch(FetchDescriptor<PinboardEntry>())
+            .filter { $0.clipboardItem?.id == id && !gone.contains($0.id) }
+    }
+
+    // MARK: Upserts
+
+    private func upsert(_ s: ClipSnapshot, _ out: inout Outcome) throws {
+        out.touched.insert(s.id)
+        if let m = try clip(s.id) {
+            if hasPendingSave(s.id) { return }
+            let rawChanged = m.rawData != s.rawData
+            m.update(from: s)
+            if s.contentType == ContentType.image.rawValue && rawChanged {
+                m.thumbnailData = Thumbnail.png(from: s.rawData)
+            }
+        } else {
+            let m = ClipboardItem(contentType: ContentType(rawValue: s.contentType) ?? .unknown,
+                                  rawData: s.rawData, contentHash: s.contentHash)
+            m.id = s.id
+            m.update(from: s)
+            if s.contentType == ContentType.image.rawValue {
+                m.thumbnailData = Thumbnail.png(from: s.rawData)
+            }
+            context.insert(m)
+        }
+    }
+
+    private func upsert(_ s: PinboardSnapshot, _ out: inout Outcome) throws {
+        out.touched.insert(s.id)
+        if let m = try pinboard(s.id) {
+            if !hasPendingSave(s.id) { m.update(from: s) }
+        } else {
+            let m = Pinboard(name: s.name, displayOrder: s.displayOrder)
+            m.id = s.id
+            m.update(from: s)
+            context.insert(m)
+        }
+    }
+
+    private func upsert(_ s: EntrySnapshot, _ out: inout Outcome) throws {
+        let existing = try entry(s.id)
+        if existing != nil && hasPendingSave(s.id) { return }
+        guard let c = try clip(s.clipID), let p = try pinboard(s.pinboardID) else {
+            out.orphans.append(s)
+            return
+        }
+        out.touched.insert(s.id)
+        if let m = existing {
+            m.displayOrder = s.displayOrder
+            m.addedAt = s.addedAt
+            if m.clipboardItem?.id != c.id { m.clipboardItem = c }
+            if m.pinboard?.id != p.id { m.pinboard = p }
+        } else {
+            let m = PinboardEntry(clipboardItem: c, pinboard: p, displayOrder: s.displayOrder)
+            m.id = s.id
+            m.addedAt = s.addedAt
+            context.insert(m)
+        }
+    }
+
+    // MARK: Duplicates (spec section 10)
+
+    private func mergeDuplicates(of id: UUID, _ out: inout Outcome) throws {
+        guard let incoming = try clip(id), !out.deletes.contains(id) else { return }
+        let hash = incoming.contentHash
+        let others = try context.fetch(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))
+        for other in others where other.id != id && !out.deletes.contains(other.id) {
+            if out.deletes.contains(id) { break }
+            guard let merge = DuplicateRule.merge(incoming.snapshot, other.snapshot) else { continue }
+            let survivor = merge.survivorID == id ? incoming : other
+            let loser = merge.loserID == id ? incoming : other
+            survivor.isPinned = merge.isPinned
+            survivor.userTitle = merge.userTitle
+            out.saves.insert(survivor.id)
+            out.touched.insert(survivor.id)
+            var survivorBoards = Set(try entries(ofClip: survivor.id, excluding: out.deletes).compactMap { $0.pinboard?.id })
+            for e in try entries(ofClip: loser.id, excluding: out.deletes) {
+                out.touched.insert(e.id)
+                if let pid = e.pinboard?.id, survivorBoards.contains(pid) {
+                    context.delete(e)
+                    out.deletes.insert(e.id)
+                } else {
+                    e.clipboardItem = survivor
+                    if let pid = e.pinboard?.id { survivorBoards.insert(pid) }
+                    out.saves.insert(e.id)
+                }
+            }
+            context.delete(loser)
+            out.deletes.insert(loser.id)
+            out.touched.insert(loser.id)
+        }
+    }
+
+    // MARK: Deletions
+
+    private func delete(_ id: UUID, _ out: inout Outcome) throws {
+        if let c = try clip(id) {
+            for e in try entries(ofClip: id, excluding: out.deletes) {
+                context.delete(e)
+                out.touched.insert(e.id)
+            }
+            context.delete(c)
+        } else if let p = try pinboard(id) {
+            for e in p.entries { out.touched.insert(e.id) }
+            context.delete(p)
+        } else if let e = try entry(id) {
+            context.delete(e)
+        } else {
+            return
+        }
+        out.touched.insert(id)
+    }
+}

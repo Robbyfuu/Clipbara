@@ -113,6 +113,7 @@ targets:
       - path: Clipbara/Models
       - path: Clipbara/Sync/ModelSnapshots.swift
       - path: Clipbara/Sync/LocalChangeTracker.swift
+      - path: Clipbara/Sync/RemoteApplier.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.minsang.ClipbaraTests
