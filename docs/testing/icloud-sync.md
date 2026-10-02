@@ -13,7 +13,7 @@ Status: **pending**. Mac A is set up; Mac B is not.
 Mac B, same Apple ID in iCloud and in Xcode → Settings → Accounts:
 
 ```sh
-git clone https://github.com/Robbyfuu/Clipbara.git ~/Code/Copyd && cd ~/Code/Copyd && git checkout feat/icloud-sync
+git clone https://github.com/Robbyfuu/Clipbara.git ~/Code/Copyd && cd ~/Code/Copyd && git checkout feat/panel-redesign
 brew install xcodegen && xcodegen generate
 xcodebuild -project Copyd.xcodeproj -scheme Copyd -configuration Debug -derivedDataPath DerivedData -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
 open -n "$PWD/DerivedData/Build/Products/Debug/Copyd.app" --args -CopydDebugOriginalAppVersion 1.0
@@ -31,7 +31,7 @@ Quit other clipboard managers on both Macs during the test. The CloudKit Develop
 | 4 | A 5 MB image arrives intact with a thumbnail | | |
 | 5 | A Universal Clipboard copy ends as one clip on both Macs | | |
 | 6 | CloudKit Console (Development, zone `Clipboard`): `Clip` records show only encrypted fields and an asset | | |
-| 7 | `Copyd` target builds and the unit tests pass | pass (2026-10-02, 129 tests) | |
+| 7 | `Copyd` target builds and the unit tests pass | pass (2026-10-02, 146 tests on `feat/panel-redesign`) | |
 
 ## Plan risks checked here
 
