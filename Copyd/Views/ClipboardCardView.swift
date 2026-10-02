@@ -170,7 +170,7 @@ struct ClipboardCardView: View {
     private var accessibilitySummary: String {
         switch item.contentType {
         case .image:
-            return imageDimensions.map { "image \(Int($0.width)) × \(Int($0.height))" } ?? "image"
+            return imageDimensions.map { String(localized: "image \(Int($0.width)) × \(Int($0.height))") } ?? String(localized: "image")
         case .url:
             let text = item.textContent ?? ""
             return URL(string: text)?.host ?? text
@@ -182,10 +182,10 @@ struct ClipboardCardView: View {
     }
 
     private var accessibilityDescription: String {
-        let app = item.sourceAppName ?? "unknown app"
-        var label = "\(item.contentType.displayName), \(accessibilitySummary), from \(app)"
+        let app = item.sourceAppName ?? String(localized: "unknown app")
+        var label = String(localized: "\(item.contentType.displayName), \(accessibilitySummary), from \(app)")
         if let number = quickPasteNumber {
-            label += ", Command \(number + 1) to paste"
+            label += String(localized: ", Command \(number + 1) to paste")
         }
         return label
     }

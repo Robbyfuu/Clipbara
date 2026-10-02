@@ -435,6 +435,7 @@ private struct NavTabButton: View {
             .frame(height: 32)
             .background(
                 isActive ? DesignTokens.Brand.butter
+                    : isDropTargeted ? DesignTokens.Brand.butter.opacity(0.35)
                     : isHovered ? DesignTokens.Brand.chip
                     : Color.clear,
                 in: Capsule()
@@ -448,6 +449,7 @@ private struct NavTabButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.15), value: isHovered)
         .animation(.easeInOut(duration: 0.15), value: isActive)

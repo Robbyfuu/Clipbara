@@ -23,7 +23,7 @@ struct HistoryPanelView: View {
                 .overlay(alignment: .top) {
                     // Hairline along the top curve only.
                     shelfShape
-                        .stroke(DesignTokens.Brand.line, lineWidth: 1)
+                        .strokeBorder(DesignTokens.Brand.line, lineWidth: 1)
                         .mask(alignment: .top) { Rectangle().frame(height: 20) }
                 }
                 .ignoresSafeArea()
