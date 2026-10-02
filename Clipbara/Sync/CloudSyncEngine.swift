@@ -171,7 +171,7 @@ import SwiftData
             guard case .saveRecord(let rid) = change else { continue }
             guard let id = UUID(uuidString: rid.recordName) else { dead.append(change); continue }
             if deferred.contains(id) {
-                if clips[id] != nil { clipsHeldBack = true }
+                if clips[id] != nil || boards[id] != nil { clipsHeldBack = true }
                 continue
             }
             if let clip = clips[id] {
@@ -356,8 +356,19 @@ import SwiftData
                 zoneMissing = true
                 fields.updateValue(nil, forKey: id)
                 resendLater(save, id)
-            case .unknownItem, .referenceViolation:
-                remoteDeleted.append(id)  // another device deleted it, or the clip or pinboard it references
+            case .referenceViolation:
+                // A target that failed in this event or is still queued has not reached the server yet: keep the entry.
+                let targets = ["clip", "pinboard"].compactMap { (f.record[$0] as? CKRecord.Reference)?.recordID }
+                if targets.contains(where: { t in
+                    e.failedRecordSaves.contains { $0.record.recordID == t }
+                        || engine.state.pendingRecordZoneChanges.contains(.saveRecord(t))
+                }) {
+                    resendLater(save, id)
+                } else {
+                    remoteDeleted.append(id)  // the clip or pinboard it references was deleted elsewhere
+                }
+            case .unknownItem:
+                remoteDeleted.append(id)  // another device deleted it
             case .quotaExceeded:
                 status = .quotaExceeded
                 resendLater(save, id)
