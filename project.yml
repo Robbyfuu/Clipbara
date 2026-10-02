@@ -68,7 +68,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
-        PRODUCT_NAME: Clipbara
+        PRODUCT_NAME: Copyd
         INFOPLIST_FILE: Clipbara/Info-MAS.plist
         CODE_SIGN_ENTITLEMENTS: Clipbara/Clipbara-MAS.entitlements
         GENERATE_INFOPLIST_FILE: false
