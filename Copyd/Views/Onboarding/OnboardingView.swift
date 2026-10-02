@@ -370,10 +370,10 @@ struct OnboardingView: View {
                 .padding(.top, 9)
 
             VStack(spacing: 10) {
-                hintRow(symbol: "clipboard") {
-                    Text("Find Copyd anytime via the \(Text("clipboard icon").bold().foregroundStyle(Color.primary)) in your menu bar. History, pinboards and settings live there.")
+                hintRow(icon: Image("MenuBarMark").renderingMode(.template).resizable().scaledToFit().frame(height: 15)) {
+                    Text("Find Copyd anytime via its icon in your menu bar. History, pinboards and settings live there.")
                 } action: { EmptyView() }
-                hintRow(symbol: "square.and.arrow.down") {
+                hintRow(icon: Image(systemName: "square.and.arrow.down")) {
                     HStack(spacing: 5) {
                         Text("Coming from \(Text(verbatim: "Clipbara").bold().foregroundStyle(Color.primary)) or another Mac?\nRestore your clips from a backup file.")
                         InfoHoverButton(text: "In your previous app, go to Settings > General > Backup > Export to save a JSON backup file. Then click Import and select that file. Existing clips are kept and duplicates are skipped.")
@@ -401,7 +401,7 @@ struct OnboardingView: View {
     }
 
     private func hintRow<Content: View, Action: View>(
-        symbol: String,
+        icon: some View,
         @ViewBuilder content: () -> Content,
         @ViewBuilder action: () -> Action
     ) -> some View {
@@ -410,7 +410,7 @@ struct OnboardingView: View {
                 .fill(accent.opacity(colorScheme == .dark ? 0.18 : 0.09))
                 .frame(width: 34, height: 34)
                 .overlay(
-                    Image(systemName: symbol)
+                    icon
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(accent)
                 )

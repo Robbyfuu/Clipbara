@@ -118,7 +118,7 @@ struct GeneralSettingsTab: View {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "clipbara-backup.json"
-        panel.title = String(localized: "Export Clipbara Backup")
+        panel.title = String(localized: "Export Copyd Backup")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let data = try TransferService.exportDocument(context: modelContext)

@@ -917,18 +917,18 @@
         }
       }
     },
-    "Export Clipbara Backup" : {
+    "Export Copyd Backup" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clipbara 백업 내보내기"
+            "value" : "Copyd 백업 내보내기"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "导出 Clipbara 备份"
+            "value" : "导出 Copyd 备份"
           }
         }
       }
@@ -1029,18 +1029,18 @@
         }
       }
     },
-    "Find Copyd anytime via the %@ in your menu bar. History, pinboards and settings live there." : {
+    "Find Copyd anytime via its icon in your menu bar. History, pinboards and settings live there." : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메뉴 막대의 %@을 클릭하면 언제든 Copyd를 열 수 있습니다. 기록, 핀보드, 설정이 모두 여기에 있습니다."
+            "value" : "메뉴 막대의 아이콘을 클릭하면 언제든 Copyd를 열 수 있습니다. 기록, 핀보드, 설정이 모두 여기에 있습니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "随时点按菜单栏中的%@即可找到 Copyd。历史记录、钉板和设置都在这里。"
+            "value" : "随时点按菜单栏中的图标即可找到 Copyd。历史记录、钉板和设置都在这里。"
           }
         }
       }
@@ -2948,22 +2948,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "缩小（⌘-）"
-          }
-        }
-      }
-    },
-    "clipboard icon" : {
-      "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "클립보드 아이콘"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "剪贴板图标"
           }
         }
       }
