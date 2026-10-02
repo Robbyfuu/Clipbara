@@ -116,7 +116,7 @@ final class AppState {
     /// monitor's next change and hides the panel. Live Shift decides plain text
     /// exactly as it does for Return. No-op when no card is there.
     func quickPaste(number: Int) {
-        guard searchState.searchText == currentFilteredQuery else { return }
+        if selectedTab == .history, searchState.searchText != currentFilteredQuery { return }
         guard let index = QuickPasteShortcut.itemIndex(
             number: number,
             firstVisibleIndex: max(firstVisibleIndex, 0),
