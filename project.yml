@@ -67,20 +67,16 @@ targets:
       - Clipbara/Resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.minsang.Clipbara
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
         PRODUCT_NAME: Clipbara
         INFOPLIST_FILE: Clipbara/Info-MAS.plist
         CODE_SIGN_ENTITLEMENTS: Clipbara/Clipbara-MAS.entitlements
         GENERATE_INFOPLIST_FILE: false
         SWIFT_STRICT_CONCURRENCY: complete
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "APPSTORE $(inherited)"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "APPSTORE CLOUDSYNC $(inherited)"
         ENABLE_APP_SANDBOX: "YES"
-      configs:
-        Release:
-          CODE_SIGN_STYLE: Manual
-          DEVELOPMENT_TEAM: 5DH57J8HLC
-          CODE_SIGN_IDENTITY: "Apple Distribution"
-          PROVISIONING_PROFILE_SPECIFIER: "Clipbara Mac App Store"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
     dependencies:
       - package: KeyboardShortcuts
     entitlements:
@@ -88,6 +84,9 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.robbyfuu.copyd]
+        com.apple.developer.icloud-services: [CloudKit]
+        com.apple.developer.aps-environment: development
     scheme:
       # Run with the local StoreKit products (trial + lifetime) instead of the sandbox.
       storeKitConfiguration: StoreKit/Clipbara.storekit
