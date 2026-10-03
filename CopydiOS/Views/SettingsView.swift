@@ -3,6 +3,12 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
+    #if DEBUG
+    /// `-CopydShowQuickGuide YES` (with `-CopydInitialTab settings`) opens the Back Tap guide at launch.
+    @State private var showQuickGuide = UserDefaults.standard.bool(forKey: "CopydShowQuickGuide")
+    #else
+    @State private var showQuickGuide = false
+    #endif
 
     private var statusText: String {
         switch model.sync.status {
@@ -67,6 +73,13 @@ struct SettingsView: View {
 
                 sectionLabel("Shortcuts & Back Tap")
                 VStack(alignment: .leading, spacing: 12) {
+                    Button { showQuickGuide = true } label: {
+                        Label("Quick setup", systemImage: "hand.tap")
+                            .brandFont(17, .bold)
+                            .foregroundStyle(DesignTokens.Brand.onButter)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .buttonStyle(ButterButtonStyle())
                     Button {
                         if let url = URL(string: "shortcuts://create-shortcut") { openURL(url) }
                     } label: {
@@ -92,6 +105,7 @@ struct SettingsView: View {
             .padding(.bottom, 24)
         }
         .background(DesignTokens.Brand.shelf)
+        .sheet(isPresented: $showQuickGuide) { QuickGuideView() }
     }
 
     private func sectionLabel(_ text: LocalizedStringResource) -> some View {

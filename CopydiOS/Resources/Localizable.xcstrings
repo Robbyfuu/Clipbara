@@ -216,6 +216,38 @@
         }
       }
     },
+    "Add shortcut" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add shortcut"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agregar atajo"
+          }
+        }
+      }
+    },
+    "Add the shortcut" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add the shortcut"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agrega el atajo"
+          }
+        }
+      }
+    },
     "Added %lld from Share" : {
       "localizations" : {
         "en" : {
@@ -276,6 +308,22 @@
         }
       }
     },
+    "Back Tap in 3 steps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back Tap in 3 steps"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toque posterior en 3 pasos"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "en" : {
@@ -288,6 +336,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancelar"
+          }
+        }
+      }
+    },
+    "Choose Shortcuts, then Add Shortcut." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Shortcuts, then Add Shortcut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige Atajos y luego Agregar atajo."
           }
         }
       }
@@ -423,6 +487,22 @@
         }
       }
     },
+    "Copy something and tap the back of your iPhone twice." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy something and tap the back of your iPhone twice."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia algo y toca dos veces la parte trasera del iPhone."
+          }
+        }
+      }
+    },
     "Copy something on your Mac" : {
       "localizations" : {
         "en" : {
@@ -538,6 +618,22 @@
         }
       }
     },
+    "Done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo"
+          }
+        }
+      }
+    },
     "File" : {
       "localizations" : {
         "en" : {
@@ -566,6 +662,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "El acceso total permite que el teclado lea tu historial de Copyd. Copyd nunca envía lo que escribes a ningún lugar."
+          }
+        }
+      }
+    },
+    "Have an Action button? Settings → Action Button → Shortcut → Copyd → Save Clipboard. No shortcut needed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Have an Action button? Settings → Action Button → Shortcut → Copyd → Save Clipboard. No shortcut needed."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Tienes botón de Acción? Configuración → Botón de acción → Atajo → Copyd → Guardar portapapeles. No necesitas crear un atajo."
           }
         }
       }
@@ -665,6 +777,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Imágenes"
+          }
+        }
+      }
+    },
+    "iOS doesn't let apps open this screen directly." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS doesn't let apps open this screen directly."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS no permite que las apps abran esta pantalla directamente."
           }
         }
       }
@@ -1056,6 +1184,22 @@
         }
       }
     },
+    "Quick setup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick setup"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuración rápida"
+          }
+        }
+      }
+    },
     "Recent" : {
       "localizations" : {
         "en" : {
@@ -1169,6 +1313,23 @@
         }
       }
     },
+    "Save to Copyd" : {
+      "comment" : "Must equal the bundled .shortcut file name for this language (scripts/make-backtap-shortcut.sh).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save to Copyd"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar en Copyd"
+          }
+        }
+      }
+    },
     "Saved" : {
       "localizations" : {
         "en" : {
@@ -1245,6 +1406,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Configuración"
+          }
+        }
+      }
+    },
+    "Settings → Accessibility → Touch → Back Tap → Double Tap → Save to Copyd" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings → Accessibility → Touch → Back Tap → Double Tap → Save to Copyd"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuración → Accesibilidad → Tocar → Toque posterior → Tocar dos veces → Guardar en Copyd"
           }
         }
       }
@@ -1458,6 +1635,22 @@
         }
       }
     },
+    "Try it" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try it"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pruébalo"
+          }
+        }
+      }
+    },
     "Turn on Allow Full Access to see your history" : {
       "localizations" : {
         "en" : {
@@ -1470,6 +1663,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Activa Permitir acceso total para ver tu historial"
+          }
+        }
+      }
+    },
+    "Turn on Back Tap" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on Back Tap"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa Toque posterior"
           }
         }
       }
