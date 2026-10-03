@@ -55,12 +55,15 @@ struct SettingsView: View {
                 .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
-                Text("Full Access lets the keyboard read your Copyd history. Copyd never sends what you type anywhere.")
-                    .brandFont(13, relativeTo: .footnote)
-                    .foregroundStyle(DesignTokens.Brand.ink2)
-                    .padding(.horizontal, 4)
-                    .padding(.top, 8)
-                    .padding(.bottom, 24)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Full Access lets the keyboard read your Copyd history. Copyd never sends what you type anywhere.")
+                    Text("To skip the paste prompt: Settings \u{2192} Apps \u{2192} Copyd \u{2192} Paste from Other Apps \u{2192} Allow")
+                }
+                .brandFont(13, relativeTo: .footnote)
+                .foregroundStyle(DesignTokens.Brand.ink2)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
 
                 sectionLabel("Shortcuts & Back Tap")
                 VStack(alignment: .leading, spacing: 12) {

@@ -1153,6 +1153,22 @@
         }
       }
     },
+    "Saved from clipboard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved from clipboard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardado desde el portapapeles"
+          }
+        }
+      }
+    },
     "Saved. It syncs next time you open Copyd." : {
       "localizations" : {
         "en" : {
@@ -1390,6 +1406,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Texto"
+          }
+        }
+      }
+    },
+    "To skip the paste prompt: Settings → Apps → Copyd → Paste from Other Apps → Allow" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To skip the paste prompt: Settings → Apps → Copyd → Paste from Other Apps → Allow"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para no ver la pregunta de pegar: Configuración → Apps → Copyd → Pegar desde otras apps → Permitir"
           }
         }
       }

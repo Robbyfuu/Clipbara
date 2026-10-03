@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import UIKit
-import UniformTypeIdentifiers
 import WidgetKit
 import OSLog
 
@@ -116,6 +115,8 @@ final class AppModel {
             guard let text = item.textContent, !text.isEmpty else { return false }
             UIPasteboard.general.string = text
         }
+        // Covers a row tap, the widget's `copy` route and Copy Latest Clip: all of them copy through here.
+        PasteboardCapture.markHandled()
         flash("Copied")
         return true
     }
@@ -136,34 +137,43 @@ final class AppModel {
     /// Saves the iPhone pasteboard as a new clip, as the Mac's monitor would. Reading it shows iOS's paste prompt.
     /// The sync tracker uploads the insert like any other local save.
     func saveClipboard() {
+        // This copy is handled now, so the auto-capture never reads it (or asks to paste) again.
+        PasteboardCapture.markHandled()
         // Types only, so no paste prompt. Matches the Mac, which skips password-manager and transient copies.
         guard !UIPasteboard.general.contains(pasteboardTypes: ClipCapture.skippedPasteboardTypes) else {
             return flash("Not saved: private copy")
         }
-        guard let clip = Self.readPasteboard() else { return flash("Clipboard is empty") }
+        guard let clip = PasteboardCapture.read() else { return flash("Clipboard is empty") }
         let context = container.mainContext
         // A failed check saves anyway: an extra row beats a lost clip.
         if (try? ClipCapture.isRecentDuplicate(hash: clip.contentHash, in: context, now: Date())) == true {
             return flash("Already saved")
         }
+        insert(clip)
+        flash("Saved")
+    }
+
+    /// Saves a copy made since Copyd last looked, each time the app opens. iOS lets only the foreground app read
+    /// the pasteboard, so this is the app's whole auto-capture. Runs after `drainInbox`, so a copy the keyboard
+    /// already queued is in history first. Content already anywhere in history is skipped silently.
+    func captureNewCopy() {
+        // A store in memory would lose the clip at quit, and the copy would be claimed. The Save Clipboard route
+        // reads this copy itself; reading it here too would show the paste prompt twice.
+        guard !isInMemory, pendingRoute != .saveClipboard, let clip = PasteboardCapture.newClip() else { return }
+        // A failed check saves anyway: an extra row beats a lost clip.
+        guard (try? ClipCapture.existsInHistory(hash: clip.contentHash, in: container.mainContext)) != true else { return }
+        insert(clip)
+        flash("Saved from clipboard")
+    }
+
+    /// Inserts and saves an iPhone copy. The save's observer reloads the widget; the sync tracker uploads it.
+    private func insert(_ clip: CapturedClip) {
+        let context = container.mainContext
         let thumbnail = clip.contentType == .image ? Thumbnail.png(from: clip.rawData) : nil
         context.insert(ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
                                      thumbnailData: thumbnail, sourceAppName: UIDevice.current.model,
                                      contentHash: clip.contentHash))
         try? context.save()
-        flash("Saved")
-    }
-
-    /// One read, so one paste prompt: an image (PNG first, else the first image type), otherwise the string.
-    /// `hasImages` and `types` do not trigger the prompt.
-    private static func readPasteboard() -> CapturedClip? {
-        let pasteboard = UIPasteboard.general
-        guard pasteboard.hasImages else {
-            return (pasteboard.string ?? pasteboard.url?.absoluteString).flatMap(ClipCapture.text)
-        }
-        let png = UTType.png.identifier
-        let type = pasteboard.types.contains(png) ? png : pasteboard.types.first { UTType($0)?.conforms(to: .image) == true }
-        return type.flatMap { pasteboard.data(forPasteboardType: $0) }.flatMap(ClipCapture.image)
     }
 
     /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.

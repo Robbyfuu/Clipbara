@@ -41,4 +41,9 @@ enum ClipCapture {
         let recent = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash && $0.copiedAt > cutoff })
         return try context.fetchCount(recent) > 0
     }
+
+    /// Auto-captures (app open, keyboard) never duplicate: skip when the same content is already anywhere in history.
+    @MainActor static func existsInHistory(hash: String, in context: ModelContext) throws -> Bool {
+        try context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash })) > 0
+    }
 }

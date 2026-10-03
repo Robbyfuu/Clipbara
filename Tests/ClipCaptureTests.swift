@@ -67,4 +67,29 @@ final class ClipCaptureTests: XCTestCase {
         try context.save()
         XCTAssertFalse(try ClipCapture.isRecentDuplicate(hash: "h", in: context, now: now))
     }
+
+    func testExistsInHistory() throws {
+        let container = try ModelContainer(
+            for: ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let item = ClipboardItem(contentType: .plainText, rawData: Data("a".utf8), textContent: "a", contentHash: "h")
+        item.copiedAt = Date(timeIntervalSince1970: 0)  // far older than the 10 s rule
+        context.insert(item)
+        try context.save()
+        XCTAssertTrue(try ClipCapture.existsInHistory(hash: "h", in: context))
+        XCTAssertFalse(try ClipCapture.existsInHistory(hash: "other", in: context))
+    }
+
+    func testPasteboardChangeIsClaimedOnce() throws {
+        let suite = "ClipCaptureTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(SharedDefaults.lastCapturedChangeCountKey, "lastCapturedPasteboardChange")
+        XCTAssertTrue(SharedDefaults.claimPasteboardChange(5, in: defaults), "never handled")
+        XCTAssertEqual(defaults.object(forKey: SharedDefaults.lastCapturedChangeCountKey) as? Int, 5)
+        XCTAssertFalse(SharedDefaults.claimPasteboardChange(5, in: defaults), "already handled")
+        XCTAssertTrue(SharedDefaults.claimPasteboardChange(6, in: defaults), "a new copy")
+        XCTAssertFalse(SharedDefaults.claimPasteboardChange(6, in: defaults))
+    }
 }

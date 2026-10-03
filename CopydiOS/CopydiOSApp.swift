@@ -79,9 +79,12 @@ struct CopydiOSApp: App {
             .environment(model)
             .modelContainer(model.container)
             // fetchIfStale is a no-op when sync is off (no engine) and throttles itself to 30 s.
-            .onChange(of: scenePhase) { _, phase in
+            // `initial`, so a cold launch captures the clipboard too. A repeat is harmless: the drain is idempotent
+            // and the capture reads each `changeCount` once.
+            .onChange(of: scenePhase, initial: true) { _, phase in
                 guard phase == .active else { return }
                 model.drainInbox()
+                model.captureNewCopy()
                 model.sync.fetchIfStale()
             }
             .onOpenURL { url in
