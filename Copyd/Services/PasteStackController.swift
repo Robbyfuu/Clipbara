@@ -25,6 +25,8 @@ final class PasteStackController {
     /// A ⌘V went down with the head staged; it is popped on the V key-up or the fallback.
     @ObservationIgnored private var pendingPaste = false
     @ObservationIgnored private var fallback: Task<Void, Never>?
+    /// `changeCount` right after the last staging write (or LIFO push that left the copy as head).
+    @ObservationIgnored private var stagedChangeCount = 0
 
     func toggle() {
         isActive ? stop() : start()
@@ -73,9 +75,16 @@ final class PasteStackController {
               appState?.panelController.isVisible != true else { return }
         pendingPaste = true
         fallback?.cancel()
-        // The key-up can go missing (a tap paused by secure input); don't leave the stack stuck.
+        // The key-up is the normal trigger. This only covers a lost key-up (a tap paused by secure
+        // input) so the stack isn't stuck; while V is still physically down, keep waiting (max 5 s).
         fallback = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .seconds(1))
+            var waited = 1000
+            while !Task.isCancelled, waited < 5000,
+                  CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(PasteStack.pasteKeyCode)) {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 100
+            }
             guard !Task.isCancelled else { return }
             self?.finishPaste()
         }
@@ -92,6 +101,14 @@ final class PasteStackController {
         pendingPaste = false
         fallback?.cancel()
         fallback = nil
+        // The tap can't hold ⌘V and the monitor polls every 0.5 s, so a copy made just before ⌘V may
+        // be what got pasted. Then the head was never pasted: keep it. The monitor captures that copy
+        // and `push` re-stages (FIFO) or makes it the head (LIFO), after the capture so the skip flag
+        // can't swallow it.
+        guard PasteStack.shouldPop(stagedChangeCount: stagedChangeCount,
+                                   currentChangeCount: NSPasteboard.general.changeCount) else { return }
+        // The one place a stack paste counts toward the review prompt.
+        ReviewPrompter.recordPaste()
         stage(stack.stagingAfterPop())
     }
 
@@ -100,7 +117,7 @@ final class PasteStackController {
     private func stage(_ id: UUID?) {
         count = stack.count
         guard let id else {
-            if stack.isEmpty { stop() }
+            if stack.isEmpty { stop() } else { stagedChangeCount = NSPasteboard.general.changeCount }
             return
         }
         guard let appState, let context = appState.modelContainer?.mainContext else { return }
@@ -114,8 +131,10 @@ final class PasteStackController {
         // The setting alone decides plain text: a Shift held while staging means nothing here.
         appState.pasteService.paste(
             item: item,
-            asPlainText: UserDefaults.standard.bool(forKey: PasteService.alwaysPlainTextDefaultsKey)
+            asPlainText: UserDefaults.standard.bool(forKey: PasteService.alwaysPlainTextDefaultsKey),
+            recordPaste: false
         )
+        stagedChangeCount = NSPasteboard.general.changeCount
     }
 
     // MARK: - Event tap

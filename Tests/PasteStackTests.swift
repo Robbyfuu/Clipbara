@@ -122,4 +122,13 @@ final class PasteStackTests: XCTestCase {
         XCTAssertFalse(PasteStack.isPasteKey(try keyDown(c, .maskCommand)))
         XCTAssertFalse(PasteStack.isPasteKey(try keyDown(v, .maskCommand, repeat: true)), "holding ⌘V must not drain the stack")
     }
+
+    func testNoPopWhenPasteboardChangedSinceStage() {
+        XCTAssertFalse(PasteStack.shouldPop(stagedChangeCount: 7, currentChangeCount: 8),
+                       "the user's own copy was pasted, not the staged head")
+    }
+
+    func testPopWhenUnchanged() {
+        XCTAssertTrue(PasteStack.shouldPop(stagedChangeCount: 7, currentChangeCount: 7))
+    }
 }

@@ -54,6 +54,12 @@ struct PasteStack {
         return head
     }
 
+    /// The ⌘V pasted the staged head only if nothing else wrote to the pasteboard since staging.
+    /// A different count means the user's own copy went in first: keep the head, don't pop.
+    static func shouldPop(stagedChangeCount: Int, currentChangeCount: Int) -> Bool {
+        stagedChangeCount == currentChangeCount
+    }
+
     static let pasteKeyCode: Int64 = 9
 
     /// Plain ⌘V on its first press. ⇧⌘V, ⌥⌘V and the like, and key repeats, are left alone.
