@@ -53,7 +53,7 @@ struct ClipRow: View {
                 }
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
-        } else if item.contentType == .url, let parts = LinkParts.split(item.textContent ?? "") {
+        } else if let parts = linkParts {
             VStack(alignment: .leading, spacing: 6) {
                 if let title {
                     mainLine(title)
@@ -87,6 +87,15 @@ struct ClipRow: View {
     }
 
     private var title: String? { item.userTitle.flatMap { $0.isEmpty ? nil : $0 } }
+
+    /// Link clips, and text clips that are nothing but one http(s) URL, render as the link card.
+    private var linkParts: (host: String, rest: String)? {
+        switch item.contentType {
+        case .url: LinkParts.split(item.textContent ?? "")
+        case .plainText, .richText, .html: LinkParts.bareLink(item.textContent ?? "")
+        default: nil
+        }
+    }
 
     /// "Source · age" on the left; "Pinned" on the right when pinned.
     private var meta: some View {

@@ -16,4 +16,19 @@ final class LinkPartsTests: XCTestCase {
     func testNoHostIsNil() {
         XCTAssertNil(LinkParts.split("not a url"))
     }
+
+    func testBareLinkAcceptsHTTPS() throws {
+        let parts = try XCTUnwrap(LinkParts.bareLink("  https://www.airbnb.cl/rooms/1289?adults=3\n"))
+        XCTAssertEqual(parts.host, "airbnb.cl")
+        XCTAssertEqual(parts.rest, "/rooms/1289?adults=3")
+    }
+
+    func testBareLinkRejectsText() {
+        XCTAssertNil(LinkParts.bareLink("Si buscas el lugar perfecto https://airbnb.cl"))
+    }
+
+    func testBareLinkRejectsNonHTTP() {
+        XCTAssertNil(LinkParts.bareLink("mailto:a@b.cl"))
+        XCTAssertNil(LinkParts.bareLink("464501"))
+    }
 }

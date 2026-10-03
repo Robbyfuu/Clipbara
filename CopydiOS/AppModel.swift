@@ -89,7 +89,7 @@ final class AppModel {
     }
 
     #if DEBUG
-    /// `-CopydSeedSampleClips`: inserts 5 sample clips (one per card type) when the store is nearly empty.
+    /// `-CopydSeedSampleClips`: inserts 7 sample clips (one per card type) when the store is nearly empty.
     /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`), so samples never reach iCloud.
     /// Without `-CopydSeedSampleClips`, deletes leftover `seed-*` rows. Runs before the sync engine exists,
     /// so no tracker sees the delete and `queueEverything` never uploads the samples.
@@ -126,6 +126,11 @@ final class AppModel {
                                      textContent: long, contentHash: "seed-long"))
         context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png),
                                      contentHash: "seed-image"))
+        let bareURL = "https://www.airbnb.cl/rooms/1289209668570226847?check_in=2026-10-07"
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(bareURL.utf8), textContent: bareURL,
+                                     contentHash: "seed-bareurl"))
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data("464501".utf8), textContent: "464501",
+                                     contentHash: "seed-code"))
         try? context.save()
     }
     #endif

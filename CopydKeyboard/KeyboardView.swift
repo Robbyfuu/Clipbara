@@ -211,7 +211,7 @@ struct KeyboardView: View {
     }
 
     @ViewBuilder private func cardBody(_ clip: KeyboardClip) -> some View {
-        if clip.contentType == .url, let parts = LinkParts.split(clip.preview) {
+        if let parts = linkParts(clip) {
             Text(parts.host).font(.system(size: 15, weight: .bold)).lineLimit(2)
                 .foregroundStyle(DesignTokens.Brand.ink)
         } else if clip.contentType == .color {
@@ -227,6 +227,15 @@ struct KeyboardView: View {
         } else {
             Text(clip.preview).font(.system(size: 14)).lineLimit(3)
                 .foregroundStyle(DesignTokens.Brand.ink)
+        }
+    }
+
+    /// Same rule as the app's `ClipRow`: link clips, and text clips that are one bare http(s) URL.
+    private func linkParts(_ clip: KeyboardClip) -> (host: String, rest: String)? {
+        switch clip.contentType {
+        case .url: LinkParts.split(clip.preview)
+        case .plainText, .richText, .html: LinkParts.bareLink(clip.preview)
+        default: nil
         }
     }
 
