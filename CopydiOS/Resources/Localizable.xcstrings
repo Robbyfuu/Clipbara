@@ -88,22 +88,6 @@
         }
       }
     },
-    "1. Open Settings → Accessibility → Touch → Back Tap" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1. Open Settings → Accessibility → Touch → Back Tap"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1. Abre Configuración → Accesibilidad → Tocar → Toque posterior"
-          }
-        }
-      }
-    },
     "1. Open Settings → Apps → Copyd" : {
       "localizations" : {
         "en" : {
@@ -116,6 +100,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1. Abre Configuración → Apps → Copyd"
+          }
+        }
+      }
+    },
+    "1. Open Shortcuts → + → Add Action → search Copyd → Save Clipboard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Open Shortcuts → + → Add Action → search Copyd → Save Clipboard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Abre Atajos → + → Agregar acción → busca Copyd → Guardar portapapeles"
           }
         }
       }
@@ -136,18 +136,18 @@
         }
       }
     },
-    "2. Choose Double Tap or Triple Tap" : {
+    "2. Save the shortcut" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Choose Double Tap or Triple Tap"
+            "value" : "2. Save the shortcut"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Elige tocar dos o tres veces"
+            "value" : "2. Guarda el atajo"
           }
         }
       }
@@ -168,18 +168,18 @@
         }
       }
     },
-    "3. Pick Save clipboard in Copyd" : {
+    "3. Open Settings → Accessibility → Touch → Back Tap → Double Tap → pick your shortcut" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3. Pick Save clipboard in Copyd"
+            "value" : "3. Open Settings → Accessibility → Touch → Back Tap → Double Tap → pick your shortcut"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3. Elige Guardar portapapeles en Copyd"
+            "value" : "3. Abre Configuración → Accesibilidad → Tocar → Toque posterior → Tocar dos veces → elige tu atajo"
           }
         }
       }
@@ -938,6 +938,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abre Copyd una vez para conectar tu historial."
+          }
+        }
+      }
+    },
+    "Open Shortcuts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Shortcuts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Atajos"
           }
         }
       }

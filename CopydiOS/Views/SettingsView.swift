@@ -67,9 +67,19 @@ struct SettingsView: View {
 
                 sectionLabel("Shortcuts & Back Tap")
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("1. Open Settings \u{2192} Accessibility \u{2192} Touch \u{2192} Back Tap")
-                    Text("2. Choose Double Tap or Triple Tap")
-                    Text("3. Pick Save clipboard in Copyd")
+                    Button {
+                        if let url = URL(string: "shortcuts://create-shortcut") { openURL(url) }
+                    } label: {
+                        Label("Open Shortcuts", systemImage: "square.2.layers.3d")
+                            .brandFont(15, .semibold)
+                            .foregroundStyle(DesignTokens.Brand.ink)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(DesignTokens.Brand.chip, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Text("1. Open Shortcuts \u{2192} + \u{2192} Add Action \u{2192} search Copyd \u{2192} Save Clipboard")
+                    Text("2. Save the shortcut")
+                    Text("3. Open Settings \u{2192} Accessibility \u{2192} Touch \u{2192} Back Tap \u{2192} Double Tap \u{2192} pick your shortcut")
                 }
                 .brandFont(16)
                 .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
