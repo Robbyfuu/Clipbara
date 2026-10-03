@@ -19,6 +19,8 @@ final class KeyboardModel {
     @ObservationIgnored var onSelect: (KeyboardClip) -> String? = { _ in nil }
     @ObservationIgnored var onText: (String) -> Void = { _ in }
     @ObservationIgnored var onDelete: () -> Void = {}
+    /// Opens Copyd's keyboard setup in the containing app (no-Full-Access state only).
+    @ObservationIgnored var onOpenApp: () -> Void = {}
     @ObservationIgnored let globeButton: UIButton = {
         var config = UIButton.Configuration.plain()
         config.image = UIImage(systemName: "globe")
@@ -149,6 +151,16 @@ struct KeyboardView: View {
                     Text("3. Turn on Allow Full Access")
                 }
                 .font(.system(size: 13)).foregroundStyle(DesignTokens.Brand.ink2)
+                Button { model.onOpenApp() } label: {
+                    Label("Open Copyd", systemImage: "arrow.up.forward.app")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(DesignTokens.Brand.onButter)
+                        .padding(.horizontal, 18)
+                        .frame(height: 44)
+                        .keyCap(DesignTokens.Brand.butter, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .noStore: message("Open Copyd once to connect your history.", symbol: "iphone")

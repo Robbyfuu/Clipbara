@@ -13,6 +13,10 @@ final class KeyboardViewController: UIInputViewController {
         model.onSelect = { [weak self] in self?.select($0) }
         model.onText = { [weak self] in self?.textDocumentProxy.insertText($0) }
         model.onDelete = { [weak self] in self?.textDocumentProxy.deleteBackward() }
+        model.onOpenApp = { [weak self] in
+            guard let self, let url = URL(string: "copyd://keyboard-setup") else { return }
+            OpenContainingApp.open(url, from: self)
+        }
 
         let host = UIHostingController(rootView: KeyboardView(model: model))
         host.view.backgroundColor = .clear
