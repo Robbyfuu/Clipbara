@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import UIKit
-import UniformTypeIdentifiers
 import OSLog
 
 /// Owns the shared store and the sync engine for the iOS app.
@@ -48,8 +47,8 @@ final class AppModel {
     func copy(_ item: ClipboardItem) -> Bool {
         switch item.contentType {
         case .image:
-            guard let png = UIImage(data: item.rawData)?.pngData() else { return false }
-            UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
+            guard let image = PasteboardImage.payload(from: item.rawData, maxPixels: 4096) else { return false }
+            UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
         default:
             guard let text = item.textContent, !text.isEmpty else { return false }
             UIPasteboard.general.string = text

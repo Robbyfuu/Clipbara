@@ -1,7 +1,6 @@
 import SwiftData
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
@@ -81,8 +80,8 @@ final class KeyboardViewController: UIInputViewController {
             return nil
         case .copyToPasteboard:
             if item.contentType == .image {
-                guard let png = UIImage(data: item.rawData)?.pngData() else { return failure }
-                UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
+                guard let image = PasteboardImage.payload(from: item.rawData, maxPixels: 2048) else { return failure }
+                UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
                 return "Copied. Touch and hold the field, then tap Paste."
             }
             UIPasteboard.general.string = item.textContent

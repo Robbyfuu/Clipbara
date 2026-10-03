@@ -133,6 +133,7 @@ targets:
       - path: Copyd/Utilities/ReviewPromptPolicy.swift
       - path: Copyd/Utilities/AccessPolicy.swift
       - path: Shared/Utilities/Thumbnail.swift
+      - path: Shared/Utilities/PasteboardImage.swift
       - path: Shared/Sync/AssetCrypto.swift
       - path: Shared/Sync/SyncRecordMapper.swift
       - path: Shared/Sync/DuplicateRule.swift
