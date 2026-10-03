@@ -84,7 +84,8 @@ final class KeyboardViewController: UIInputViewController {
                 UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
                 return "Copied. Touch and hold the field, then tap Paste."
             }
-            UIPasteboard.general.string = item.textContent
+            guard let text = item.textContent, !text.isEmpty else { return failure }
+            UIPasteboard.general.string = text
             return "Copied. It's too long to insert."
         }
     }

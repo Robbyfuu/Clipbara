@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import UniformTypeIdentifiers
 
 @Model
 final class ClipboardItem {

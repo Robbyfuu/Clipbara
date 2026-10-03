@@ -35,7 +35,8 @@ enum KeyboardFeed {
         switch type {
         case .image: preview = ""
         case .url, .color: preview = text ?? ""
-        default: preview = String((text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(previewLimit))
+        // Cut before trimming so a multi-MB clip is never copied whole.
+        default: preview = String((text ?? "").prefix(600).trimmingCharacters(in: .whitespacesAndNewlines).prefix(previewLimit))
         }
         return KeyboardClip(
             id: item.id, contentType: type, preview: preview,

@@ -27,11 +27,7 @@ final class AppModel {
             inMemory = true
             configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         }
-        do {
-            container = try ModelContainer(for: schema, configurations: [configuration])
-        } catch {
-            fatalError("Could not create the store: \(error)")
-        }
+        container = Self.openStore(schema: schema, configuration: configuration, inMemory: &inMemory)
         isInMemory = inMemory
         #if DEBUG
         Self.seedSampleClipsIfRequested(container)
@@ -39,6 +35,36 @@ final class AppModel {
         #endif
         sync = CloudSyncEngine(container: container) {}
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
+    }
+
+    /// The phone only mirrors iCloud, so a store that won't open is deleted with its sync state and downloaded again,
+    /// as the Mac does. A second failure falls back to memory so the app still launches.
+    private static func openStore(schema: Schema, configuration: ModelConfiguration, inMemory: inout Bool) -> ModelContainer {
+        do {
+            return try ModelContainer(for: schema, configurations: [configuration])
+        } catch {
+            log.error("Could not open the store: \(error.localizedDescription, privacy: .public)")
+        }
+        if !configuration.isStoredInMemoryOnly {
+            let dir = configuration.url.deletingLastPathComponent()
+            let name = configuration.url.lastPathComponent
+            for file in [name, name + "-shm", name + "-wal", "SyncState.data"] {
+                try? FileManager.default.removeItem(at: dir.appendingPathComponent(file))
+            }
+            do {
+                return try ModelContainer(for: schema, configurations: [configuration])
+            } catch {
+                log.error("Store recovery failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        log.error("Using an in-memory store")
+        inMemory = true
+        do {
+            return try ModelContainer(for: schema, configurations: [
+                ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        } catch {
+            fatalError("Cannot create any store: \(error)")
+        }
     }
 
     /// Copies the clip to the pasteboard and flashes the "Copied" toast.

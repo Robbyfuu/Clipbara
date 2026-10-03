@@ -22,7 +22,7 @@ final class KeyboardModel {
     @ObservationIgnored let globeButton: UIButton = {
         let button = UIButton(type: .system)
         button.setImage(UIImage(systemName: "globe"), for: .normal)
-        button.tintColor = .label
+        button.tintColor = UIColor(DesignTokens.Brand.ink)
         return button
     }()
     @ObservationIgnored private var toastTask: Task<Void, Never>?
