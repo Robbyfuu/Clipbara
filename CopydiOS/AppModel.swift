@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import UniformTypeIdentifiers
 import OSLog
 
 /// Owns the shared store and the sync engine for the iOS app.
@@ -15,6 +16,7 @@ final class AppModel {
     /// True when the App Group container was unavailable and the store lives in memory only.
     let isInMemory: Bool
     var toastVisible = false
+    var toastText = "Copied"
     /// A quick action or `copyd://` link the root view has not handled yet. Set before any view exists on a cold launch.
     var pendingRoute: QuickRoute?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -86,13 +88,47 @@ final class AppModel {
             guard let text = item.textContent, !text.isEmpty else { return false }
             UIPasteboard.general.string = text
         }
+        flash("Copied")
+        return true
+    }
+
+    /// Saves the iPhone pasteboard as a new clip, as the Mac's monitor would. Reading it shows iOS's paste prompt.
+    /// The sync tracker uploads the insert like any other local save.
+    func saveClipboard() {
+        guard let clip = Self.readPasteboard() else { return flash("Clipboard is empty") }
+        let context = container.mainContext
+        // A failed check saves anyway: an extra row beats a lost clip.
+        if (try? ClipCapture.isRecentDuplicate(hash: clip.contentHash, in: context, now: Date())) == true {
+            return flash("Already saved")
+        }
+        let thumbnail = clip.contentType == .image ? Thumbnail.png(from: clip.rawData) : nil
+        context.insert(ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
+                                     thumbnailData: thumbnail, sourceAppName: UIDevice.current.model,
+                                     contentHash: clip.contentHash))
+        try? context.save()
+        flash("Saved")
+    }
+
+    /// One read, so one paste prompt: an image (PNG first, else the first image type), otherwise the string.
+    /// `hasImages` and `types` do not trigger the prompt.
+    private static func readPasteboard() -> CapturedClip? {
+        let pasteboard = UIPasteboard.general
+        guard pasteboard.hasImages else { return pasteboard.string.flatMap(ClipCapture.text) }
+        let png = UTType.png.identifier
+        let type = pasteboard.types.contains(png) ? png : pasteboard.types.first { UTType($0)?.conforms(to: .image) == true }
+        return type.flatMap { pasteboard.data(forPasteboardType: $0) }.flatMap(ClipCapture.image)
+    }
+
+    /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.
+    private func flash(_ text: String) {
+        toastText = text
         toastTask?.cancel()
         toastVisible = true
+        AccessibilityNotification.Announcement(text).post()
         toastTask = Task {
             try? await Task.sleep(for: .seconds(1.2))
             if !Task.isCancelled { toastVisible = false }
         }
-        return true
     }
 
     #if DEBUG

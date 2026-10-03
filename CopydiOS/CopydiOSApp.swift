@@ -70,7 +70,7 @@ struct CopydiOSApp: App {
                 SettingsView().tabItem { Label("Settings", systemImage: "gearshape") }.tag("settings")
             }
             .tint(DesignTokens.Brand.ink)
-            .overlay(alignment: .bottom) { CopiedToast(visible: model.toastVisible) }
+            .overlay(alignment: .bottom) { CopiedToast(text: model.toastText, visible: model.toastVisible) }
             #if DEBUG
             .overlay(alignment: .bottom) { KeyboardPreviewHarness(container: model.container) }
             #endif
@@ -104,6 +104,7 @@ struct CopydiOSApp: App {
             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
         case .saveClipboard:
             tab = "history"
+            model.saveClipboard()
         }
     }
 }

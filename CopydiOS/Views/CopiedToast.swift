@@ -1,10 +1,12 @@
 import SwiftUI
 
+/// The butter capsule that confirms a copy or a save ("Copied", "Saved", ...).
 struct CopiedToast: View {
+    let text: String
     let visible: Bool
 
     var body: some View {
-        Text("Copied")
+        Text(text)
             .brandFont(15, .semibold, relativeTo: .subheadline)
             .foregroundStyle(DesignTokens.Brand.onButter)
             .padding(.horizontal, 18)
