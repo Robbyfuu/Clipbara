@@ -61,6 +61,61 @@ targets:
         "-CopydDebugOriginalAppVersion 1.4": false
         "-CopydDebugTrialShiftDays 8": false
 
+  CopydiOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydiOS
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
+        PRODUCT_NAME: Copyd
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydiOS/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: CopydKeyboard
+        embed: true
+        codeSign: true
+    entitlements:
+      path: CopydiOS/CopydiOS.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.robbyfuu.copyd]
+        com.apple.developer.icloud-services: [CloudKit]
+        aps-environment: development
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
+  CopydKeyboard:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydKeyboard
+      - path: Shared
+        excludes:
+          # The keyboard never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
+          - Sync/CloudSyncEngine.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.keyboard
+        PRODUCT_NAME: CopydKeyboard
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydKeyboard/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+    entitlements:
+      path: CopydKeyboard/CopydKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
   # Unhosted unit tests: no app launch, clipboard monitor, or user store access.
   CopydTests:
     type: bundle.unit-test

@@ -1,0 +1,8 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<rect width="1024" height="1024" fill="#191926"/>
+<!-- logo B mark, same geometry as copyd-icon.svg, centered at ~58% of the full-bleed canvas -->
+<g transform="translate(512 512) scale(9.28) translate(-26 -32)">
+  <path fill="#F8D14F" fill-rule="evenodd" d="M20 20H32A14 14 0 0 1 46 34V46A14 14 0 0 1 32 60H20A14 14 0 0 1 6 46V34A14 14 0 0 1 20 20ZM12 40A7 7 0 1 0 26 40A7 7 0 1 0 12 40Z"/>
+  <rect x="32" y="4" width="14" height="56" rx="7" fill="#FEFDFB"/>
+</g>
+</svg>
