@@ -27,10 +27,10 @@ final class KeyboardModel {
         config.cornerStyle = .fixed
         config.background.cornerRadius = 12
         let button = UIButton(configuration: config)
-        // Same pressed state as the SwiftUI keys: `line` while held, `chip` otherwise.
+        // Same pressed state as the SwiftUI keys: `keyCapPressed` while held, `keyCap` otherwise.
         button.configurationUpdateHandler = { button in
             button.configuration?.background.backgroundColor =
-                UIColor(button.isHighlighted ? DesignTokens.Brand.line : DesignTokens.Brand.chip)
+                UIColor(button.isHighlighted ? DesignTokens.Brand.keyCapPressed : DesignTokens.Brand.keyCap)
         }
         return button
     }()
@@ -90,8 +90,8 @@ struct KeyboardView: View {
             }
             bottomRow
         }
+        // No fill: the system keyboard background (the controller's `UIInputView`) shows through.
         .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 8)
-        .background(DesignTokens.Brand.shelf)
     }
 
     private var header: some View {
@@ -106,7 +106,7 @@ struct KeyboardView: View {
                 modePill("Pinned", .pinned)
             }
             .padding(.horizontal, 3)
-            .background(DesignTokens.Brand.chip, in: Capsule())
+            .background(DesignTokens.Brand.line, in: Capsule())
             .layoutPriority(1)
         }
         .padding(.horizontal, 4)
@@ -125,12 +125,7 @@ struct KeyboardView: View {
                 .foregroundStyle(active ? DesignTokens.Brand.ink : DesignTokens.Brand.ink2)
                 .padding(.horizontal, 14)
                 .frame(height: 38)
-                .background {
-                    if active {
-                        Capsule().fill(DesignTokens.Brand.card)
-                            .shadow(color: DesignTokens.Brand.ink.opacity(0.12), radius: 2, y: 1)
-                    }
-                }
+                .keyCap(active ? DesignTokens.Brand.keyCap : .clear, in: Capsule())
                 // 3 pt each side keeps the visible capsule at 38 pt while the tap target is 44 pt.
                 .padding(.vertical, 3)
                 .contentShape(Rectangle())
@@ -180,7 +175,10 @@ struct KeyboardView: View {
                     Button { model.select(clip) } label: { card(clip) }.buttonStyle(.plain)
                 }
             }
+            // Room under the last row, and for its 1 pt key shadow.
+            .padding(.bottom, 8)
         }
+        .scrollIndicators(.hidden)
     }
 
     @ViewBuilder private func card(_ clip: KeyboardClip) -> some View {
@@ -200,20 +198,24 @@ struct KeyboardView: View {
                         .font(.system(size: 11)).foregroundStyle(DesignTokens.Brand.ink2).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 12).padding(.vertical, 10)
+                // 8 pt, not 10: three 14 pt lines plus the meta line need 68 pt of the 84 pt card.
+                .padding(.horizontal, 12).padding(.vertical, 8)
             }
         }
-        .frame(height: 88)
-        .background(DesignTokens.Brand.card)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(DesignTokens.Brand.line, lineWidth: 1))
-        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .frame(height: 84)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .keyCap(in: RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder private func cardBody(_ clip: KeyboardClip) -> some View {
         if let parts = linkParts(clip) {
-            Text(parts.host).font(.system(size: 15, weight: .bold)).lineLimit(2)
+            Text(parts.host).font(.system(size: 15, weight: .bold)).lineLimit(1)
                 .foregroundStyle(DesignTokens.Brand.ink)
+            if !parts.rest.isEmpty {
+                Text(parts.rest).font(.system(size: 11, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                    .foregroundStyle(DesignTokens.Brand.ink2)
+            }
         } else if clip.contentType == .color {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 6)
@@ -224,6 +226,12 @@ struct KeyboardView: View {
                 Text(clip.preview).font(.system(size: 13, design: .monospaced)).lineLimit(1)
                     .foregroundStyle(DesignTokens.Brand.ink)
             }
+        } else if clip.preview.count <= 24, !clip.preview.contains(where: \.isNewline) {
+            // Short clips such as one-time codes: large, and monospaced when only digits and spaces.
+            let digits = clip.preview.allSatisfy { $0.isWholeNumber || $0 == " " }
+            Text(clip.preview).font(.system(size: 20, weight: .semibold, design: digits ? .monospaced : .default))
+                .lineLimit(2)
+                .foregroundStyle(DesignTokens.Brand.ink)
         } else {
             Text(clip.preview).font(.system(size: 14)).lineLimit(3)
                 .foregroundStyle(DesignTokens.Brand.ink)
@@ -242,7 +250,9 @@ struct KeyboardView: View {
     private var bottomRow: some View {
         HStack(spacing: 8) {
             if model.showsGlobe {
+                // The UIButton paints its own fill on top; this shape only casts the key shadow.
                 GlobeButton(button: model.globeButton).frame(width: 48, height: 46)
+                    .keyCap(in: RoundedRectangle(cornerRadius: 12))
                     .accessibilityLabel("Next keyboard")
             }
             Button { model.onText(" ") } label: {
@@ -252,8 +262,8 @@ struct KeyboardView: View {
             Image(systemName: "delete.left").font(.system(size: 19))
                 .foregroundStyle(DesignTokens.Brand.ink)
                 .frame(width: 48, height: 46)
-                .background(deletePressed ? DesignTokens.Brand.line : DesignTokens.Brand.chip,
-                            in: RoundedRectangle(cornerRadius: 12))
+                .keyCap(deletePressed ? DesignTokens.Brand.keyCapPressed : DesignTokens.Brand.keyCap,
+                        in: RoundedRectangle(cornerRadius: 12))
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0).updating($deletePressed) { _, pressed, _ in pressed = true })
                 .onChange(of: deletePressed) { _, pressed in pressed ? model.beginDelete() : model.endDelete() }
@@ -269,18 +279,25 @@ struct KeyboardView: View {
     }
 }
 
-/// A 46 pt keyboard key: `chip` fill that turns `line` while held, or a darkening overlay for the return key.
+/// A 46 pt keyboard key: `keyCap` fill that turns `keyCapPressed` while held, or a darkening overlay for the return key.
 private struct KeyStyle: ButtonStyle {
-    var fill = DesignTokens.Brand.chip
+    var fill = DesignTokens.Brand.keyCap
     var pressedOverlay: Color?
 
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: 12)
         configuration.label
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(configuration.isPressed && pressedOverlay == nil ? DesignTokens.Brand.line : fill, in: shape)
+            .keyCap(configuration.isPressed && pressedOverlay == nil ? DesignTokens.Brand.keyCapPressed : fill, in: shape)
             .overlay { if configuration.isPressed, let pressedOverlay { shape.fill(pressedOverlay) } }
             .contentShape(shape)
+    }
+}
+
+private extension View {
+    /// A native-key surface behind the view: `fill` in `shape`, with a hard 1 pt shadow below. A clear fill casts none.
+    func keyCap(_ fill: Color = DesignTokens.Brand.keyCap, in shape: some Shape) -> some View {
+        background { shape.fill(fill).shadow(color: DesignTokens.Brand.ink.opacity(0.3), radius: 0, y: 1) }
     }
 }
 

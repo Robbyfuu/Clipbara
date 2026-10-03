@@ -23,6 +23,9 @@ extension DesignTokens {
         static let butterSoft = dynamic(light: 0xFCF1C8, dark: 0x3A3420)
         /// Butter-toned text ("Pinned"). On `card`: 4.99:1 light, 11.17:1 dark.
         static let butterInk = dynamic(light: 0x8A6A00, dark: 0xF8D14F)
+        /// Keyboard key surface: lighter than the system keyboard background in both modes, like native keys.
+        static let keyCap = dynamic(light: 0xFEFDFB, dark: 0x3B3B48)
+        static let keyCapPressed = dynamic(light: 0xD8D8E0, dark: 0x4C4C5A)
         /// Liquid Glass tint (macOS 26+): faint paper / ink keeps text legible over any wallpaper.
         static let glassTint = dynamic(light: 0xF2F0E9, dark: 0x12121A, alpha: 0.4)
 

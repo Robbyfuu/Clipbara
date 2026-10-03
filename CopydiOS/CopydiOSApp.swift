@@ -54,7 +54,9 @@ private struct KeyboardPreviewHarness: View {
 
     var body: some View {
         if UserDefaults.standard.bool(forKey: "CopydKeyboardPreview") {
+            // `line` stands in for the system keyboard background, which the transparent keyboard relies on.
             KeyboardView(model: model).frame(height: 280)
+                .background(DesignTokens.Brand.line)
                 .task { load() }
         }
     }
