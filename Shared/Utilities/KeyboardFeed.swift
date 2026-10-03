@@ -10,6 +10,7 @@ struct KeyboardClip: Identifiable, Equatable {
     let isPinned: Bool
     let copiedAt: Date
     let textByteCount: Int
+    let sourceAppName: String?
 }
 
 enum KeyboardFeed {
@@ -41,6 +42,7 @@ enum KeyboardFeed {
         return KeyboardClip(
             id: item.id, contentType: type, preview: preview,
             thumbnail: type == .image ? item.thumbnailData : nil,
-            isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0)
+            isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
+            sourceAppName: item.sourceAppName)
     }
 }

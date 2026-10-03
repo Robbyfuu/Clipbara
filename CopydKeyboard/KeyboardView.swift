@@ -20,9 +20,18 @@ final class KeyboardModel {
     @ObservationIgnored var onText: (String) -> Void = { _ in }
     @ObservationIgnored var onDelete: () -> Void = {}
     @ObservationIgnored let globeButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setImage(UIImage(systemName: "globe"), for: .normal)
-        button.tintColor = UIColor(DesignTokens.Brand.ink)
+        var config = UIButton.Configuration.plain()
+        config.image = UIImage(systemName: "globe")
+        config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 19, weight: .regular)
+        config.baseForegroundColor = UIColor(DesignTokens.Brand.ink)
+        config.cornerStyle = .fixed
+        config.background.cornerRadius = 12
+        let button = UIButton(configuration: config)
+        // Same pressed state as the SwiftUI keys: `line` while held, `chip` otherwise.
+        button.configurationUpdateHandler = { button in
+            button.configuration?.background.backgroundColor =
+                UIColor(button.isHighlighted ? DesignTokens.Brand.line : DesignTokens.Brand.chip)
+        }
         return button
     }()
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -63,13 +72,13 @@ struct KeyboardView: View {
     @GestureState private var deletePressed = false
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 10) {
             header
             ZStack {
                 content
                 if let toast = model.toast {
                     Text(toast)
-                        .font(.footnote.weight(.semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(DesignTokens.Brand.onButter)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 14).padding(.vertical, 8)
@@ -81,48 +90,85 @@ struct KeyboardView: View {
             }
             bottomRow
         }
-        .padding(.horizontal, 8).padding(.vertical, 6)
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 8)
         .background(DesignTokens.Brand.shelf)
     }
 
     private var header: some View {
         HStack(spacing: 8) {
-            CopydMark(size: 20)
+            CopydWordmark(size: 21).layoutPriority(1)
             Text(RelativeSyncTime.text(from: model.lastSync, now: Date()))
-                .font(.caption).foregroundStyle(DesignTokens.Brand.ink2)
-                .lineLimit(1)
+                .font(.system(size: 12)).foregroundStyle(DesignTokens.Brand.ink2)
+                .lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 8)
-            Picker("Show", selection: Binding(get: { model.mode }, set: { model.mode = $0; model.onModeChange() })) {
-                Text("Recent").tag(KeyboardFeed.Mode.recent)
-                Text("Pinned").tag(KeyboardFeed.Mode.pinned)
+            HStack(spacing: 4) {
+                modePill("Recent", .recent)
+                modePill("Pinned", .pinned)
             }
-            .pickerStyle(.segmented).frame(width: 170)
+            .padding(3)
+            .background(DesignTokens.Brand.chip, in: Capsule())
+            .layoutPriority(1)
         }
+        .padding(.horizontal, 4)
         .frame(minHeight: 44)
+    }
+
+    private func modePill(_ title: String, _ mode: KeyboardFeed.Mode) -> some View {
+        let active = model.mode == mode
+        return Button {
+            guard model.mode != mode else { return }
+            model.mode = mode
+            model.onModeChange()
+        } label: {
+            Text(title)
+                .font(.system(size: 14, weight: active ? .bold : .semibold))
+                .foregroundStyle(active ? DesignTokens.Brand.ink : DesignTokens.Brand.ink2)
+                .padding(.horizontal, 14)
+                .frame(height: 38)
+                .background {
+                    if active {
+                        Capsule().fill(DesignTokens.Brand.card)
+                            .shadow(color: DesignTokens.Brand.ink.opacity(0.12), radius: 2, y: 1)
+                    }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     @ViewBuilder private var content: some View {
         switch model.state {
         case .noFullAccess:
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Turn on Allow Full Access to see your history").font(.subheadline.weight(.semibold))
-                Text("1. Open Settings \u{2192} General \u{2192} Keyboard \u{2192} Keyboards")
-                Text("2. Tap Add New Keyboard\u{2026} \u{2192} Copyd")
-                Text("3. Tap Copyd \u{2192} turn on Allow Full Access")
+            VStack(spacing: 6) {
+                Image(systemName: "lock").font(.system(size: 24)).foregroundStyle(DesignTokens.Brand.ink2)
+                    .accessibilityHidden(true)
+                Text("Turn on Allow Full Access to see your history")
+                    .font(.system(size: 15, weight: .bold)).foregroundStyle(DesignTokens.Brand.ink)
+                    .multilineTextAlignment(.center)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("1. Open Settings \u{2192} General \u{2192} Keyboard \u{2192} Keyboards")
+                    Text("2. Tap Add New Keyboard\u{2026} \u{2192} Copyd")
+                    Text("3. Tap Copyd \u{2192} turn on Allow Full Access")
+                }
+                .font(.system(size: 13)).foregroundStyle(DesignTokens.Brand.ink2)
             }
-            .font(.footnote).foregroundStyle(DesignTokens.Brand.ink)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(.horizontal, 6)
-        case .noStore: message("Open Copyd once to connect your history.")
-        case .error: message("Couldn't load your history.")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .noStore: message("Open Copyd once to connect your history.", symbol: "iphone")
+        case .error: message("Couldn't load your history.", symbol: "exclamationmark.triangle")
         case .loaded(let clips):
-            if clips.isEmpty { message("Copy something on your Mac.") } else { grid(clips) }
+            if clips.isEmpty { message("Copy something on your Mac.", symbol: "clipboard") } else { grid(clips) }
         }
     }
 
-    private func message(_ text: String) -> some View {
-        Text(text).font(.subheadline).foregroundStyle(DesignTokens.Brand.ink2)
-            .multilineTextAlignment(.center).frame(maxWidth: .infinity, maxHeight: .infinity)
+    private func message(_ text: String, symbol: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 28)).foregroundStyle(DesignTokens.Brand.ink2)
+                .accessibilityHidden(true)
+            Text(text).font(.system(size: 15, weight: .bold)).foregroundStyle(DesignTokens.Brand.ink)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func grid(_ clips: [KeyboardClip]) -> some View {
@@ -135,54 +181,95 @@ struct KeyboardView: View {
         }
     }
 
-    private func card(_ clip: KeyboardClip) -> some View {
+    @ViewBuilder private func card(_ clip: KeyboardClip) -> some View {
         Group {
             if clip.contentType == .image, let data = clip.thumbnail, let image = UIImage(data: data) {
                 Color.clear.overlay(Image(uiImage: image).resizable().scaledToFill())
                     .accessibilityElement().accessibilityLabel("Image")
             } else if clip.contentType == .image {
-                Image(systemName: "photo").frame(maxWidth: .infinity, maxHeight: .infinity)
+                Image(systemName: "photo").font(.system(size: 22))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .foregroundStyle(DesignTokens.Brand.ink2).accessibilityLabel("Image")
             } else {
-                Text(clip.preview).font(.footnote).lineLimit(3)
-                    .foregroundStyle(DesignTokens.Brand.ink)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(8)
+                VStack(alignment: .leading, spacing: 2) {
+                    cardBody(clip)
+                    Spacer(minLength: 0)
+                    Text("\(clip.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: clip.copiedAt, now: Date()))")
+                        .font(.system(size: 11)).foregroundStyle(DesignTokens.Brand.ink2).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 12).padding(.vertical, 10)
             }
         }
         .frame(height: 88)
         .background(DesignTokens.Brand.card)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(DesignTokens.Brand.line))
-        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(DesignTokens.Brand.line, lineWidth: 1))
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    @ViewBuilder private func cardBody(_ clip: KeyboardClip) -> some View {
+        if clip.contentType == .url, let parts = LinkParts.split(clip.preview) {
+            Text(parts.host).font(.system(size: 15, weight: .bold)).lineLimit(2)
+                .foregroundStyle(DesignTokens.Brand.ink)
+        } else if clip.contentType == .color {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(hex: clip.preview) ?? DesignTokens.Brand.chip)
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DesignTokens.Brand.line, lineWidth: 1))
+                    .frame(width: 22, height: 22)
+                    .accessibilityHidden(true)
+                Text(clip.preview).font(.system(size: 13, design: .monospaced)).lineLimit(1)
+                    .foregroundStyle(DesignTokens.Brand.ink)
+            }
+        } else {
+            Text(clip.preview).font(.system(size: 14)).lineLimit(3)
+                .foregroundStyle(DesignTokens.Brand.ink)
+        }
     }
 
     private var bottomRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             if model.showsGlobe {
-                GlobeButton(button: model.globeButton).frame(width: 52, height: 44)
-                    .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 8))
+                GlobeButton(button: model.globeButton).frame(width: 48, height: 46)
                     .accessibilityLabel("Next keyboard")
             }
-            key("space") { model.onText(" ") }.frame(maxWidth: .infinity)
-            Image(systemName: "delete.left").frame(width: 52, height: 44)
+            Button { model.onText(" ") } label: {
+                Text("space").font(.system(size: 15)).foregroundStyle(DesignTokens.Brand.ink)
+            }
+            .buttonStyle(KeyStyle())
+            Image(systemName: "delete.left").font(.system(size: 19))
                 .foregroundStyle(DesignTokens.Brand.ink)
-                .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 8))
+                .frame(width: 48, height: 46)
+                .background(deletePressed ? DesignTokens.Brand.line : DesignTokens.Brand.chip,
+                            in: RoundedRectangle(cornerRadius: 12))
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0).updating($deletePressed) { _, pressed, _ in pressed = true })
                 .onChange(of: deletePressed) { _, pressed in pressed ? model.beginDelete() : model.endDelete() }
                 .accessibilityLabel("Delete").accessibilityAddTraits(.isButton)
                 .accessibilityAction { model.onDelete() }
-            key("return") { model.onText("\n") }.frame(width: 76)
+            Button { model.onText("\n") } label: {
+                Text("return").font(.system(size: 15, weight: .bold)).foregroundStyle(DesignTokens.Brand.onButter)
+            }
+            .buttonStyle(KeyStyle(fill: DesignTokens.Brand.butter, pressedOverlay: DesignTokens.Brand.butterInk.opacity(0.2)))
+            .frame(width: 76)
         }
+        .frame(height: 46)
     }
+}
 
-    private func key(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.subheadline).foregroundStyle(DesignTokens.Brand.ink)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
+/// A 46 pt keyboard key: `chip` fill that turns `line` while held, or a darkening overlay for the return key.
+private struct KeyStyle: ButtonStyle {
+    var fill = DesignTokens.Brand.chip
+    var pressedOverlay: Color?
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12)
+        configuration.label
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(configuration.isPressed && pressedOverlay == nil ? DesignTokens.Brand.line : fill, in: shape)
+            .overlay { if configuration.isPressed, let pressedOverlay { shape.fill(pressedOverlay) } }
+            .contentShape(shape)
     }
 }
 

@@ -16,9 +16,10 @@ final class KeyboardFeedTests: XCTestCase {
 
     @discardableResult
     private func add(_ text: String?, type: ContentType = .plainText, dt: TimeInterval = 0,
-                     pinned: Bool = false, raw: Data = Data("raw".utf8), thumb: Data? = nil) -> ClipboardItem {
+                     pinned: Bool = false, raw: Data = Data("raw".utf8), thumb: Data? = nil,
+                     source: String? = nil) -> ClipboardItem {
         let item = ClipboardItem(contentType: type, rawData: raw, textContent: text, thumbnailData: thumb,
-                                 contentHash: UUID().uuidString)
+                                 sourceAppName: source, contentHash: UUID().uuidString)
         item.copiedAt = t0.addingTimeInterval(dt)
         item.isPinned = pinned
         context.insert(item)
@@ -67,5 +68,10 @@ final class KeyboardFeedTests: XCTestCase {
     func testUrlAndColorPreviewAreText() throws {
         add("https://a.b", type: .url, dt: 1); add("#FF0000", type: .color, dt: 0)
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.preview), ["https://a.b", "#FF0000"])
+    }
+
+    func testFeedCarriesSourceAppName() throws {
+        add("a", dt: 1, source: "Safari"); add("b", dt: 0)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.sourceAppName), ["Safari", nil])
     }
 }
