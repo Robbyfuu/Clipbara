@@ -21,6 +21,7 @@ final class AppModel {
     /// A quick action or `copyd://` link the root view has not handled yet. Set before any view exists on a cold launch.
     var pendingRoute: QuickRoute?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    @ObservationIgnored private var isDraining = false
 
     private init() {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
@@ -48,8 +49,29 @@ final class AppModel {
         sync = CloudSyncEngine(container: container) { Self.reloadWidgets() }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
+        Self.writeSampleInboxIfRequested()
+        #endif
+        // After the engine starts, so its tracker sees the inserts and uploads them.
+        drainInbox()
+        #if DEBUG
         applyDebugRoute()
         #endif
+    }
+
+    /// Imports what the Share extension left in the inbox. Runs at launch and on every return to the foreground.
+    /// The drain is synchronous on the main actor; the flag keeps a re-entrant call from importing an item twice.
+    func drainInbox() {
+        #if DEBUG
+        // The sample is written now and imported by the next launch, as a real share would be.
+        if UserDefaults.standard.bool(forKey: "CopydWriteSampleInbox") { return }
+        #endif
+        guard !isDraining, !isInMemory, let group = SharedStore.groupContainer else { return }
+        isDraining = true
+        defer { isDraining = false }
+        let count = Inbox.drain(in: container.mainContext, directory: Inbox.directory(groupContainer: group), now: Date())
+        guard count > 0 else { return }
+        Self.reloadWidgets()
+        flash(count == 1 ? "Added 1 from Share" : "Added \(count) from Share")
     }
 
     /// The phone only mirrors iCloud, so a store that won't open is deleted with its sync state and downloaded again,
@@ -192,6 +214,16 @@ final class AppModel {
     }
 
     private static let seedBoardID = UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!
+
+    /// `-CopydWriteSampleInbox YES`: writes one text item to the inbox, as the Share extension would, and skips the
+    /// drain for this launch. The next launch imports it and shows "Added 1 from Share".
+    private static func writeSampleInboxIfRequested() {
+        guard UserDefaults.standard.bool(forKey: "CopydWriteSampleInbox"), let group = SharedStore.groupContainer else { return }
+        let item = InboxItem(kind: .text, text: "Shared from Safari: https://copyd.app/share", createdAt: Date())
+        do { try Inbox.write(item, payload: nil, in: Inbox.directory(groupContainer: group)) } catch {
+            log.error("Could not write the sample inbox item: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     private static func seedSampleClipsIfRequested(_ container: ModelContainer) {
         guard UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),

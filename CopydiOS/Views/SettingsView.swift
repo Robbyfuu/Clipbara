@@ -44,7 +44,7 @@ struct SettingsView: View {
                             .foregroundStyle(DesignTokens.Brand.onButter)
                             .frame(maxWidth: .infinity, minHeight: 50)
                     }
-                    .buttonStyle(SettingsButtonStyle())
+                    .buttonStyle(ButterButtonStyle())
                     .accessibilityLabel("Open Copyd in Settings")
                     Text("1. Tap Open Copyd in Settings")
                     Text("2. Tap Keyboards")
@@ -87,16 +87,5 @@ struct SettingsView: View {
             .padding(.horizontal, 4)
             .padding(.bottom, 8)
             .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// Butter primary button; `butterInk` at 20 % darkens it while pressed.
-private struct SettingsButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 14)
-        configuration.label
-            .background(DesignTokens.Brand.butter, in: shape)
-            .overlay { if configuration.isPressed { shape.fill(DesignTokens.Brand.butterInk.opacity(0.2)) } }
-            .contentShape(shape)
     }
 }

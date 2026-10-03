@@ -74,12 +74,15 @@ struct CopydiOSApp: App {
             #if DEBUG
             .overlay(alignment: .bottom) { KeyboardPreviewHarness(container: model.container) }
             .overlay { WidgetPreviewHarness(container: model.container) }
+            .overlay { SharePreviewHarness() }
             #endif
             .environment(model)
             .modelContainer(model.container)
             // fetchIfStale is a no-op when sync is off (no engine) and throttles itself to 30 s.
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { model.sync.fetchIfStale() }
+                guard phase == .active else { return }
+                model.drainInbox()
+                model.sync.fetchIfStale()
             }
             .onOpenURL { url in
                 // A link must never read the pasteboard: only the Home Screen quick action may save the clipboard.
@@ -178,6 +181,39 @@ private struct WidgetPreviewHarness: View {
             .background(DesignTokens.Brand.line)  // stands in for the wallpaper
             .task { state = .load(ModelContext(container)) }
         }
+    }
+}
+
+/// `-CopydSharePreview YES` shows the share sheet twice, as sheets: sample text, then a sample image.
+/// Save flips that sheet to its "Saved" state; nothing is written.
+private struct SharePreviewHarness: View {
+    @State private var text = ShareModel(phase: .ready, content: .text(
+        "Meeting notes: ship the share extension, then check the widget on device. Bring the iPad for the split view test, and the old iPhone for iOS 17."))
+    @State private var image = ShareModel(phase: .ready, content: .image(Self.sampleImage()))
+
+    var body: some View {
+        if UserDefaults.standard.bool(forKey: "CopydSharePreview") {
+            VStack(spacing: 12) {
+                sheet(text)
+                sheet(image)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 60)
+            .background(Color.black.opacity(0.4))
+        }
+    }
+
+    private func sheet(_ model: ShareModel) -> some View {
+        ShareView(model: model, onSave: { model.phase = .saved })
+            .clipShape(RoundedRectangle(cornerRadius: 28))
+    }
+
+    private static func sampleImage() -> UIImage? {
+        let png = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 800)).pngData { ctx in
+            UIColor.systemTeal.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 1200, height: 800))
+            UIColor.systemYellow.setFill(); ctx.fill(CGRect(x: 300, y: 200, width: 600, height: 400))
+        }
+        return Thumbnail.png(from: png).flatMap(UIImage.init(data:))
     }
 }
 

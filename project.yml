@@ -72,6 +72,8 @@ targets:
       - path: CopydKeyboard/KeyboardView.swift
       # DEBUG-only -CopydWidgetPreview harness renders the widget views inside the app.
       - path: CopydWidget/RecentClipsViews.swift
+      # DEBUG-only -CopydSharePreview harness renders the share sheet inside the app.
+      - path: CopydShare/ShareView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
@@ -88,6 +90,9 @@ targets:
         embed: true
         codeSign: true
       - target: CopydWidget
+        embed: true
+        codeSign: true
+      - target: CopydShare
         embed: true
         codeSign: true
     entitlements:
@@ -150,6 +155,33 @@ targets:
       properties:
         com.apple.security.application-groups: [group.com.robbyfuu.copyd]
 
+  # Share to Copyd. Writes to the App Group inbox only; the app imports it into the store.
+  CopydShare:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydShare
+      - path: Shared
+        excludes:
+          # The extension never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
+          - Sync/CloudSyncEngine.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.share
+        PRODUCT_NAME: CopydShare
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydShare/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        APPLICATION_EXTENSION_API_ONLY: YES
+    entitlements:
+      path: CopydShare/CopydShare.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
   # Unhosted unit tests: no app launch, clipboard monitor, or user store access.
   CopydTests:
     type: bundle.unit-test
@@ -184,6 +216,7 @@ targets:
       - path: Shared/Utilities/ClipCapture.swift
       - path: Shared/Utilities/LatestClip.swift
       - path: Shared/Utilities/SaveText.swift
+      - path: Shared/Utilities/Inbox.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests
