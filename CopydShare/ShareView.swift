@@ -119,7 +119,7 @@ struct ShareView: View {
         }
     }
 
-    private func butterButton(_ title: String, action: @escaping () -> Void) -> some View {
+    private func butterButton(_ title: LocalizedStringResource, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.headline)

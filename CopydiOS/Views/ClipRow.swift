@@ -32,7 +32,7 @@ struct ClipRow: View {
             HStack(spacing: 14) {
                 thumbnail
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title ?? "Image").brandFont(16, .semibold).lineLimit(1)
+                    Text(title ?? String(localized: "Image")).brandFont(16, .semibold).lineLimit(1)
                         .foregroundStyle(DesignTokens.Brand.ink)
                     meta
                 }
@@ -107,7 +107,7 @@ struct ClipRow: View {
             if item.isPinned {
                 HStack(spacing: 4) {
                     Image(systemName: "pin.fill").accessibilityHidden(true)
-                    Text("Pinned")
+                    Text(String(localized: "Pinned.badge", defaultValue: "Pinned", comment: "Badge on one pinned clip"))
                 }
                 .fontWeight(.semibold)
                 .foregroundStyle(DesignTokens.Brand.butterInk)

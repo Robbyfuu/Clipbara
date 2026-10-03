@@ -17,7 +17,7 @@ final class AppModel {
     /// True when the App Group container was unavailable and the store lives in memory only.
     let isInMemory: Bool
     var toastVisible = false
-    var toastText = "Copied"
+    var toastText = String(localized: "Copied")
     /// A quick action or `copyd://` link the root view has not handled yet. Set before any view exists on a cold launch.
     var pendingRoute: QuickRoute?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -71,7 +71,7 @@ final class AppModel {
         let count = Inbox.drain(in: container.mainContext, directory: Inbox.directory(groupContainer: group), now: Date())
         guard count > 0 else { return }
         Self.reloadWidgets()
-        flash(count == 1 ? "Added 1 from Share" : "Added \(count) from Share")
+        flash("Added \(count) from Share")  // plural variation in the catalog
     }
 
     /// The phone only mirrors iCloud, so a store that won't open is deleted with its sync state and downloaded again,
@@ -167,7 +167,8 @@ final class AppModel {
     }
 
     /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.
-    private func flash(_ text: String) {
+    private func flash(_ resource: LocalizedStringResource) {
+        let text = String(localized: resource)
         toastText = text
         toastTask?.cancel()
         toastVisible = true

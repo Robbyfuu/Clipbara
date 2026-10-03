@@ -8,13 +8,13 @@ struct PinboardsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
-                ScreenTitle(text: "Pinboards").brandRow(top: 4, bottom: 9)
+                ScreenTitle(text: String(localized: "Pinboards")).brandRow(top: 4, bottom: 9)
                 ForEach(boards) { board in
                     Button { path.append(board) } label: { card(board) }
                         .buttonStyle(.plain)
                         .brandRow(top: 5, bottom: 5)
                 }
-                if boards.isEmpty { EmptyState(title: "No pinboards yet", symbol: "pin").brandRow() }
+                if boards.isEmpty { EmptyState(title: String(localized: "No pinboards yet"), symbol: "pin").brandRow() }
             }
             .brandList()
             .navigationTitle("Pinboards")
@@ -68,7 +68,7 @@ private struct PinboardDetail: View {
                 }
             }
             if entries.isEmpty {
-                EmptyState(title: "No clips in this pinboard yet", symbol: "pin").brandRow()
+                EmptyState(title: String(localized: "No clips in this pinboard yet"), symbol: "pin").brandRow()
             }
         }
         .brandList()

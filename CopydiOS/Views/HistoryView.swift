@@ -2,9 +2,17 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
-    private enum Filter: String, CaseIterable, Identifiable {
-        case all = "All", text = "Text", links = "Links", images = "Images"
+    private enum Filter: CaseIterable, Identifiable {
+        case all, text, links, images
         var id: Self { self }
+        var title: LocalizedStringResource {
+            switch self {
+            case .all: "All"
+            case .text: "Text"
+            case .links: "Links"
+            case .images: "Images"
+            }
+        }
     }
 
     @Environment(AppModel.self) private var model
@@ -41,12 +49,13 @@ struct HistoryView: View {
                 syncChip
             }
             .brandRow(top: 4, bottom: 0)
-            ScreenTitle(text: "History").brandRow(top: 14, bottom: 0)
+            ScreenTitle(text: String(localized: "History")).brandRow(top: 14, bottom: 0)
             searchField.brandRow(top: 14, bottom: 0)
             pills.brandRow(top: 14, bottom: 9)
             ForEach(shown) { ClipRow(item: $0) }
             if shown.isEmpty {
-                EmptyState(title: items.isEmpty ? "No clips yet" : "No results", symbol: "clipboard").brandRow()
+                EmptyState(title: items.isEmpty ? String(localized: "No clips yet") : String(localized: "No results"),
+                           symbol: "clipboard").brandRow()
             }
         }
         .brandList()
@@ -81,12 +90,13 @@ struct HistoryView: View {
 
     private func syncLabel(now: Date) -> (String, String) {
         switch model.sync.status {
-        case .upToDate(let date): ("checkmark.icloud", "Synced \u{00b7} \(ClipAge.text(from: date, now: now))")
-        case .syncing: ("arrow.triangle.2.circlepath.icloud", "Syncing\u{2026}")
-        case .accountUnavailable: ("person.icloud", "Sign in to iCloud")
-        case .quotaExceeded: ("exclamationmark.icloud", "iCloud full")
-        case .error: ("exclamationmark.icloud", "Sync error")
-        case .off, .accountChanged: ("icloud.slash", "Sync off")
+        case .upToDate(let date):
+            ("checkmark.icloud", String(localized: "Synced \u{00b7} \(ClipAge.text(from: date, now: now))"))
+        case .syncing: ("arrow.triangle.2.circlepath.icloud", String(localized: "Syncing\u{2026}"))
+        case .accountUnavailable: ("person.icloud", String(localized: "Sign in to iCloud"))
+        case .quotaExceeded: ("exclamationmark.icloud", String(localized: "iCloud full"))
+        case .error: ("exclamationmark.icloud", String(localized: "Sync error"))
+        case .off, .accountChanged: ("icloud.slash", String(localized: "Sync off"))
         }
     }
 
@@ -124,7 +134,7 @@ struct HistoryView: View {
                 ForEach(Filter.allCases) { option in
                     let active = option == filter
                     Button { filter = option } label: {
-                        Text(option.rawValue)
+                        Text(option.title)
                             .brandFont(15, active ? .bold : .semibold, relativeTo: .subheadline)
                             .foregroundStyle(active ? DesignTokens.Brand.onButter : DesignTokens.Brand.ink2)
                             .padding(.horizontal, 16)

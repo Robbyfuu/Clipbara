@@ -23,9 +23,9 @@ enum RecentClipsState {
 
     var message: String {
         switch self {
-        case .noStore: "Open Copyd once"
-        case .empty, .clips: "Copy something on your Mac"
-        case .error: "Couldn't load"
+        case .noStore: String(localized: "Open Copyd once")
+        case .empty, .clips: String(localized: "Copy something on your Mac")
+        case .error: String(localized: "Couldn't load")
         }
     }
 }
@@ -42,7 +42,7 @@ extension KeyboardClip {
 
     /// One line of text for the compact layouts.
     var summary: String {
-        if contentType == .image { return "Image" }
+        if contentType == .image { return String(localized: "Image") }
         if let parts = linkParts { return parts.host + parts.rest }
         return preview
     }

@@ -6,19 +6,20 @@ struct SettingsView: View {
 
     private var statusText: String {
         switch model.sync.status {
-        case .off, .accountChanged: "Off"
-        case .syncing: "Syncing\u{2026}"
-        case .upToDate(let date): "Up to date \u{00b7} \(date.formatted(.relative(presentation: .named)))"
-        case .accountUnavailable: "Sign in to iCloud to see your history"
-        case .quotaExceeded: "iCloud storage full"
-        case .error(let message): "Sync error: \(message)"
+        case .off, .accountChanged: String(localized: "Off")
+        case .syncing: String(localized: "Syncing\u{2026}")
+        case .upToDate(let date):
+            String(localized: "Up to date \u{00b7} \(date.formatted(.relative(presentation: .named)))")
+        case .accountUnavailable: String(localized: "Sign in to iCloud to see your history")
+        case .quotaExceeded: String(localized: "iCloud storage full")
+        case .error(let message): String(localized: "Sync error: \(message)")
         }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenTitle(text: "Settings").padding(.bottom, 24)
+                ScreenTitle(text: String(localized: "Settings")).padding(.bottom, 24)
 
                 sectionLabel("iCloud")
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -80,7 +81,7 @@ struct SettingsView: View {
         .background(DesignTokens.Brand.shelf)
     }
 
-    private func sectionLabel(_ text: String) -> some View {
+    private func sectionLabel(_ text: LocalizedStringResource) -> some View {
         Text(text)
             .brandFont(13, .semibold, relativeTo: .footnote)
             .foregroundStyle(DesignTokens.Brand.ink2)

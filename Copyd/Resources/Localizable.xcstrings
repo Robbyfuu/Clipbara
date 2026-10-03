@@ -4304,6 +4304,98 @@
     },
     "⌘F" : {
       "shouldTranslate" : false
+    },
+    "now" : {
+      "comment" : "Clip age under a minute",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ahora"
+          }
+        }
+      }
+    },
+    "%lld min" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        }
+      }
+    },
+    "%lld h" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld h"
+          }
+        }
+      }
+    },
+    "%lld d" : {
+      "comment" : "Clip age in days",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld d"
+          }
+        }
+      }
+    },
+    "Never synced" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin sincronizar"
+          }
+        }
+      }
+    },
+    "Updated now" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizado ahora"
+          }
+        }
+      }
+    },
+    "Updated %lld min ago" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizado hace %lld min"
+          }
+        }
+      }
+    },
+    "Updated %lld h ago" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizado hace %lld h"
+          }
+        }
+      }
+    },
+    "Updated %lld d ago" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizado hace %lld d"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

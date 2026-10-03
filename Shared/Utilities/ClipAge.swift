@@ -5,10 +5,10 @@ enum ClipAge {
     static func text(from date: Date, now: Date) -> String {
         let seconds = now.timeIntervalSince(date)
         switch seconds {
-        case ..<60: return "now"  // includes future dates (clock skew)
-        case ..<3600: return "\(Int(seconds / 60)) min"
-        case ..<86_400: return "\(Int(seconds / 3600)) h"
-        default: return "\(Int(seconds / 86_400)) d"
+        case ..<60: return String(localized: "now")  // includes future dates (clock skew)
+        case ..<3600: return String(localized: "\(Int(seconds / 60)) min")
+        case ..<86_400: return String(localized: "\(Int(seconds / 3600)) h")
+        default: return String(localized: "\(Int(seconds / 86_400)) d")
         }
     }
 }

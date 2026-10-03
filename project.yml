@@ -74,6 +74,9 @@ targets:
       - path: CopydWidget/RecentClipsViews.swift
       # DEBUG-only -CopydSharePreview harness renders the share sheet inside the app.
       - path: CopydShare/ShareView.swift
+    resources:
+      # Localizable, InfoPlist (quick action titles) and AppShortcuts (Siri phrases) string catalogs.
+      - CopydiOS/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
@@ -113,6 +116,8 @@ targets:
         excludes:
           # The keyboard never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
           - Sync/CloudSyncEngine.swift
+    resources:
+      - CopydKeyboard/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.keyboard
@@ -139,6 +144,8 @@ targets:
         excludes:
           # The widget never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
           - Sync/CloudSyncEngine.swift
+    resources:
+      - CopydWidget/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.widget
@@ -166,6 +173,8 @@ targets:
         excludes:
           # The extension never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
           - Sync/CloudSyncEngine.swift
+    resources:
+      - CopydShare/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.share

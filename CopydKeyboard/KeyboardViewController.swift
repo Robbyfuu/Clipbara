@@ -76,7 +76,7 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Fetches the one full item, then inserts it or leaves it on the pasteboard. Returns a toast for the latter.
     private func select(_ clip: KeyboardClip) -> String? {
-        let failure = "Couldn't copy this clip."
+        let failure = String(localized: "Couldn't copy this clip.")
         guard let container else { return failure }
         let id = clip.id
         var descriptor = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
@@ -90,11 +90,11 @@ final class KeyboardViewController: UIInputViewController {
             if item.contentType == .image {
                 guard let image = PasteboardImage.payload(from: item.rawData, maxPixels: 2048) else { return failure }
                 UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
-                return "Copied. Touch and hold the field, then tap Paste."
+                return String(localized: "Copied. Touch and hold the field, then tap Paste.")
             }
             guard let text = item.textContent, !text.isEmpty else { return failure }
             UIPasteboard.general.string = text
-            return "Copied. It's too long to insert."
+            return String(localized: "Copied. It's too long to insert.")
         }
     }
 }

@@ -109,8 +109,8 @@ struct KeyboardView: View {
             .layoutPriority(1)
             ScrollView(.horizontal) {
                 HStack(spacing: 4) {
-                    chip("Recent", .recent)
-                    chip("Pinned", .pinned)
+                    chip(String(localized: "Recent"), .recent)
+                    chip(String(localized: "Pinned"), .pinned)
                     ForEach(model.boards) { board in
                         chip(board.name, .pinboard(board.id), dot: DesignTokens.pinboardDots[board.colorIndex])
                     }
@@ -182,7 +182,7 @@ struct KeyboardView: View {
         }
     }
 
-    private func message(_ text: String, symbol: String) -> some View {
+    private func message(_ text: LocalizedStringResource, symbol: String) -> some View {
         VStack(spacing: 8) {
             Image(systemName: symbol).font(.system(size: 28)).foregroundStyle(DesignTokens.Brand.ink2)
                 .accessibilityHidden(true)

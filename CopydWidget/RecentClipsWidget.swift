@@ -20,8 +20,8 @@ struct RecentClipsEntry: TimelineEntry {
 struct RecentClipsProvider: TimelineProvider {
     func placeholder(in context: Context) -> RecentClipsEntry {
         RecentClipsEntry(date: .now, state: .clips([KeyboardClip(
-            id: UUID(), contentType: .plainText, preview: "Your latest clip", thumbnail: nil, isPinned: false,
-            copiedAt: .now, textByteCount: 0, sourceAppName: "Copyd")]))
+            id: UUID(), contentType: .plainText, preview: String(localized: "Your latest clip"), thumbnail: nil,
+            isPinned: false, copiedAt: .now, textByteCount: 0, sourceAppName: "Copyd")]))
     }
 
     func getSnapshot(in context: Context, completion: @escaping @Sendable (RecentClipsEntry) -> Void) {

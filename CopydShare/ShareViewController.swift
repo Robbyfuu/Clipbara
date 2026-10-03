@@ -58,7 +58,7 @@ final class ShareViewController: UIViewController {
             return model.phase = .failed
         }
         model.phase = .saved
-        AccessibilityNotification.Announcement("Saved. It syncs next time you open Copyd.").post()
+        AccessibilityNotification.Announcement(String(localized: "Saved. It syncs next time you open Copyd.")).post()
         Task {
             try? await Task.sleep(for: .seconds(1.2))
             extensionContext?.completeRequest(returningItems: nil)
