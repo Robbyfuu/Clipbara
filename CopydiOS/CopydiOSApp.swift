@@ -26,7 +26,7 @@ struct CopydiOSApp: App {
     var body: some Scene {
         WindowGroup {
             TabView(selection: $tab) {
-                HistoryView().tabItem { Label("History", systemImage: "clock") }.tag("history")
+                HistoryView { tab = "settings" }.tabItem { Label("History", systemImage: "clock") }.tag("history")
                 PinboardsView().tabItem { Label("Pinboards", systemImage: "pin") }.tag("pinboards")
                 SettingsView().tabItem { Label("Settings", systemImage: "gearshape") }.tag("settings")
             }

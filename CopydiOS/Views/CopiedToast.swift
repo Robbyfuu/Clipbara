@@ -5,7 +5,7 @@ struct CopiedToast: View {
 
     var body: some View {
         Text("Copied")
-            .font(.subheadline.weight(.semibold))
+            .brandFont(15, .semibold, relativeTo: .subheadline)
             .foregroundStyle(DesignTokens.Brand.onButter)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)

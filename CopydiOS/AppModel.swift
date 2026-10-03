@@ -89,7 +89,7 @@ final class AppModel {
     }
 
     #if DEBUG
-    /// `-CopydSeedSampleClips`: inserts 3 sample clips when the store is nearly empty.
+    /// `-CopydSeedSampleClips`: inserts 5 sample clips (one per card type) when the store is nearly empty.
     /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`), so samples never reach iCloud.
     /// Without `-CopydSeedSampleClips`, deletes leftover `seed-*` rows. Runs before the sync engine exists,
     /// so no tracker sees the delete and `queueEverything` never uploads the samples.
@@ -114,8 +114,14 @@ final class AppModel {
             UIColor.systemTeal.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 400))
             UIColor.systemYellow.setFill(); ctx.fill(CGRect(x: 150, y: 100, width: 300, height: 200))
         }
-        context.insert(ClipboardItem(contentType: .plainText, rawData: Data("Hello from Copyd".utf8),
-                                     textContent: "Hello from Copyd", contentHash: "seed-short"))
+        let short = ClipboardItem(contentType: .plainText, rawData: Data("Hello from Copyd".utf8),
+                                  textContent: "Hello from Copyd", contentHash: "seed-short")
+        short.isPinned = true
+        context.insert(short)
+        let link = "https://www.airbnb.cl/rooms/39393838?check_in=2026-10-07&adults=3"
+        context.insert(ClipboardItem(contentType: .url, rawData: Data(link.utf8), textContent: link, contentHash: "seed-link"))
+        context.insert(ClipboardItem(contentType: .color, rawData: Data("#F8D14F".utf8), textContent: "#F8D14F",
+                                     contentHash: "seed-color"))
         context.insert(ClipboardItem(contentType: .plainText, rawData: Data(long.utf8),
                                      textContent: long, contentHash: "seed-long"))
         context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png),
