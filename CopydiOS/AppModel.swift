@@ -42,14 +42,16 @@ final class AppModel {
     }
 
     /// Copies the clip to the pasteboard and flashes the "Copied" toast.
-    func copy(_ item: ClipboardItem) {
+    /// Returns false, with no toast, when there was nothing to write.
+    @discardableResult
+    func copy(_ item: ClipboardItem) -> Bool {
         switch item.contentType {
         case .image:
-            if let png = UIImage(data: item.rawData)?.pngData() {
-                UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
-            }
+            guard let png = UIImage(data: item.rawData)?.pngData() else { return false }
+            UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
         default:
-            UIPasteboard.general.string = item.textContent
+            guard let text = item.textContent, !text.isEmpty else { return false }
+            UIPasteboard.general.string = text
         }
         toastTask?.cancel()
         toastVisible = true
@@ -57,6 +59,7 @@ final class AppModel {
             try? await Task.sleep(for: .seconds(1.2))
             if !Task.isCancelled { toastVisible = false }
         }
+        return true
     }
 
     #if DEBUG

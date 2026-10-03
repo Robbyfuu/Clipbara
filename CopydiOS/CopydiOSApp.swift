@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 struct CopydiOSApp: App {
     @UIApplicationDelegateAdaptor private var delegate: AppDelegate
     @State private var model = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
     #if DEBUG
     @State private var tab = UserDefaults.standard.string(forKey: "CopydInitialTab") ?? "history"
     #else
@@ -36,6 +37,10 @@ struct CopydiOSApp: App {
             #endif
             .environment(model)
             .modelContainer(model.container)
+            // fetchIfStale is a no-op when sync is off (no engine) and throttles itself to 30 s.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { model.sync.fetchIfStale() }
+            }
         }
     }
 }

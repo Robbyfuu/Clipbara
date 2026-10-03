@@ -15,7 +15,7 @@ struct ClipRow: View {
                     if item.contentType == .image {
                         thumbnail
                     } else {
-                        Text(item.userTitle ?? item.textContent ?? "")
+                        Text(item.userTitle.flatMap { $0.isEmpty ? nil : $0 } ?? item.textContent ?? "")
                             .lineLimit(3)
                             .foregroundStyle(DesignTokens.Brand.ink)
                     }
@@ -35,7 +35,7 @@ struct ClipRow: View {
         .buttonStyle(.plain)
         .listRowBackground(DesignTokens.Brand.card)
         .swipeActions(edge: .trailing) {
-            Button(role: .destructive) { onDelete?() ?? deleteClip() } label: { Label("Delete", systemImage: "trash") }
+            Button(role: .destructive) { if let onDelete { onDelete() } else { deleteClip() } } label: { Label("Delete", systemImage: "trash") }
             Button {
                 item.isPinned.toggle()
                 try? modelContext.save()
