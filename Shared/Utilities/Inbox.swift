@@ -50,8 +50,13 @@ enum Inbox {
     /// Pass the app's main context, so the sync tracker uploads the inserts.
     @MainActor static func drain(in context: ModelContext, directory: URL, now: Date) -> Int {
         let fm = FileManager.default
-        let jsons = ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
-            .filter { $0.pathExtension == "json" }
+        let all = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        // Leftovers of a killed extension (`.payload` without JSON, `.json.tmp`). A young one may be an in-flight write.
+        for url in all where url.pathExtension != "json" {
+            if let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+               modified < now.addingTimeInterval(-86_400) { try? fm.removeItem(at: url) }
+        }
+        let jsons = all.filter { $0.pathExtension == "json" }
         var pending: [(item: InboxItem, json: URL)] = []
         for json in jsons {
             guard let data = try? Data(contentsOf: json), let item = try? JSONDecoder().decode(InboxItem.self, from: data) else {
@@ -60,24 +65,33 @@ enum Inbox {
             }
             pending.append((item, json))
         }
-        var inserted = 0
+        var imported: [(json: URL, payload: String?)] = []
         for (item, json) in pending.sorted(by: { $0.item.createdAt < $1.item.createdAt }) {
-            defer { remove(json, in: directory, payload: item.payloadFile) }
-            guard let clip = capture(item, in: directory) else { continue }
+            guard let clip = capture(item, in: directory) else { remove(json, in: directory, payload: item.payloadFile); continue }
             // A clip is never dated in the future, even if the phone's clock moved back since the share.
             let copiedAt = min(item.createdAt, now)
             // A failed check imports anyway: an extra row beats a lost clip.
-            if (try? ClipCapture.isRecentDuplicate(hash: clip.contentHash, in: context, now: copiedAt)) == true { continue }
+            if (try? ClipCapture.isRecentDuplicate(hash: clip.contentHash, in: context, now: copiedAt)) == true {
+                remove(json, in: directory, payload: item.payloadFile)
+                continue
+            }
             let thumbnail = clip.contentType == .image ? Thumbnail.png(from: clip.rawData) : nil
             let clipItem = ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
                                          thumbnailData: thumbnail, sourceAppName: item.source ?? "Share",
                                          contentHash: clip.contentHash)
             clipItem.copiedAt = copiedAt
             context.insert(clipItem)
-            inserted += 1
+            imported.append((json, item.payloadFile))
         }
-        try? context.save()
-        return inserted
+        // Files go only after the save: a failed save keeps them for the next drain.
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            return 0
+        }
+        for entry in imported { remove(entry.json, in: directory, payload: entry.payload) }
+        return imported.count
     }
 
     private static func capture(_ item: InboxItem, in directory: URL) -> CapturedClip? {
