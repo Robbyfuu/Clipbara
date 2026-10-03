@@ -73,6 +73,7 @@ struct CopydiOSApp: App {
             .overlay(alignment: .bottom) { CopiedToast(text: model.toastText, visible: model.toastVisible) }
             #if DEBUG
             .overlay(alignment: .bottom) { KeyboardPreviewHarness(container: model.container) }
+            .overlay { WidgetPreviewHarness(container: model.container) }
             #endif
             .environment(model)
             .modelContainer(model.container)
@@ -106,6 +107,9 @@ struct CopydiOSApp: App {
         case .saveClipboard:
             tab = "history"
             model.saveClipboard()
+        case .copy(let id):
+            tab = "history"
+            model.copy(id: id)
         }
     }
 }
@@ -145,6 +149,43 @@ private struct KeyboardPreviewHarness: View {
         default:
             model.state = .loaded((try? KeyboardFeed.items(in: context, mode: model.mode)) ?? [])
         }
+    }
+}
+
+/// `-CopydWidgetPreview` shows the three widget families at iPhone widget sizes, fed by the widget's own loader.
+/// Medium rows are real links, so tapping one runs the `copy` route.
+private struct WidgetPreviewHarness: View {
+    let container: ModelContainer
+    @State private var state: RecentClipsState?
+
+    var body: some View {
+        if UserDefaults.standard.bool(forKey: "CopydWidgetPreview") {
+            VStack(spacing: 16) {
+                if let state {
+                    RecentClipsMedium(state: state, now: .now).widgetFrame(width: 338, height: 158)
+                    // One small per clip, so every card type shows; then the Lock Screen rectangular, which has
+                    // no background or margins of its own.
+                    let smalls = state.clips.isEmpty ? [state] : state.clips.map { RecentClipsState.clips([$0]) }
+                    LazyVGrid(columns: [GridItem(.fixed(160), spacing: 18), GridItem(.fixed(160))], spacing: 16) {
+                        ForEach(smalls.indices, id: \.self) { i in
+                            RecentClipsSmall(state: smalls[i], now: .now).widgetFrame(width: 158, height: 158)
+                        }
+                        RecentClipsAccessory(state: state, now: .now).frame(width: 160, height: 72)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DesignTokens.Brand.line)  // stands in for the wallpaper
+            .task { state = .load(ModelContext(container)) }
+        }
+    }
+}
+
+private extension View {
+    /// The system's 16 pt content margins and the widget's rounded `shelf` background.
+    func widgetFrame(width: CGFloat, height: CGFloat) -> some View {
+        padding(16).frame(width: width, height: height)
+            .background(DesignTokens.Brand.shelf, in: .rect(cornerRadius: 22))
     }
 }
 #endif

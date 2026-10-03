@@ -70,6 +70,8 @@ targets:
       - path: Shared
       # DEBUG-only -CopydKeyboardPreview harness renders the keyboard view inside the app.
       - path: CopydKeyboard/KeyboardView.swift
+      # DEBUG-only -CopydWidgetPreview harness renders the widget views inside the app.
+      - path: CopydWidget/RecentClipsViews.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
@@ -83,6 +85,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: CopydKeyboard
+        embed: true
+        codeSign: true
+      - target: CopydWidget
         embed: true
         codeSign: true
     entitlements:
@@ -116,6 +121,32 @@ targets:
         APPLICATION_EXTENSION_API_ONLY: YES
     entitlements:
       path: CopydKeyboard/CopydKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
+  CopydWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydWidget
+      - path: Shared
+        excludes:
+          # The widget never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
+          - Sync/CloudSyncEngine.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.widget
+        PRODUCT_NAME: CopydWidget
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        APPLICATION_EXTENSION_API_ONLY: YES
+    entitlements:
+      path: CopydWidget/CopydWidget.entitlements
       properties:
         com.apple.security.application-groups: [group.com.robbyfuu.copyd]
 

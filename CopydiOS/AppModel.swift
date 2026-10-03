@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import UIKit
 import UniformTypeIdentifiers
+import WidgetKit
 import OSLog
 
 /// Owns the shared store and the sync engine for the iOS app.
@@ -23,6 +24,11 @@ final class AppModel {
 
     private init() {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
+        // Every save in the app refreshes the widget: Save Clipboard, Save Text, pin, unpin, delete, the seed,
+        // and the sync engine's own saves. Any context, so the seed's separate context counts too.
+        _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { Self.reloadWidgets() }
+        }
         let schema = Schema([ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self])
         var inMemory = false
         let configuration: ModelConfiguration
@@ -39,7 +45,7 @@ final class AppModel {
         Self.seedSampleClipsIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
-        sync = CloudSyncEngine(container: container) {}
+        sync = CloudSyncEngine(container: container) { Self.reloadWidgets() }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
         applyDebugRoute()
@@ -90,6 +96,19 @@ final class AppModel {
         }
         flash("Copied")
         return true
+    }
+
+    /// The widget's `copyd://copy/<uuid>`: copies that clip the same way a tap does.
+    func copy(id: UUID) {
+        var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+        fetch.fetchLimit = 1
+        // The clip may have been deleted since the widget last reloaded.
+        guard let item = try? container.mainContext.fetch(fetch).first, copy(item) else { return flash("Couldn't copy") }
+    }
+
+    /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.
+    static func reloadWidgets() {
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Saves the iPhone pasteboard as a new clip, as the Mac's monitor would. Reading it shows iOS's paste prompt.
