@@ -6,7 +6,8 @@ struct TextCardContent: View {
     @State private var isCode: Bool = false
 
     private var previewText: String {
-        guard let text = item.textContent else { return "..." }
+        // Display only: leading blank lines (common in copied HTML) would push the text down the card.
+        guard let text = item.textContent?.trimmingCharacters(in: .whitespacesAndNewlines) else { return "..." }
         let maxCharacters = 900
         if text.count <= maxCharacters {
             return text
