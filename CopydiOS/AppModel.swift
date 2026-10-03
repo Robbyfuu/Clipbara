@@ -95,6 +95,10 @@ final class AppModel {
     /// Saves the iPhone pasteboard as a new clip, as the Mac's monitor would. Reading it shows iOS's paste prompt.
     /// The sync tracker uploads the insert like any other local save.
     func saveClipboard() {
+        // Types only, so no paste prompt. Matches the Mac, which skips password-manager and transient copies.
+        guard !UIPasteboard.general.contains(pasteboardTypes: ClipCapture.skippedPasteboardTypes) else {
+            return flash("Not saved: private copy")
+        }
         guard let clip = Self.readPasteboard() else { return flash("Clipboard is empty") }
         let context = container.mainContext
         // A failed check saves anyway: an extra row beats a lost clip.
@@ -113,7 +117,9 @@ final class AppModel {
     /// `hasImages` and `types` do not trigger the prompt.
     private static func readPasteboard() -> CapturedClip? {
         let pasteboard = UIPasteboard.general
-        guard pasteboard.hasImages else { return pasteboard.string.flatMap(ClipCapture.text) }
+        guard pasteboard.hasImages else {
+            return (pasteboard.string ?? pasteboard.url?.absoluteString).flatMap(ClipCapture.text)
+        }
         let png = UTType.png.identifier
         let type = pasteboard.types.contains(png) ? png : pasteboard.types.first { UTType($0)?.conforms(to: .image) == true }
         return type.flatMap { pasteboard.data(forPasteboardType: $0) }.flatMap(ClipCapture.image)

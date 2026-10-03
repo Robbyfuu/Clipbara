@@ -81,7 +81,8 @@ struct CopydiOSApp: App {
                 if phase == .active { model.sync.fetchIfStale() }
             }
             .onOpenURL { url in
-                if let route = QuickRoute(url: url) { model.pendingRoute = route }
+                // A link must never read the pasteboard: only the Home Screen quick action may save the clipboard.
+                if let route = QuickRoute(url: url), route != .saveClipboard { model.pendingRoute = route }
             }
             // `initial` picks up a quick action the scene delegate stored before this view existed.
             .onChange(of: model.pendingRoute, initial: true) { _, route in

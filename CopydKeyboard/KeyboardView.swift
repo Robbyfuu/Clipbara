@@ -139,7 +139,7 @@ struct KeyboardView: View {
     @ViewBuilder private var content: some View {
         switch model.state {
         case .noFullAccess:
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 Image(systemName: "lock").font(.system(size: 24)).foregroundStyle(DesignTokens.Brand.ink2)
                     .accessibilityHidden(true)
                 Text("Turn on Allow Full Access to see your history")

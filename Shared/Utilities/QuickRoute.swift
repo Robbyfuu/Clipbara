@@ -8,7 +8,7 @@ enum QuickRoute: String, Equatable {
     private static let shortcutPrefix = "com.robbyfuu.copyd."
 
     init?(url: URL) {
-        guard url.scheme?.lowercased() == "copyd", let host = url.host() else { return nil }
+        guard url.scheme?.lowercased() == "copyd", let host = url.host()?.lowercased() else { return nil }
         self.init(rawValue: host)
     }
 
