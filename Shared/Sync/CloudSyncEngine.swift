@@ -257,14 +257,17 @@ import SwiftData
             queueEverything(on: engine)
             status = .syncing
         case .signOut, .switchAccounts:
-            // Never mix two accounts' data: sync stays off until the user enables it again.
             #if os(iOS)
-            // The phone is a mirror: drop the old account's history too (macOS keeps it).
+            // The phone is a mirror with no sync toggle: drop the old account's history (macOS keeps it)
+            // and start over, which cannot mix accounts because nothing local is left.
             save(suppressing: RemoteApplier.deleteAll(in: modelContext))
-            #endif
+            restartEmpty()
+            #else
+            // Never mix two accounts' data: sync stays off until the user enables it again.
             stop(clearState: true)
             UserDefaults.standard.set(false, forKey: Self.enabledDefaultsKey)
             status = .accountChanged
+            #endif
         @unknown default:
             Self.log.notice("Unhandled account change: \(String(describing: change), privacy: .public)")
         }
@@ -279,15 +282,32 @@ import SwiftData
                 clearAllSystemFields()
                 queueEverything(on: engine)
             case .deleted, .purged:
+                #if os(iOS)
+                Self.log.notice("Zone removed from iCloud: clearing the mirror and starting over")
+                // Wipe before restarting, or the restart's queueEverything re-uploads what the user deleted.
+                save(suppressing: RemoteApplier.deleteAll(in: modelContext))
+                restartEmpty()
+                #else
                 Self.log.notice("Zone removed from iCloud: turning sync off")
                 stop(clearState: true)
                 UserDefaults.standard.set(false, forKey: Self.enabledDefaultsKey)
+                #endif
                 return
             @unknown default:
                 Self.log.notice("Unhandled zone deletion reason: \(String(describing: d.reason), privacy: .public)")
             }
         }
     }
+
+    #if os(iOS)
+    /// iOS has no sync toggle, so turning sync off would be permanent. Call only once the local mirror is empty.
+    /// The stopped engine's late events and batch requests fail the `syncEngine === engine` checks.
+    private func restartEmpty() {
+        stop(clearState: true)  // drops the tracker, so no observer forwards saves to the next engine
+        SharedDefaults.store?.removeObject(forKey: SharedDefaults.lastSyncAtKey)
+        Task { @MainActor [weak self] in self?.start() }
+    }
+    #endif
 
     private func applyFetched(_ e: CKSyncEngine.Event.FetchedRecordZoneChanges, engine: CKSyncEngine) {
         // A local deletion still waiting to upload wins: never re-insert what the user deleted.
