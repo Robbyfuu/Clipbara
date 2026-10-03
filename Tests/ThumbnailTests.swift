@@ -25,6 +25,12 @@ final class ThumbnailTests: XCTestCase {
         XCTAssertEqual(NSImage(data: out)!.size, NSSize(width: 100, height: 80))
     }
 
+    func testMacThumbnailIsRetinaPixels() {
+        let out = Thumbnail.png(from: png(width: 1000, height: 500))!
+        let source = CGImageSourceCreateWithData(out as CFData, nil)!
+        XCTAssertEqual(CGImageSourceCreateImageAtIndex(source, 0, nil)!.width, 640)
+    }
+
     func testInvalidDataReturnsNil() {
         XCTAssertNil(Thumbnail.png(from: Data("x".utf8)))
     }
