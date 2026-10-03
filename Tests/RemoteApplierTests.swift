@@ -310,4 +310,26 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertEqual(try entries().count, 0)
         XCTAssertEqual(ids, [id(1), id(2), id(3), id(4)])
     }
+
+    // MARK: Uploadable ids
+
+    /// 1 unconfirmed clip, 2 confirmed clip, 3 fileURL clip, 4 pinboard, 5 entry of clip 1, 6 entry of clip 3.
+    private func seedUploadable() throws {
+        try apply(clips: [clip(1, hash: "a"), clip(2, hash: "b"), clip(3, hash: "c", type: "fileURL")],
+                  pinboards: [board(4)],
+                  entries: [entry(5, clip: 1, board: 4), entry(6, clip: 3, board: 4)],
+                  systemFields: [id(2): Data([1])])
+    }
+
+    func testUploadableIDsUnconfirmedOnly() throws {
+        try seedUploadable()
+        let ids = try RemoteApplier.uploadableIDs(in: context, onlyUnconfirmed: true)
+        XCTAssertEqual(Set(ids), [id(1), id(4), id(5)])
+    }
+
+    func testUploadableIDsAllSkipsFileClips() throws {
+        try seedUploadable()
+        let ids = try RemoteApplier.uploadableIDs(in: context, onlyUnconfirmed: false)
+        XCTAssertEqual(Set(ids), [id(1), id(2), id(4), id(5)])
+    }
 }

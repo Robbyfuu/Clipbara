@@ -513,20 +513,28 @@ import SwiftData
         #else
         UIApplication.shared.registerForRemoteNotifications()
         #endif
-        if saved == nil { queueEverything(on: engine) }
+        if saved == nil {
+            queueEverything(on: engine)
+        } else {
+            // A save that failed with an unexpected error is dropped from pending for good; the missing system fields give it away.
+            do {
+                let ids = try RemoteApplier.uploadableIDs(in: modelContext, onlyUnconfirmed: true)
+                if !ids.isEmpty {
+                    engine.state.add(pendingRecordZoneChanges: ids.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) })
+                    Self.log.notice("Re-queued \(ids.count, privacy: .public) unconfirmed records")
+                }
+            } catch {
+                Self.log.error("Could not list unconfirmed records: \(error.syncLogDescription, privacy: .public)")
+            }
+        }
     }
 
     /// First enable, sign-in and encryptedDataReset: the zone, every eligible clip, every pinboard, every entry of an eligible clip.
     private func queueEverything(on engine: CKSyncEngine) {
         var ids: [UUID] = []
         do {
-            // Type only: rawData is external storage. Oversized clips (and their entries) are dropped when the batch is built.
-            let clips = try modelContext.fetch(FetchDescriptor<ClipboardItem>())
-                .filter { $0.contentTypeRaw != "fileURL" }.map(\.id)
-            let boards = try modelContext.fetch(FetchDescriptor<Pinboard>()).map(\.id)
-            let entries = try modelContext.fetch(FetchDescriptor<PinboardEntry>())
-                .filter { $0.clipboardItem?.contentTypeRaw != "fileURL" }.map(\.id)
-            ids = clips + boards + entries
+            // Oversized clips (and their entries) are dropped when the batch is built.
+            ids = try RemoteApplier.uploadableIDs(in: modelContext, onlyUnconfirmed: false)
         } catch {
             Self.log.error("Could not list records to upload: \(error.syncLogDescription, privacy: .public)")
         }
