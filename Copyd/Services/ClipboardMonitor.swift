@@ -11,6 +11,9 @@ final class ClipboardMonitor {
     private var modelContext: ModelContext?
     private var excludedBundleIds: Set<String> = []
     private var shouldSkipNextChange: Bool = false
+    /// Gets the id of every clip the user copies, including a recent duplicate that is not saved
+    /// again (its existing id), so Paste Stack can queue it. Copyd's own pastes are skipped before this.
+    @ObservationIgnored var onCapture: ((UUID) -> Void)?
 
     var isMonitoring: Bool = false
     var latestItems: [ClipboardItem] = []
@@ -77,8 +80,11 @@ final class ClipboardMonitor {
             .compactMap { String(format: "%02x", $0) }
             .joined()
 
-        // Duplicate check within last 10 seconds
-        if isDuplicate(hash: hash) { return }
+        // Duplicate check within last 10 seconds. Copying it again still counts for Paste Stack.
+        if let existingID = recentDuplicateID(hash: hash) {
+            onCapture?(existingID)
+            return
+        }
 
         let sourceApp = NSWorkspace.shared.frontmostApplication
         let item = ClipboardItem(
@@ -99,6 +105,7 @@ final class ClipboardMonitor {
         try? modelContext?.save()
         cleanupOldItems()
         refreshLatestItems()
+        onCapture?(item.id)
     }
 
     /// 히스토리 제한 초과 시 오래된 아이템 삭제 (isPinned 아이템 보존)
@@ -137,15 +144,18 @@ final class ClipboardMonitor {
         try? modelContext.save()
     }
 
-    private func isDuplicate(hash: String) -> Bool {
-        guard let modelContext else { return false }
+    private func recentDuplicateID(hash: String) -> UUID? {
+        guard let modelContext else { return nil }
         let tenSecondsAgo = Date().addingTimeInterval(-10)
         let predicate = #Predicate<ClipboardItem> { item in
             item.contentHash == hash && item.copiedAt > tenSecondsAgo
         }
-        let descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
-        let count = (try? modelContext.fetchCount(descriptor)) ?? 0
-        return count > 0
+        var descriptor = FetchDescriptor<ClipboardItem>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.copiedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first?.id
     }
 
     func skipNextChange() {

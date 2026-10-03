@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import KeyboardShortcuts
 
 struct MenuBarContentView: View {
     @Environment(\.openSettings) private var openSettings
@@ -56,6 +57,26 @@ struct MenuBarContentView: View {
                     Spacer()
                     Text(verbatim: "\u{21E7}\u{2318}V")
                         .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+
+            Button {
+                appState.pasteStack.toggle()
+            } label: {
+                HStack {
+                    if appState.pasteStack.isActive {
+                        Text("Stop Paste Stack")
+                    } else {
+                        Text("Start Paste Stack")
+                    }
+                    Spacer()
+                    if let shortcut = KeyboardShortcuts.getShortcut(for: .togglePasteStack) {
+                        Text(verbatim: shortcut.description)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
             .buttonStyle(.plain)

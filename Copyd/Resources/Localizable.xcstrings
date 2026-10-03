@@ -1505,6 +1505,22 @@
         }
       }
     },
+    "First copied first" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First copied first"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero lo primero copiado"
+          }
+        }
+      }
+    },
     "Fit" : {
       "localizations" : {
         "es" : {
@@ -2011,6 +2027,22 @@
         }
       }
     },
+    "Last copied first" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last copied first"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero lo último copiado"
+          }
+        }
+      }
+    },
     "LINK" : {
       "localizations" : {
         "es" : {
@@ -2401,6 +2433,22 @@
         }
       }
     },
+    "Open Accessibility Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Accessibility Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir ajustes de Accesibilidad"
+          }
+        }
+      }
+    },
     "Open Copyd" : {
       "localizations" : {
         "es" : {
@@ -2467,6 +2515,22 @@
         }
       }
     },
+    "Order" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Order"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orden"
+          }
+        }
+      }
+    },
     "Other" : {
       "localizations" : {
         "es" : {
@@ -2529,6 +2593,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以纯文本粘贴"
+          }
+        }
+      }
+    },
+    "Paste Stack" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack"
+          }
+        }
+      }
+    },
+    "Paste Stack needs Accessibility" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack needs Accessibility"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack necesita Accesibilidad"
+          }
+        }
+      }
+    },
+    "Paste Stack · %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack · %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack · %lld"
           }
         }
       }
@@ -3190,6 +3302,38 @@
         }
       }
     },
+    "Start or Stop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start or Stop"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar o detener"
+          }
+        }
+      }
+    },
+    "Start Paste Stack" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Paste Stack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar Paste Stack"
+          }
+        }
+      }
+    },
     "Start Using Copyd" : {
       "localizations" : {
         "es" : {
@@ -3208,6 +3352,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开始使用 Copyd"
+          }
+        }
+      }
+    },
+    "Stop Paste Stack" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Paste Stack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detener Paste Stack"
           }
         }
       }
@@ -3516,6 +3676,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只会删除钉板本身，剪贴内容仍保留在剪贴板历史记录中。"
+          }
+        }
+      }
+    },
+    "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Accessibility, then start Paste Stack again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Accessibility, then start Paste Stack again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para pegar el siguiente clip con ⌘V, Copyd tiene que ver esa tecla. Activa Copyd en Ajustes del Sistema › Privacidad y seguridad › Accesibilidad y vuelve a iniciar Paste Stack."
           }
         }
       }
@@ -3950,6 +4126,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "试用结束后"
+          }
+        }
+      }
+    },
+    "While it's on, every copy joins the stack and each ⌘V pastes the next clip. Esc stops it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While it's on, every copy joins the stack and each ⌘V pastes the next clip. Esc stops it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mientras está activo, cada copia se suma a la pila y cada ⌘V pega el siguiente clip. Esc lo detiene."
           }
         }
       }
@@ -4533,6 +4725,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Actualizado hace %lld d"
+          }
+        }
+      }
+    },
+    "⌘V pastes next · esc stops" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pastes next · esc stops"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pega el siguiente · esc detiene"
           }
         }
       }

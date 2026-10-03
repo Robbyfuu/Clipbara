@@ -18,6 +18,7 @@ final class AppState {
     let clipboardMonitor = ClipboardMonitor()
     let pasteService = PasteService()
     let panelController = PanelController()
+    let pasteStack = PasteStackController()
     let searchState = SearchState()
 
     var selectedTab: PanelTab = .history
@@ -47,6 +48,10 @@ final class AppState {
         hasStarted = true
         self.modelContainer = modelContainer
         clipboardMonitor.start(modelContext: modelContext)
+        pasteStack.appState = self
+        clipboardMonitor.onCapture = { [weak self] id in
+            self?.pasteStack.push(id)
+        }
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()
         panelController.onPanelWillHide = { [weak self] in
@@ -188,6 +193,11 @@ final class AppState {
             Task { @MainActor in
                 guard self?.panelController.isVisible == true else { return }
                 self?.clearHistoryRequested = true
+            }
+        }
+        KeyboardShortcuts.onKeyDown(for: .togglePasteStack) { [weak self] in
+            Task { @MainActor in
+                self?.pasteStack.toggle()
             }
         }
     }

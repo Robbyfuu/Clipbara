@@ -9,4 +9,8 @@ extension KeyboardShortcuts.Name {
         "clearHistory",
         default: .init(.delete, modifiers: [.shift, .command])
     )
+    static let togglePasteStack = Self(
+        "togglePasteStack",
+        default: .init(.c, modifiers: [.control, .option, .command])
+    )
 }
