@@ -151,6 +151,8 @@ targets:
       - path: Shared/Utilities/LinkParts.swift
       - path: Shared/Utilities/QuickRoute.swift
       - path: Shared/Utilities/ClipCapture.swift
+      - path: Shared/Utilities/LatestClip.swift
+      - path: Shared/Utilities/SaveText.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests

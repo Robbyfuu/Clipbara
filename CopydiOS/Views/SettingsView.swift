@@ -59,6 +59,18 @@ struct SettingsView: View {
                     .foregroundStyle(DesignTokens.Brand.ink2)
                     .padding(.horizontal, 4)
                     .padding(.top, 8)
+                    .padding(.bottom, 24)
+
+                sectionLabel("Shortcuts & Back Tap")
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("1. Open Settings \u{2192} Accessibility \u{2192} Touch \u{2192} Back Tap")
+                    Text("2. Choose Double Tap or Triple Tap")
+                    Text("3. Pick Save clipboard in Copyd")
+                }
+                .brandFont(16)
+                .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .brandCard()
             }
             .foregroundStyle(DesignTokens.Brand.ink)
             .padding(.horizontal, 20)
