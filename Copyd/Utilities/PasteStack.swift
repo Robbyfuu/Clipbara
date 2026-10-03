@@ -36,11 +36,31 @@ struct PasteStack {
         return order == .fifo ? ids.removeFirst() : ids.removeLast()
     }
 
+    /// The clip the next ⌘V takes. It sits on the pasteboard ahead of time, because the stack's
+    /// listen-only tap sees ⌘V but can't hold it.
+    var head: UUID? { order == .fifo ? ids.first : ids.last }
+
+    /// Queues a copy and returns the clip to put back on the pasteboard, or nil when the copy that
+    /// just landed there is already the head (LIFO, after the first copy).
+    mutating func stagingAfterPush(_ id: UUID) -> UUID? {
+        let wasEmpty = isEmpty
+        push(id)
+        return wasEmpty || order == .fifo ? head : nil
+    }
+
+    /// The staged head was pasted: drops it and returns the next one to stage, or nil when the stack is done.
+    mutating func stagingAfterPop() -> UUID? {
+        _ = popNext()
+        return head
+    }
+
+    static let pasteKeyCode: Int64 = 9
+
     /// Plain ⌘V on its first press. ⇧⌘V, ⌥⌘V and the like, and key repeats, are left alone.
     /// ponytail: matches the V key position (ANSI keycode 9), like the system's own ⌘V on QWERTY;
     /// layouts that move V (plain Dvorak) would need the event's characters instead.
     static func isPasteKey(_ event: CGEvent) -> Bool {
-        event.getIntegerValueField(.keyboardEventKeycode) == 9
+        event.getIntegerValueField(.keyboardEventKeycode) == pasteKeyCode
             && event.getIntegerValueField(.keyboardEventAutorepeat) == 0
             && event.flags.intersection([.maskCommand, .maskShift, .maskAlternate, .maskControl]) == .maskCommand
     }

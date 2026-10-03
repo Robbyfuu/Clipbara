@@ -61,6 +61,45 @@ final class PasteStackTests: XCTestCase {
         defaults.removePersistentDomain(forName: "PasteStackTests")
     }
 
+    // MARK: - Staging: a listen-only tap can't hold ⌘V, so the next clip waits on the pasteboard
+
+    func testStageHeadOnStart() {
+        for order in [PasteStack.Order.fifo, .lifo] {
+            var s = PasteStack(order: order)
+            XCTAssertEqual(s.stagingAfterPush(a), a, "the first copy after starting is staged (\(order))")
+        }
+    }
+
+    func testFifoRestagesHeadAfterCapture() {
+        var s = PasteStack(order: .fifo)
+        _ = s.stagingAfterPush(a)
+        XCTAssertEqual(s.stagingAfterPush(b), a, "copying b put b on the pasteboard; a goes back")
+        XCTAssertEqual(s.stagingAfterPush(b), a, "a repeated copy is not queued again but still replaced a")
+    }
+
+    func testLifoNoRestage() {
+        var s = PasteStack(order: .lifo)
+        _ = s.stagingAfterPush(a)
+        XCTAssertNil(s.stagingAfterPush(b), "b is the head and already on the pasteboard")
+        XCTAssertEqual(s.count, 2)
+    }
+
+    func testPopThenStageNext() {
+        var fifo = stack(.fifo, [a, b, c])
+        XCTAssertEqual(fifo.stagingAfterPop(), b)
+        XCTAssertEqual(fifo.count, 2)
+
+        var lifo = stack(.lifo, [a, b, c])
+        XCTAssertEqual(lifo.stagingAfterPop(), b)
+        XCTAssertEqual(lifo.stagingAfterPop(), a)
+    }
+
+    func testStopsWhenEmptyAfterPop() {
+        var s = stack(.fifo, [a])
+        XCTAssertNil(s.stagingAfterPop(), "nothing left to stage: the stack ends")
+        XCTAssertTrue(s.isEmpty)
+    }
+
     // MARK: - The key the stack answers to
 
     private func keyDown(_ keyCode: CGKeyCode, _ flags: CGEventFlags, repeat isRepeat: Bool = false) throws -> CGEvent {

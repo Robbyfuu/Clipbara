@@ -2433,22 +2433,6 @@
         }
       }
     },
-    "Open Accessibility Settings" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Accessibility Settings"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abrir ajustes de Accesibilidad"
-          }
-        }
-      }
-    },
     "Open Copyd" : {
       "localizations" : {
         "es" : {
@@ -2489,6 +2473,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开历史记录"
+          }
+        }
+      }
+    },
+    "Open Input Monitoring Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Input Monitoring Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir ajustes de Monitorización de entrada"
           }
         }
       }
@@ -2613,18 +2613,18 @@
         }
       }
     },
-    "Paste Stack needs Accessibility" : {
+    "Paste Stack needs Input Monitoring" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Paste Stack needs Accessibility"
+            "value" : "Paste Stack needs Input Monitoring"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Paste Stack necesita Accesibilidad"
+            "value" : "Paste Stack necesita Monitorización de entrada"
           }
         }
       }
@@ -3680,18 +3680,18 @@
         }
       }
     },
-    "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Accessibility, then start Paste Stack again." : {
+    "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Input Monitoring, then start Paste Stack again." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Accessibility, then start Paste Stack again."
+            "value" : "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Input Monitoring, then start Paste Stack again."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para pegar el siguiente clip con ⌘V, Copyd tiene que ver esa tecla. Activa Copyd en Ajustes del Sistema › Privacidad y seguridad › Accesibilidad y vuelve a iniciar Paste Stack."
+            "value" : "Para pegar el siguiente clip con ⌘V, Copyd tiene que ver esa tecla. Activa Copyd en Ajustes del Sistema › Privacidad y seguridad › Monitorización de entrada y vuelve a iniciar Paste Stack."
           }
         }
       }
@@ -4130,18 +4130,18 @@
         }
       }
     },
-    "While it's on, every copy joins the stack and each ⌘V pastes the next clip. Esc stops it." : {
+    "While it's on, every copy joins the stack and each ⌘V pastes the next clip. It stops with this shortcut, from the menu bar, when the stack runs out, or when you pick a clip in Copyd. The first time, macOS asks you to allow Input Monitoring." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "While it's on, every copy joins the stack and each ⌘V pastes the next clip. Esc stops it."
+            "value" : "While it's on, every copy joins the stack and each ⌘V pastes the next clip. It stops with this shortcut, from the menu bar, when the stack runs out, or when you pick a clip in Copyd. The first time, macOS asks you to allow Input Monitoring."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mientras está activo, cada copia se suma a la pila y cada ⌘V pega el siguiente clip. Esc lo detiene."
+            "value" : "Mientras está activo, cada copia se suma a la pila y cada ⌘V pega el siguiente clip. Se detiene con este atajo, desde la barra de menús, cuando la pila se vacía o cuando eliges un clip en Copyd. La primera vez, macOS te pide permitir la Monitorización de entrada."
           }
         }
       }
@@ -4729,18 +4729,34 @@
         }
       }
     },
-    "⌘V pastes next · esc stops" : {
+    "⌘V pastes next" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "⌘V pastes next · esc stops"
+            "value" : "⌘V pastes next"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "⌘V pega el siguiente · esc detiene"
+            "value" : "⌘V pega el siguiente"
+          }
+        }
+      }
+    },
+    "⌘V pastes next · %@ stops" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pastes next · %@ stops"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pega el siguiente · %@ detiene"
           }
         }
       }

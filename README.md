@@ -84,7 +84,9 @@ Add a password manager, or any other app, under **Settings > Exclusions** and no
 
 ### Why doesn't Copyd paste into the app for me?
 
-Picking a clip puts it on the clipboard and closes the panel, then you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Pasting on your behalf means synthesizing keystrokes into whatever app is in front, which needs an extra system permission to control other applications. Copyd neither asks for it nor links against those APIs.
+Picking a clip puts it on the clipboard and closes the panel, then you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Pasting on your behalf means synthesizing keystrokes into whatever app is in front, which needs an extra system permission to control other applications. Copyd never asks for that one and never sends keystrokes.
+
+The one permission Copyd does ask for is Input Monitoring, and only the first time you start Paste Stack. Paste Stack watches for <kbd>⌘</kbd> <kbd>V</kbd> so it can put the next clip on the clipboard, and it stops watching when the stack ends. Nothing else in Copyd needs it.
 
 ### The shortcut does not open the panel
 

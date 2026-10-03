@@ -52,6 +52,10 @@ final class AppState {
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)
         }
+        // Picking a clip in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) ends Paste Stack.
+        clipboardMonitor.onPick = { [weak self] in
+            self?.pasteStack.stop()
+        }
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()
         panelController.onPanelWillHide = { [weak self] in

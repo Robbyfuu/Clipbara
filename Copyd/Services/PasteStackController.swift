@@ -1,29 +1,30 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftData
 import SwiftUI
 
 /// Paste Stack: while it is on, every copy joins the stack and each ⌘V pastes the next clip.
 ///
-/// ⌘V is seen by a session event tap that exists only while the stack is on and holds at
-/// least one clip. The tap never swallows or posts a key event: on ⌘V it puts the next clip
-/// on the pasteboard through `PasteService` and returns the user's own ⌘V unchanged, so the
-/// app in front pastes that clip. Copyd posts no keystrokes, so there is nothing of its own
-/// for the tap to filter out. When the last clip goes, the stack ends and the tap is removed.
+/// ⌘V is seen by a listen-only session event tap, which needs Input Monitoring and can't hold or
+/// change the key. So the clip the next ⌘V takes (the head) is put on the pasteboard ahead of
+/// time: after the first copy, after each FIFO copy, and when a ⌘V finishes. Copyd posts no
+/// keystrokes. The tap lives from `start()` to `stop()`; the stack ends when the last clip is
+/// pasted, from the shortcut or the menu, or when a clip is picked in Copyd's own UI.
 @MainActor
 @Observable
 final class PasteStackController {
     private(set) var isActive = false
-    /// Clips still queued, shown in the HUD.
+    /// Clips still queued, the staged one included, shown in the HUD.
     private(set) var count = 0
     weak var appState: AppState?
 
     @ObservationIgnored private var stack = PasteStack(order: .fifo)
     @ObservationIgnored private var tap: CFMachPort?
     @ObservationIgnored private var tapSource: CFRunLoopSource?
-    @ObservationIgnored private var escMonitors: [Any] = []
     @ObservationIgnored private var hud: NSPanel?
-
-    private static let escapeKeyCode: UInt16 = 53
+    /// A ⌘V went down with the head staged; it is popped on the V key-up or the fallback.
+    @ObservationIgnored private var pendingPaste = false
+    @ObservationIgnored private var fallback: Task<Void, Never>?
 
     func toggle() {
         isActive ? stop() : start()
@@ -36,17 +37,13 @@ final class PasteStackController {
             PaywallWindowController.shared.show()
             return
         }
-        // Catching ⌘V needs Accessibility. Find out now, not on the first ⌘V.
-        guard let probe = makeTap() else {
-            showAccessibilityAlert()
+        guard CGPreflightListenEventAccess(), installTap() else {
+            showInputMonitoringAlert()
             return
         }
-        CFMachPortInvalidate(probe)
-
         stack = PasteStack(order: .saved())
         count = 0
         isActive = true
-        installEscMonitors()
         showHUD()
     }
 
@@ -54,8 +51,9 @@ final class PasteStackController {
         guard isActive else { return }
         isActive = false
         removeTap()
-        escMonitors.forEach(NSEvent.removeMonitor)
-        escMonitors = []
+        pendingPaste = false
+        fallback?.cancel()
+        fallback = nil
         hud?.orderOut(nil)
         stack = PasteStack(order: .fifo)
         count = 0
@@ -64,55 +62,79 @@ final class PasteStackController {
     /// Every clip the user copies. Ignored while the stack is off.
     func push(_ id: UUID) {
         guard isActive else { return }
-        stack.push(id)
-        count = stack.count
-        if tap == nil { installTap() }
+        stage(stack.stagingAfterPush(id))
     }
 
-    /// The user pressed ⌘V: put the next clip on the pasteboard before the front app reads it.
-    fileprivate func pasteNext() {
-        // ⌘V in Copyd's own search field pastes as usual and keeps the stack.
-        guard isActive, let appState, !appState.panelController.isVisible,
-              let context = appState.modelContainer?.mainContext else { return }
-        while let id = stack.popNext() {
-            // A clip deleted since it was copied is skipped.
-            let descriptor = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
-            guard let item = try? context.fetch(descriptor).first else { continue }
-            appState.clipboardMonitor.skipNextChange()
-            appState.pasteService.paste(item: item)
-            break
+    // MARK: - ⌘V, from the tap callback: only flags and scheduling here
+
+    fileprivate func pasteKeyDown() {
+        // Inside Copyd (Settings, the paywall, the panel) ⌘V pastes the staged clip and keeps the stack.
+        guard isActive, !stack.isEmpty, !NSApp.isActive,
+              appState?.panelController.isVisible != true else { return }
+        pendingPaste = true
+        fallback?.cancel()
+        // The key-up can go missing (a tap paused by secure input); don't leave the stack stuck.
+        fallback = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            self?.finishPaste()
         }
+    }
+
+    fileprivate func pasteKeyUp() {
+        guard pendingPaste else { return }
+        Task { @MainActor [weak self] in self?.finishPaste() }
+    }
+
+    /// The app in front has read the staged head: drop it and stage the next, or end the stack.
+    private func finishPaste() {
+        guard isActive, pendingPaste else { return }
+        pendingPaste = false
+        fallback?.cancel()
+        fallback = nil
+        stage(stack.stagingAfterPop())
+    }
+
+    /// Puts `id`'s clip on the pasteboard for the next ⌘V. nil with clips left means the head is
+    /// already there; nil with none left ends the stack.
+    private func stage(_ id: UUID?) {
         count = stack.count
-        // End on the next turn, after this ⌘V has been handed back to the system.
-        if stack.isEmpty {
-            Task { @MainActor [weak self] in self?.stop() }
+        guard let id else {
+            if stack.isEmpty { stop() }
+            return
         }
+        guard let appState, let context = appState.modelContainer?.mainContext else { return }
+        let descriptor = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+        guard let item = try? context.fetch(descriptor).first else {
+            // Deleted since it was copied: skip it.
+            return stage(stack.stagingAfterPop())
+        }
+        // Not a pick from Copyd's UI, so this write doesn't stop the stack.
+        appState.clipboardMonitor.skipStagedChange()
+        // The setting alone decides plain text: a Shift held while staging means nothing here.
+        appState.pasteService.paste(
+            item: item,
+            asPlainText: UserDefaults.standard.bool(forKey: PasteService.alwaysPlainTextDefaultsKey)
+        )
     }
 
     // MARK: - Event tap
 
-    private func makeTap() -> CFMachPort? {
-        CGEvent.tapCreate(
+    private func installTap() -> Bool {
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue) | CGEventMask(1 << CGEventType.keyUp.rawValue)
+        guard let port = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+            options: .listenOnly,
+            eventsOfInterest: mask,
             callback: pasteStackTapCallback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
-        )
-    }
-
-    private func installTap() {
-        guard let port = makeTap() else {
-            // Accessibility was turned off after the stack started.
-            stop()
-            showAccessibilityAlert()
-            return
-        }
+        ) else { return false }
         let source = CFMachPortCreateRunLoopSource(nil, port, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         tap = port
         tapSource = source
+        return true
     }
 
     private func removeTap() {
@@ -126,43 +148,24 @@ final class PasteStackController {
         tapSource = nil
     }
 
-    /// macOS turns a tap off when a callback runs long or during secure input.
+    /// macOS turns a tap off during secure input or after a slow callback.
     fileprivate func reenableTap() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
     }
 
-    private func showAccessibilityAlert() {
+    private func showInputMonitoringAlert() {
         let alert = NSAlert()
-        alert.messageText = String(localized: "Paste Stack needs Accessibility")
-        alert.informativeText = String(localized: "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Accessibility, then start Paste Stack again.")
-        alert.addButton(withTitle: String(localized: "Open Accessibility Settings"))
+        alert.messageText = String(localized: "Paste Stack needs Input Monitoring")
+        alert.informativeText = String(localized: "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Input Monitoring, then start Paste Stack again.")
+        alert.addButton(withTitle: String(localized: "Open Input Monitoring Settings"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        // Adds Copyd to the Accessibility list; the first time macOS may also show its own prompt.
-        _ = CGRequestPostEventAccess()
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+        // Adds Copyd to the Input Monitoring list; the first time macOS also shows its own prompt.
+        _ = CGRequestListenEventAccess()
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
             NSWorkspace.shared.open(url)
         }
-    }
-
-    // MARK: - Esc
-
-    private func installEscMonitors() {
-        let global = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == Self.escapeKeyCode else { return }
-            Task { @MainActor in self?.stop() }
-        }
-        let local = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let isEscape = event.keyCode == Self.escapeKeyCode
-            MainActor.assumeIsolated { [weak self] in
-                // The history panel uses Esc to step back; leave it the key there.
-                guard isEscape, let self, self.appState?.panelController.isVisible != true else { return }
-                self.stop()
-            }
-            return event
-        }
-        escMonitors = [global, local].compactMap { $0 }
     }
 
     // MARK: - HUD
@@ -201,8 +204,8 @@ final class PasteStackController {
     }
 }
 
-/// Runs on the main thread: the tap's source is on the main run loop.
-/// Returning the event unchanged lets every key, ⌘V included, reach the app in front.
+/// Runs on the main thread: the tap's source is on the main run loop. A listen-only tap only
+/// observes, so whatever it returns, every key reaches the app in front untouched.
 private func pasteStackTapCallback(
     _: CGEventTapProxy, type: CGEventType, event: CGEvent, userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
@@ -212,7 +215,9 @@ private func pasteStackTapCallback(
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             MainActor.assumeIsolated { controller.reenableTap() }
         case .keyDown where PasteStack.isPasteKey(event):
-            MainActor.assumeIsolated { controller.pasteNext() }
+            MainActor.assumeIsolated { controller.pasteKeyDown() }
+        case .keyUp where event.getIntegerValueField(.keyboardEventKeycode) == PasteStack.pasteKeyCode:
+            MainActor.assumeIsolated { controller.pasteKeyUp() }
         default:
             break
         }
@@ -231,7 +236,7 @@ private struct PasteStackHUD: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(DesignTokens.Brand.ink)
                 .monospacedDigit()
-            Text("⌘V pastes next · esc stops")
+            hint
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DesignTokens.Brand.ink2)
         }
@@ -245,5 +250,14 @@ private struct PasteStackHUD: View {
         .fixedSize()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Names the real stop shortcut, as the menu row does.
+    private var hint: Text {
+        if let shortcut = KeyboardShortcuts.getShortcut(for: .togglePasteStack)?.description {
+            Text("⌘V pastes next · \(shortcut) stops")
+        } else {
+            Text("⌘V pastes next")
+        }
     }
 }
