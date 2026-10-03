@@ -59,6 +59,8 @@ final class KeyboardModel {
 
 struct KeyboardView: View {
     let model: KeyboardModel
+    /// Resets to false on its own when the system cancels the touch, which `DragGesture.onEnded` misses.
+    @GestureState private var deletePressed = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -166,9 +168,8 @@ struct KeyboardView: View {
                 .foregroundStyle(DesignTokens.Brand.ink)
                 .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 8))
                 .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { _ in model.beginDelete() }
-                    .onEnded { _ in model.endDelete() })
+                .gesture(DragGesture(minimumDistance: 0).updating($deletePressed) { _, pressed, _ in pressed = true })
+                .onChange(of: deletePressed) { _, pressed in pressed ? model.beginDelete() : model.endDelete() }
                 .accessibilityLabel("Delete").accessibilityAddTraits(.isButton)
                 .accessibilityAction { model.onDelete() }
             key("return") { model.onText("\n") }.frame(width: 76)
