@@ -64,7 +64,11 @@ final class KeyboardViewController: UIInputViewController {
                 configurations: ModelConfiguration(
                     url: SharedStore.url(groupContainer: group), allowsSave: false, cloudKitDatabase: .none))
             self.container = container
-            model.state = .loaded(try KeyboardFeed.items(in: ModelContext(container), mode: model.mode))
+            let context = ModelContext(container)
+            model.boards = try KeyboardFeed.boards(in: context)
+            // The selected board may have been deleted on the Mac.
+            if case .pinboard(let id) = model.mode, !model.boards.contains(where: { $0.id == id }) { model.mode = .recent }
+            model.state = .loaded(try KeyboardFeed.items(in: context, mode: model.mode))
         } catch {
             model.state = .error
         }

@@ -74,4 +74,46 @@ final class KeyboardFeedTests: XCTestCase {
         add("a", dt: 1, source: "Safari"); add("b", dt: 0)
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.sourceAppName), ["Safari", nil])
     }
+
+    @discardableResult
+    private func board(_ name: String, order: Int) -> Pinboard {
+        let b = Pinboard(name: name, displayOrder: order)
+        context.insert(b)
+        return b
+    }
+
+    private func pin(_ item: ClipboardItem, to board: Pinboard, order: Int) {
+        context.insert(PinboardEntry(clipboardItem: item, pinboard: board, displayOrder: order))
+    }
+
+    func testPinboardModeKeepsEntryOrder() throws {
+        let b = board("Work", order: 0)
+        let x = add("x", dt: 0), y = add("y", dt: 10), z = add("z", dt: 5)
+        pin(y, to: b, order: 2); pin(x, to: b, order: 0); pin(z, to: b, order: 1)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinboard(b.id)).map(\.preview), ["x", "z", "y"])
+    }
+
+    func testPinboardModeExcludesOtherBoards() throws {
+        let a = board("A", order: 0), b = board("B", order: 1)
+        pin(add("in-a"), to: a, order: 0); pin(add("in-b"), to: b, order: 0)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinboard(a.id)).map(\.preview), ["in-a"])
+    }
+
+    func testPinboardModeExcludesFileClips() throws {
+        let b = board("A", order: 0)
+        pin(add("file:///x", type: .fileURL), to: b, order: 0); pin(add("t"), to: b, order: 1)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinboard(b.id)).map(\.preview), ["t"])
+    }
+
+    func testMissingPinboardReturnsEmpty() throws {
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinboard(UUID())), [])
+    }
+
+    func testBoardsInDisplayOrder() throws {
+        let second = board("Second", order: 1), first = board("First", order: 0)
+        let boards = try KeyboardFeed.boards(in: context)
+        XCTAssertEqual(boards.map(\.name), ["First", "Second"])
+        XCTAssertEqual(boards.map(\.id), [first.id, second.id])
+        XCTAssertEqual(boards.first?.colorIndex, PinboardDot.index(for: first.id))
+    }
 }

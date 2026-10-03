@@ -13,20 +13,44 @@ struct KeyboardClip: Identifiable, Equatable {
     let sourceAppName: String?
 }
 
+/// A pinboard chip in the keyboard header.
+struct KeyboardBoard: Identifiable, Equatable {
+    let id: UUID
+    let name: String
+    let colorIndex: Int
+}
+
 enum KeyboardFeed {
-    enum Mode { case recent, pinned }
+    enum Mode: Equatable { case recent, pinned, pinboard(UUID) }
     static let limit = 60, previewLimit = 300
 
     @MainActor
     static func items(in context: ModelContext, mode: Mode, limit: Int = limit) throws -> [KeyboardClip] {
         let fileRaw = ContentType.fileURL.rawValue
-        let predicate: Predicate<ClipboardItem> = mode == .pinned
-            ? #Predicate { $0.contentTypeRaw != fileRaw && $0.isPinned == true }
-            : #Predicate { $0.contentTypeRaw != fileRaw }
+        let predicate: Predicate<ClipboardItem>
+        switch mode {
+        case .recent: predicate = #Predicate { $0.contentTypeRaw != fileRaw }
+        case .pinned: predicate = #Predicate { $0.contentTypeRaw != fileRaw && $0.isPinned == true }
+        case .pinboard(let boardID):
+            // A board has few entries; order them in memory by the entry's own `displayOrder`.
+            var boardFetch = FetchDescriptor<Pinboard>(predicate: #Predicate { $0.id == boardID })
+            boardFetch.fetchLimit = 1
+            guard let board = try context.fetch(boardFetch).first else { return [] }
+            return board.entries.sorted { $0.displayOrder < $1.displayOrder }
+                .compactMap(\.clipboardItem)
+                .filter { $0.contentType != .fileURL }
+                .prefix(limit).map(clip)
+        }
         var descriptor = FetchDescriptor<ClipboardItem>(
             predicate: predicate, sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         descriptor.fetchLimit = limit
         return try context.fetch(descriptor).map(clip)
+    }
+
+    @MainActor
+    static func boards(in context: ModelContext) throws -> [KeyboardBoard] {
+        try context.fetch(FetchDescriptor<Pinboard>(sortBy: [SortDescriptor(\.displayOrder)]))
+            .map { KeyboardBoard(id: $0.id, name: $0.name, colorIndex: PinboardDot.index(for: $0.id)) }
     }
 
     private static func clip(_ item: ClipboardItem) -> KeyboardClip {

@@ -111,7 +111,7 @@ struct CopydiOSApp: App {
 }
 
 #if DEBUG
-/// `-CopydKeyboardPreview [-CopydKeyboardPreviewState noFullAccess|noStore|error|empty] [-CopydKeyboardPreviewMode pinned]`
+/// `-CopydKeyboardPreview [-CopydKeyboardPreviewState noFullAccess|noStore|error|empty] [-CopydKeyboardPreviewMode pinned|work]`
 /// shows the keyboard view at the bottom, fed with the real `KeyboardFeed`. Clip taps and keys are no-ops.
 private struct KeyboardPreviewHarness: View {
     let container: ModelContainer
@@ -128,7 +128,13 @@ private struct KeyboardPreviewHarness: View {
 
     private func load() {
         let d = UserDefaults.standard
-        model.mode = d.string(forKey: "CopydKeyboardPreviewMode") == "pinned" ? .pinned : .recent
+        let context = ModelContext(container)
+        model.boards = (try? KeyboardFeed.boards(in: context)) ?? []
+        switch d.string(forKey: "CopydKeyboardPreviewMode") {
+        case "pinned": model.mode = .pinned
+        case "work": model.mode = model.boards.first.map { .pinboard($0.id) } ?? .recent
+        default: model.mode = .recent
+        }
         model.showsGlobe = true
         model.lastSync = Date().addingTimeInterval(-300)
         model.onModeChange = { load() }
@@ -137,7 +143,7 @@ private struct KeyboardPreviewHarness: View {
         case "noStore": model.state = .noStore
         case "error": model.state = .error
         default:
-            model.state = .loaded((try? KeyboardFeed.items(in: ModelContext(container), mode: model.mode)) ?? [])
+            model.state = .loaded((try? KeyboardFeed.items(in: context, mode: model.mode)) ?? [])
         }
     }
 }

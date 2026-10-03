@@ -162,10 +162,17 @@ final class AppModel {
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
-        guard !seeds.isEmpty else { return }
+        // Pinboards have no contentHash; the seed board is recognised by its fixed id. Deleting it cascades its entries.
+        let seedBoardID = Self.seedBoardID
+        let boards = (try? context.fetch(FetchDescriptor<Pinboard>(
+            predicate: #Predicate { $0.id == seedBoardID }))) ?? []
+        guard !seeds.isEmpty || !boards.isEmpty else { return }
         seeds.forEach(context.delete)
+        boards.forEach(context.delete)
         try? context.save()
     }
+
+    private static let seedBoardID = UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!
 
     private static func seedSampleClipsIfRequested(_ container: ModelContainer) {
         guard UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),
@@ -191,10 +198,17 @@ final class AppModel {
         context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png),
                                      contentHash: "seed-image"))
         let bareURL = "https://www.airbnb.cl/rooms/1289209668570226847?check_in=2026-10-07"
-        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(bareURL.utf8), textContent: bareURL,
-                                     contentHash: "seed-bareurl"))
+        let bareItem = ClipboardItem(contentType: .plainText, rawData: Data(bareURL.utf8), textContent: bareURL,
+                                     contentHash: "seed-bareurl")
+        context.insert(bareItem)
         context.insert(ClipboardItem(contentType: .plainText, rawData: Data("464501".utf8), textContent: "464501",
                                      contentHash: "seed-code"))
+        let work = Pinboard(name: "Work", displayOrder: 0)
+        work.id = seedBoardID
+        context.insert(work)
+        for (order, item) in [short, bareItem].enumerated() {
+            context.insert(PinboardEntry(clipboardItem: item, pinboard: work, displayOrder: order))
+        }
         try? context.save()
     }
     #endif

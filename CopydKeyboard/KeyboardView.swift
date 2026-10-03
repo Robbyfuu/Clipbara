@@ -10,6 +10,7 @@ enum KeyboardState: Equatable {
 final class KeyboardModel {
     var state = KeyboardState.noStore
     var mode = KeyboardFeed.Mode.recent
+    var boards: [KeyboardBoard] = []
     var lastSync: Date?
     var toast: String?
     var showsGlobe = false
@@ -98,39 +99,50 @@ struct KeyboardView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            CopydWordmark(size: 21).layoutPriority(1)
-            Text(RelativeSyncTime.text(from: model.lastSync, now: Date()))
-                .font(.system(size: 12)).foregroundStyle(DesignTokens.Brand.ink2)
-                .lineLimit(1).minimumScaleFactor(0.8)
-            Spacer(minLength: 8)
-            HStack(spacing: 4) {
-                modePill("Recent", .recent)
-                modePill("Pinned", .pinned)
+            // "Updated ..." sits under the wordmark so the chips get the rest of the row.
+            VStack(alignment: .leading, spacing: 0) {
+                CopydWordmark(size: 21)
+                Text(RelativeSyncTime.text(from: model.lastSync, now: Date()))
+                    .font(.system(size: 12)).foregroundStyle(DesignTokens.Brand.ink2)
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
-            .padding(.horizontal, 3)
-            .background(DesignTokens.Brand.line, in: Capsule())
             .layoutPriority(1)
+            ScrollView(.horizontal) {
+                HStack(spacing: 4) {
+                    chip("Recent", .recent)
+                    chip("Pinned", .pinned)
+                    ForEach(model.boards) { board in
+                        chip(board.name, .pinboard(board.id), dot: DesignTokens.pinboardDots[board.colorIndex])
+                    }
+                }
+                .padding(.horizontal, 3)
+            }
+            .scrollIndicators(.hidden)
+            .background(DesignTokens.Brand.line, in: Capsule())
         }
         .padding(.horizontal, 4)
         .frame(minHeight: 44)
     }
 
-    private func modePill(_ title: String, _ mode: KeyboardFeed.Mode) -> some View {
+    private func chip(_ title: String, _ mode: KeyboardFeed.Mode, dot: Color? = nil) -> some View {
         let active = model.mode == mode
         return Button {
             guard model.mode != mode else { return }
             model.mode = mode
             model.onModeChange()
         } label: {
-            Text(title)
-                .font(.system(size: 14, weight: active ? .bold : .semibold))
-                .foregroundStyle(active ? DesignTokens.Brand.ink : DesignTokens.Brand.ink2)
-                .padding(.horizontal, 14)
-                .frame(height: 38)
-                .keyCap(active ? DesignTokens.Brand.keyCap : .clear, in: Capsule())
-                // 3 pt each side keeps the visible capsule at 38 pt while the tap target is 44 pt.
-                .padding(.vertical, 3)
-                .contentShape(Rectangle())
+            HStack(spacing: 6) {
+                if let dot { Circle().fill(dot).frame(width: 8, height: 8).accessibilityHidden(true) }
+                Text(title).lineLimit(1)
+            }
+            .font(.system(size: 14, weight: active ? .bold : .semibold))
+            .foregroundStyle(active ? DesignTokens.Brand.ink : DesignTokens.Brand.ink2)
+            .padding(.horizontal, 14)
+            .frame(height: 38)
+            .keyCap(active ? DesignTokens.Brand.keyCap : .clear, in: Capsule())
+            // 3 pt each side keeps the visible capsule at 38 pt while the tap target is 44 pt.
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(active ? .isSelected : [])
