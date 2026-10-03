@@ -65,6 +65,18 @@ struct RemoteApplier {
         } catch { log.error("clearSystemFields failed: \(error.syncLogDescription, privacy: .public)") }
     }
 
+    /// Deletes every clip, pinboard and entry and returns their ids. Does not save: the caller saves
+    /// inside `tracker.suppressing` over the returned ids.
+    static func deleteAll(in context: ModelContext) -> Set<UUID> {
+        var ids: Set<UUID> = []
+        do {
+            for m in try context.fetch(FetchDescriptor<PinboardEntry>()) { ids.insert(m.id); context.delete(m) }
+            for m in try context.fetch(FetchDescriptor<Pinboard>()) { ids.insert(m.id); context.delete(m) }
+            for m in try context.fetch(FetchDescriptor<ClipboardItem>()) { ids.insert(m.id); context.delete(m) }
+        } catch { log.error("deleteAll failed: \(error.syncLogDescription, privacy: .public)") }
+        return ids
+    }
+
     // MARK: Lookups (throwing: a fetch error must never read as "not found")
 
     private func clip(_ id: UUID) throws -> ClipboardItem? {

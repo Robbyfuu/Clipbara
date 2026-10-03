@@ -299,4 +299,15 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertNil(try boards().first?.syncSystemFields)
         XCTAssertNil(try entries().first?.syncSystemFields)
     }
+
+    func testDeleteAllRemovesEverythingAndReportsIDs() throws {
+        try apply(clips: [clip(1, hash: "a"), clip(2, hash: "b")], pinboards: [board(3)],
+                  entries: [entry(4, clip: 1, board: 3)])
+        let ids = RemoteApplier.deleteAll(in: context)
+        try context.save()
+        XCTAssertEqual(try clips().count, 0)
+        XCTAssertEqual(try boards().count, 0)
+        XCTAssertEqual(try entries().count, 0)
+        XCTAssertEqual(ids, [id(1), id(2), id(3), id(4)])
+    }
 }

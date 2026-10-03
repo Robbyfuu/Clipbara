@@ -1,5 +1,7 @@
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
 import CloudKit
 import OSLog
@@ -13,7 +15,13 @@ import SwiftData
     static let enabledDefaultsKey = "iCloudSyncEnabled"
     static let containerID = "iCloud.com.robbyfuu.copyd"
 
-    private(set) var status: Status = .off
+    private(set) var status: Status = .off {
+        didSet {
+            #if os(iOS)
+            if case .upToDate(let date) = status { SharedDefaults.store?.set(date, forKey: SharedDefaults.lastSyncAtKey) }
+            #endif
+        }
+    }
 
     private let container: ModelContainer
     private let onRemoteChanges: @MainActor () -> Void
@@ -250,6 +258,10 @@ import SwiftData
             status = .syncing
         case .signOut, .switchAccounts:
             // Never mix two accounts' data: sync stays off until the user enables it again.
+            #if os(iOS)
+            // The phone is a mirror: drop the old account's history too (macOS keeps it).
+            save(suppressing: RemoteApplier.deleteAll(in: modelContext))
+            #endif
             stop(clearState: true)
             UserDefaults.standard.set(false, forKey: Self.enabledDefaultsKey)
             status = .accountChanged
@@ -478,6 +490,8 @@ import SwiftData
         }
         #if os(macOS)
         NSApplication.shared.registerForRemoteNotifications()
+        #else
+        UIApplication.shared.registerForRemoteNotifications()
         #endif
         if saved == nil { queueEverything(on: engine) }
     }
