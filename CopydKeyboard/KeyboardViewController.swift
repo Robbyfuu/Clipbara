@@ -5,6 +5,8 @@ import UIKit
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
     private var container: ModelContainer?
+    /// A copy this keyboard captured. It leads Recent until the store has it; a tap uses its content directly.
+    private var clipboard: (card: KeyboardClip, clip: CapturedClip)?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -39,7 +41,24 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         model.showsGlobe = needsInputModeSwitchKey
+        captureClipboard()
         reload()
+    }
+
+    /// Queues a copy made since Copyd last looked. A keyboard cannot write the store, so the copy goes to the inbox,
+    /// which the app drains the next time it opens. Images over 10 MB are left for the app.
+    private func captureClipboard() {
+        guard hasFullAccess, let group = SharedStore.groupContainer, SharedStore.storeExists(groupContainer: group),
+              let clip = PasteboardCapture.newClip(maxImageBytes: 10_000_000) else { return }
+        let image = clip.contentType == .image
+        let item = InboxItem(kind: image ? .image : .text, text: clip.textContent, createdAt: Date(),
+                             source: UIDevice.current.model, auto: true)
+        do {
+            try Inbox.write(item, payload: image ? clip.rawData : nil, in: Inbox.directory(groupContainer: group))
+        } catch {
+            PasteboardCapture.leaveForApp()
+        }
+        clipboard = (KeyboardFeed.clipboardCard(clip, now: Date()), clip)
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -68,32 +87,49 @@ final class KeyboardViewController: UIInputViewController {
             model.boards = try KeyboardFeed.boards(in: context)
             // The selected board may have been deleted on the Mac.
             if case .pinboard(let id) = model.mode, !model.boards.contains(where: { $0.id == id }) { model.mode = .recent }
-            model.state = .loaded(try KeyboardFeed.items(in: context, mode: model.mode))
+            // Once the app has stored the copy (or it was already there), the feed shows it instead.
+            if let hash = clipboard?.clip.contentHash, (try? ClipCapture.existsInHistory(hash: hash, in: context)) == true {
+                clipboard = nil
+            }
+            let items = try KeyboardFeed.items(in: context, mode: model.mode)
+            model.state = .loaded(model.mode == .recent ? (clipboard.map { [$0.card] } ?? []) + items : items)
         } catch {
             model.state = .error
         }
     }
 
-    /// Fetches the one full item, then inserts it or leaves it on the pasteboard. Returns a toast for the latter.
+    /// Fetches the one full item (or takes the captured copy), then inserts it or leaves it on the pasteboard.
+    /// Returns a toast for the latter.
     private func select(_ clip: KeyboardClip) -> String? {
-        let failure = String(localized: "Couldn't copy this clip.")
-        guard let container else { return failure }
+        if clip.isClipboard, let captured = clipboard?.clip {
+            return paste(captured.contentType, text: captured.textContent, data: captured.rawData)
+        }
+        guard let container else { return Self.failure }
         let id = clip.id
         var descriptor = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
-        guard let item = try? ModelContext(container).fetch(descriptor).first else { return failure }
-        switch PasteAction.decide(contentType: item.contentType, text: item.textContent) {
+        guard let item = try? ModelContext(container).fetch(descriptor).first else { return Self.failure }
+        return paste(item.contentType, text: item.textContent, data: item.rawData)
+    }
+
+    private static var failure: String { String(localized: "Couldn't copy this clip.") }
+
+    /// `data` is read only for an image, so a text clip's raw bytes never load.
+    private func paste(_ type: ContentType, text: String?, data: @autoclosure () -> Data) -> String? {
+        switch PasteAction.decide(contentType: type, text: text) {
         case .insert(let text):
             textDocumentProxy.insertText(text)
             return nil
         case .copyToPasteboard:
-            if item.contentType == .image {
-                guard let image = PasteboardImage.payload(from: item.rawData, maxPixels: 2048) else { return failure }
+            if type == .image {
+                guard let image = PasteboardImage.payload(from: data(), maxPixels: 2048) else { return Self.failure }
                 UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
+                PasteboardCapture.markHandled()  // the keyboard's own copy is never captured back
                 return String(localized: "Copied. Touch and hold the field, then tap Paste.")
             }
-            guard let text = item.textContent, !text.isEmpty else { return failure }
+            guard let text, !text.isEmpty else { return Self.failure }
             UIPasteboard.general.string = text
+            PasteboardCapture.markHandled()
             return String(localized: "Copied. It's too long to insert.")
         }
     }

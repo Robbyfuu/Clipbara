@@ -220,8 +220,14 @@ struct KeyboardView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     cardBody(clip)
                     Spacer(minLength: 0)
-                    Text("\(clip.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: clip.copiedAt, now: Date()))")
-                        .font(.system(size: 11)).foregroundStyle(DesignTokens.Brand.ink2).lineLimit(1)
+                    Group {
+                        if clip.isClipboard {
+                            Text("Clipboard")
+                        } else {
+                            Text("\(clip.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: clip.copiedAt, now: Date()))")
+                        }
+                    }
+                    .font(.system(size: 11)).foregroundStyle(DesignTokens.Brand.ink2).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 // 8 pt, not 10: three 14 pt lines plus the meta line need 68 pt of the 84 pt card.
@@ -229,6 +235,15 @@ struct KeyboardView: View {
             }
         }
         .frame(height: 84)
+        // An image card has no meta line, so its "Clipboard" label sits on the thumbnail.
+        .overlay(alignment: .bottomLeading) {
+            if clip.isClipboard, clip.contentType == .image {
+                Text("Clipboard").font(.system(size: 11, weight: .semibold)).foregroundStyle(DesignTokens.Brand.ink)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(DesignTokens.Brand.keyCap, in: Capsule())
+                    .padding(6)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .keyCap(in: RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))

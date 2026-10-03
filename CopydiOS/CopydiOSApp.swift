@@ -123,6 +123,7 @@ struct CopydiOSApp: App {
 #if DEBUG
 /// `-CopydKeyboardPreview [-CopydKeyboardPreviewState noFullAccess|noStore|error|empty] [-CopydKeyboardPreviewMode pinned|work]`
 /// shows the keyboard view at the bottom, fed with the real `KeyboardFeed`. Clip taps and keys are no-ops.
+/// `-CopydKeyboardPreviewClipboard <text>` puts the keyboard's "Clipboard" card first in Recent.
 private struct KeyboardPreviewHarness: View {
     let container: ModelContainer
     @State private var model = KeyboardModel()
@@ -153,7 +154,10 @@ private struct KeyboardPreviewHarness: View {
         case "noStore": model.state = .noStore
         case "error": model.state = .error
         default:
-            model.state = .loaded((try? KeyboardFeed.items(in: context, mode: model.mode)) ?? [])
+            let items = (try? KeyboardFeed.items(in: context, mode: model.mode)) ?? []
+            let card = d.string(forKey: "CopydKeyboardPreviewClipboard").flatMap(ClipCapture.text)
+                .map { KeyboardFeed.clipboardCard($0, now: Date()) }
+            model.state = .loaded(model.mode == .recent ? (card.map { [$0] } ?? []) + items : items)
         }
     }
 }

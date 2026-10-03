@@ -116,6 +116,47 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(try files(), [], "the skipped duplicate is deleted too")
     }
 
+    func testDrainSkipsAutoItemAlreadyInHistory() throws {
+        let existing = ClipboardItem(contentType: .plainText, rawData: Data("x".utf8), textContent: "x",
+                                     contentHash: ClipCapture.hash(Data("x".utf8)))
+        existing.copiedAt = now.addingTimeInterval(-3600)  // far outside the 10 s rule
+        context.insert(existing)
+        try context.save()
+        try Inbox.write(InboxItem(kind: .text, text: "x", createdAt: now, source: "iPhone", auto: true), payload: nil, in: dir)
+        try Inbox.write(InboxItem(kind: .text, text: "new", createdAt: now, source: "iPhone", auto: true), payload: nil, in: dir)
+
+        XCTAssertEqual(Inbox.drain(in: context, directory: dir, now: now), 1)
+        XCTAssertEqual(try items().map(\.textContent), ["x", "new"])
+        XCTAssertEqual(try items().last?.sourceAppName, "iPhone")
+        XCTAssertEqual(try files(), [], "the skipped item is deleted too")
+    }
+
+    func testDrainKeepsExplicitShareRuleFor10s() throws {
+        let existing = ClipboardItem(contentType: .plainText, rawData: Data("x".utf8), textContent: "x",
+                                     contentHash: ClipCapture.hash(Data("x".utf8)))
+        existing.copiedAt = now.addingTimeInterval(-3600)
+        context.insert(existing)
+        try context.save()
+        // A Share is explicit: content already in history is saved again, as on the Mac, unless it is 10 s old or less.
+        try Inbox.write(InboxItem(kind: .text, text: "x", createdAt: now, auto: false), payload: nil, in: dir)
+        try Inbox.write(InboxItem(kind: .text, text: "x", createdAt: now.addingTimeInterval(5), auto: false), payload: nil, in: dir)
+
+        XCTAssertEqual(Inbox.drain(in: context, directory: dir, now: now.addingTimeInterval(5)), 1)
+        XCTAssertEqual(try items().map(\.copiedAt), [now.addingTimeInterval(-3600), now])
+    }
+
+    func testOldInboxJSONWithoutAutoDecodes() throws {
+        // An item written by the Share extension before `auto` existed.
+        let json = #"{"id":"9D3B1E36-6C64-4C55-8E0B-5F6C0B9A1E01","kind":"text","text":"old share","createdAt":720000000}"#
+        let item = try JSONDecoder().decode(InboxItem.self, from: Data(json.utf8))
+        XCTAssertFalse(item.auto)
+        XCTAssertEqual(item.text, "old share")
+
+        try Data(json.utf8).write(to: dir.appendingPathComponent("\(item.id).json"))
+        XCTAssertEqual(Inbox.drain(in: context, directory: dir, now: now), 1)
+        XCTAssertEqual(try items().map(\.textContent), ["old share"])
+    }
+
     func testDrainOrderIsCreatedAt() throws {
         // Same text 5 s apart, so only the first one processed survives the duplicate rule.
         // Written newest first, with ids that sort newest first, so neither write nor name order hides a bug.

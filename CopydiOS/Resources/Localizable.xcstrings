@@ -308,6 +308,22 @@
         }
       }
     },
+    "Clipboard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portapapeles"
+          }
+        }
+      }
+    },
     "Clipboard is empty" : {
       "localizations" : {
         "en" : {

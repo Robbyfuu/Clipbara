@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import XCTest
 
@@ -68,6 +69,32 @@ final class KeyboardFeedTests: XCTestCase {
     func testUrlAndColorPreviewAreText() throws {
         add("https://a.b", type: .url, dt: 1); add("#FF0000", type: .color, dt: 0)
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.preview), ["https://a.b", "#FF0000"])
+    }
+
+    func testClipboardCardFromCapturedText() throws {
+        let text = "  " + String(repeating: "a", count: 500) + "\n"
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(text)), now: t0)
+        XCTAssertTrue(card.isClipboard)
+        XCTAssertEqual(card.contentType, .plainText)
+        XCTAssertEqual(card.preview, String(repeating: "a", count: 300), "same preview rule as the feed")
+        XCTAssertEqual(card.textByteCount, 503)
+        XCTAssertEqual(card.copiedAt, t0)
+        XCTAssertNil(card.thumbnail)
+        XCTAssertNotEqual(card.id, KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(text)), now: t0).id)
+        add("stored")
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.isClipboard), [false])
+    }
+
+    func testClipboardCardFromCapturedImageHasThumbnail() throws {
+        let rep = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 800, pixelsHigh: 400, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.image(png)), now: t0)
+        XCTAssertEqual(card.contentType, .image)
+        XCTAssertEqual(card.preview, "")
+        XCTAssertEqual(card.thumbnail, Thumbnail.png(from: png))
+        XCTAssertNotNil(card.thumbnail)
     }
 
     func testFeedCarriesSourceAppName() throws {

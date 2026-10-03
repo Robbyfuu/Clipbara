@@ -11,6 +11,8 @@ struct KeyboardClip: Identifiable, Equatable {
     let copiedAt: Date
     let textByteCount: Int
     let sourceAppName: String?
+    /// The keyboard's own capture of the current pasteboard, not yet in the store. Shows "Clipboard" for its meta line.
+    var isClipboard = false
 }
 
 /// A pinboard chip in the keyboard header.
@@ -53,20 +55,33 @@ enum KeyboardFeed {
             .map { KeyboardBoard(id: $0.id, name: $0.name, colorIndex: PinboardDot.index(for: $0.id)) }
     }
 
+    /// The first card in Recent for a copy the keyboard just captured. The inbox drain stores it when the app next opens.
+    static func clipboardCard(_ clip: CapturedClip, now: Date) -> KeyboardClip {
+        let type = clip.contentType
+        return KeyboardClip(
+            id: UUID(), contentType: type, preview: preview(type, clip.textContent),
+            // ImageIO, so the full image is never decoded in the keyboard.
+            thumbnail: type == .image ? Thumbnail.png(from: clip.rawData) : nil,
+            isPinned: false, copiedAt: now, textByteCount: clip.textContent?.utf8.count ?? 0,
+            sourceAppName: nil, isClipboard: true)
+    }
+
     private static func clip(_ item: ClipboardItem) -> KeyboardClip {
         let type = item.contentType
         let text = item.textContent
-        let preview: String
-        switch type {
-        case .image: preview = ""
-        case .url, .color: preview = text ?? ""
-        // Cut before trimming so a multi-MB clip is never copied whole.
-        default: preview = String((text ?? "").prefix(600).trimmingCharacters(in: .whitespacesAndNewlines).prefix(previewLimit))
-        }
         return KeyboardClip(
-            id: item.id, contentType: type, preview: preview,
+            id: item.id, contentType: type, preview: preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
             sourceAppName: item.sourceAppName)
+    }
+
+    private static func preview(_ type: ContentType, _ text: String?) -> String {
+        switch type {
+        case .image: ""
+        case .url, .color: text ?? ""
+        // Cut before trimming so a multi-MB clip is never copied whole.
+        default: String((text ?? "").prefix(600).trimmingCharacters(in: .whitespacesAndNewlines).prefix(previewLimit))
+        }
     }
 }

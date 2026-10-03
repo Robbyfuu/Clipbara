@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// One item the Share extension handed over: `<id>.json` in the inbox, plus `<id>.payload` for an image.
+/// One item the Share extension or the keyboard handed over: `<id>.json` in the inbox, plus `<id>.payload` for an image.
 struct InboxItem: Codable, Sendable {
     enum Kind: String, Codable, Sendable { case text, image }
 
@@ -13,6 +13,24 @@ struct InboxItem: Codable, Sendable {
     var createdAt: Date
     /// The sharing app's name. The extension cannot tell it reliably, so it is nil and the clip reads "Share".
     var source: String?
+    /// The keyboard's auto-capture, rather than an explicit Share. Skipped when the content is anywhere in history.
+    var auto = false
+
+    private enum CodingKeys: String, CodingKey { case id, kind, text, payloadFile, createdAt, source, auto }
+}
+
+extension InboxItem {
+    /// In an extension, so the memberwise init stays. Files written before `auto` existed decode as explicit.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        kind = try c.decode(Kind.self, forKey: .kind)
+        text = try c.decodeIfPresent(String.self, forKey: .text)
+        payloadFile = try c.decodeIfPresent(String.self, forKey: .payloadFile)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        source = try c.decodeIfPresent(String.self, forKey: .source)
+        auto = try c.decodeIfPresent(Bool.self, forKey: .auto) ?? false
+    }
 }
 
 /// The Share extension never opens the SwiftData store: it drops files here, and the app imports them.
@@ -45,7 +63,7 @@ enum Inbox {
         }
     }
 
-    /// Imports every item, oldest first, through `ClipCapture` and the 10 s duplicate rule, then deletes its files.
+    /// Imports every item, oldest first, through `ClipCapture` and its duplicate rule, then deletes its files.
     /// A corrupt or incomplete item is deleted and skipped. Saves once; returns the number of clips inserted.
     /// Pass the app's main context, so the sync tracker uploads the inserts.
     @MainActor static func drain(in context: ModelContext, directory: URL, now: Date) -> Int {
@@ -70,8 +88,12 @@ enum Inbox {
             guard let clip = capture(item, in: directory) else { remove(json, in: directory, payload: item.payloadFile); continue }
             // A clip is never dated in the future, even if the phone's clock moved back since the share.
             let copiedAt = min(item.createdAt, now)
+            // A Share keeps the Mac's 10 s rule; an auto-capture skips content already anywhere in history.
             // A failed check imports anyway: an extra row beats a lost clip.
-            if (try? ClipCapture.isRecentDuplicate(hash: clip.contentHash, in: context, now: copiedAt)) == true {
+            let duplicate = item.auto
+                ? try? ClipCapture.existsInHistory(hash: clip.contentHash, in: context)
+                : try? ClipCapture.isRecentDuplicate(hash: clip.contentHash, in: context, now: copiedAt)
+            if duplicate == true {
                 remove(json, in: directory, payload: item.payloadFile)
                 continue
             }
