@@ -85,6 +85,8 @@ struct HistoryPanelView: View {
                 appState.selectForPreview(nil)
             }
 
+            MultiPasteBar()
+
             if let toast = appState.panelToast {
                 PanelToastView(toast: toast)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -92,6 +94,138 @@ struct HistoryPanelView: View {
             }
         }
         .animation(.easeOut(duration: 0.16), value: appState.panelToast)
+    }
+}
+
+/// Shown under the top bar while two or more cards are picked: the count, the separator and Paste.
+/// It hangs over the cards' top margin because the shelf has no spare height for another row.
+/// Always mounted and hidden with height and opacity, never with `if`, beside the `@Query` grids.
+private struct MultiPasteBar: View {
+    @Environment(AppState.self) private var appState
+    @State private var separator = Separator.saved()
+    @State private var customText: String = {
+        if case .custom(let raw) = Separator.saved() { return raw }
+        return ""
+    }()
+    @State private var isEditingCustom = false
+
+    private static let height: CGFloat = 26
+    private static let presets: [Separator] = [.newline, .space, .comma, .tab]
+
+    var body: some View {
+        let items = appState.multiSelectedItems
+        let isVisible = items.count >= 2
+        let skipped = items.filter { MultiPaste.text(of: $0) == nil }.count
+
+        HStack(spacing: 10) {
+            Text("\(items.count) selected")
+                .foregroundStyle(DesignTokens.Brand.ink)
+
+            if skipped > 0 {
+                Text("Text only — \(skipped) skipped")
+                    .foregroundStyle(DesignTokens.Brand.ink2)
+            }
+
+            separatorMenu
+
+            Button {
+                appState.pasteSelection()
+            } label: {
+                Text("Paste")
+                    .foregroundStyle(DesignTokens.Brand.onButter)
+                    .padding(.horizontal, 10)
+                    .frame(height: Self.height - 6)
+                    .background(DesignTokens.Brand.butter, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(skipped == items.count)
+            .opacity(skipped == items.count ? 0.45 : 1)
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .lineLimit(1)
+        .padding(.leading, 12)
+        .padding(.trailing, 3)
+        .frame(height: Self.height)
+        .background(DesignTokens.Brand.card, in: Capsule())
+        .overlay(Capsule().strokeBorder(DesignTokens.Brand.line, lineWidth: 1))
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        .fixedSize()
+        .frame(height: isVisible ? Self.height : 0, alignment: .top)
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
+        .accessibilityHidden(!isVisible)
+        .animation(.easeOut(duration: 0.16), value: isVisible)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Between the top bar's controls and the cards' first line of content.
+        .padding(.top, DesignTokens.Nav.height - 9)
+        .onChange(of: separator) { _, new in new.save() }
+    }
+
+    private var separatorMenu: some View {
+        Menu {
+            ForEach(Self.presets, id: \.string) { preset in
+                Button {
+                    separator = preset
+                } label: {
+                    if preset == separator {
+                        Label { title(of: preset) } icon: { Image(systemName: "checkmark") }
+                    } else {
+                        title(of: preset)
+                    }
+                }
+            }
+            Divider()
+            Button {
+                separator = .custom(customText)
+                isEditingCustom = true
+            } label: {
+                if case .custom = separator {
+                    Label("Custom…", systemImage: "checkmark")
+                } else {
+                    Text("Custom…")
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                title(of: separator)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(DesignTokens.Brand.ink2)
+            .padding(.horizontal, 8)
+            .frame(height: Self.height - 6)
+            .background(DesignTokens.Brand.chip, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Separator")
+        .popover(isPresented: $isEditingCustom, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("Separator", text: $customText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+                    .onSubmit { isEditingCustom = false }
+                Text("Use \\n for a new line and \\t for a tab.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignTokens.Brand.ink2)
+            }
+            .padding(12)
+            .onChange(of: customText) { _, text in separator = .custom(text) }
+        }
+    }
+
+    private func title(of separator: Separator) -> Text {
+        switch separator {
+        case .newline: Text("New line")
+        case .space: Text("Space")
+        case .comma: Text("Comma")
+        case .tab: Text("Tab")
+        case .custom(let raw): Text(verbatim: "“\(raw)”")
+        }
     }
 }
 

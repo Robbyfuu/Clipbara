@@ -357,6 +357,7 @@ final class PanelController {
         if quickLookPanel != nil { hideQuickLook() }
         appState.selectForPreview(nil)
         appState.searchState.selectedIndex = nil
+        appState.searchState.multiSelection.clear()
         appState.currentFilteredItems = []
         appState.selectedTab = tab
     }
@@ -367,6 +368,7 @@ final class PanelController {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let keyCode = event.keyCode
             let eventWindowNumber = event.windowNumber
+            let shift = event.modifierFlags.intersection([.command, .option, .control, .shift]) == .shift
             let handled: Bool = MainActor.assumeIsolated { [weak self] in
                 guard let self, self.isVisible else { return false }
 
@@ -406,7 +408,7 @@ final class PanelController {
                         zoom.perform(action)
                         return true
                     }
-                    return self.processKey(keyCode)
+                    return self.processKey(keyCode, shift: shift)
                 }
 
                 // Check if a text field is focused (search bar) - let it handle the event
@@ -414,18 +416,18 @@ final class PanelController {
                    firstResponder is NSTextView || firstResponder is NSTextField {
                     // Still handle Escape to close search/panel
                     if keyCode == 53 {
-                        return self.processKey(keyCode)
+                        return self.processKey(keyCode, shift: shift)
                     }
                     return false
                 }
 
-                return self.processKey(keyCode)
+                return self.processKey(keyCode, shift: shift)
             }
             return handled ? nil : event
         }
     }
 
-    private func processKey(_ keyCode: UInt16) -> Bool {
+    private func processKey(_ keyCode: UInt16, shift: Bool) -> Bool {
         guard let appState, isVisible else { return false }
         let items = appState.currentFilteredItems
         let maxIndex = items.count - 1
@@ -461,6 +463,10 @@ final class PanelController {
                 appState.selectForPreview(nil)
                 return true
             }
+            if !appState.searchState.multiSelection.ids.isEmpty {
+                appState.searchState.multiSelection.clear()
+                return true
+            }
             if appState.searchState.isActive {
                 appState.searchState.reset()
                 return true
@@ -472,19 +478,14 @@ final class PanelController {
             appState.hidePanel()
             return true
 
-        case 123: // Left arrow
-            appState.searchState.moveSelection(by: -1, maxIndex: maxIndex)
-            if let idx = appState.searchState.selectedIndex, idx < items.count {
-                if quickLookPanel != nil {
-                    updateQuickLook(for: items[idx])
-                } else if appState.previewItem != nil {
-                    appState.previewItem = items[idx]
-                }
+        case 123, 124: // Left, Right arrow. With Shift they extend the multi-selection.
+            let step = keyCode == 123 ? -1 : 1
+            if shift, let focus = appState.searchState.selectedIndex {
+                appState.extendSelection(to: max(0, min(focus + step, maxIndex)))
+            } else {
+                appState.searchState.multiSelection.clear()
+                appState.searchState.moveSelection(by: step, maxIndex: maxIndex)
             }
-            return true
-
-        case 124: // Right arrow
-            appState.searchState.moveSelection(by: 1, maxIndex: maxIndex)
             if let idx = appState.searchState.selectedIndex, idx < items.count {
                 if quickLookPanel != nil {
                     updateQuickLook(for: items[idx])
@@ -499,6 +500,12 @@ final class PanelController {
                 appState.clipboardMonitor.skipNextChange()
                 appState.pasteService.paste(item: item)
                 appState.hidePanel()
+                return true
+            }
+
+            // Return and Shift-Return both paste the joined text as plain text.
+            if !appState.searchState.multiSelection.ids.isEmpty {
+                appState.pasteSelection()
                 return true
             }
 

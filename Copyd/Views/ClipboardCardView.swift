@@ -8,12 +8,17 @@ struct ClipboardCardView: View {
     var searchText: String = ""
     var pinboards: [Pinboard] = []
     var quickPasteNumber: Int? = nil
+    /// Position in the multi-selection, shown as a badge.
+    var selectionNumber: Int? = nil
     var enableDrag: Bool = true
     var showsManagementMenu: Bool = true
     let onSelect: (ClipboardItem) -> Void
     let onPaste: (ClipboardItem) -> Void
     var onDelete: (() -> Void)? = nil
     var onRemoveFromPinboard: (() -> Void)? = nil
+    /// ⌘-click and ⇧-click pick cards for a joined paste instead of pasting this one.
+    var onCommandClick: (() -> Void)? = nil
+    var onShiftClick: (() -> Void)? = nil
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -146,15 +151,26 @@ struct ClipboardCardView: View {
         .animation(.easeInOut(duration: 0.15), value: isSelected)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityLabel(accessibilityDescription)
         .task(id: item.id) {
             imageDimensions = item.contentType == .image ? Self.pixelSize(of: item.rawData) : nil
         }
     }
 
+    /// The selection number wins over the ⌘-number hint, which only shows while ⌘ is held.
     @ViewBuilder
     private var numberBadge: some View {
-        if let number = quickPasteNumber, appState.isCommandHeld,
+        if let selectionNumber {
+            Text(verbatim: "\(selectionNumber)")
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(DesignTokens.Brand.onButter)
+                .frame(minWidth: 20, minHeight: 20)
+                .background(DesignTokens.Brand.butter, in: Circle())
+                .overlay(Circle().strokeBorder(DesignTokens.Brand.card, lineWidth: 1.5))
+                .offset(x: -6, y: -6)
+                .accessibilityHidden(true)
+        } else if let number = quickPasteNumber, appState.isCommandHeld,
            let hint = QuickPasteShortcut.hint(number: number) {
             Text(hint)
                 .font(.system(size: 11, weight: .semibold))
@@ -197,6 +213,11 @@ struct ClipboardCardView: View {
     }
 
     private func handleTap() {
+        switch NSEvent.modifierFlags.intersection([.command, .option, .control, .shift]) {
+        case .command where onCommandClick != nil: onCommandClick?(); return
+        case .shift where onShiftClick != nil: onShiftClick?(); return
+        default: break
+        }
         onSelect(item)
         onPaste(item)
     }

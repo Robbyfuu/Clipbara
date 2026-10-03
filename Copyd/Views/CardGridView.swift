@@ -30,13 +30,19 @@ struct CardGridView: View {
                             LazyHGrid(rows: rows, spacing: DesignTokens.Card.gridSpacing) {
                                 ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
                                     let n = index - appState.firstVisibleIndex
+                                    let selection = appState.searchState.multiSelection
+                                    let selectionNumber = selection.number(of: item.id)
                                     ClipboardCardView(
                                         item: item,
-                                        isSelected: appState.searchState.selectedIndex == index,
+                                        isSelected: selection.ids.isEmpty
+                                            ? appState.searchState.selectedIndex == index
+                                            : selectionNumber != nil,
                                         searchText: appState.searchState.debouncedSearchText,
                                         pinboards: pinboards,
                                         quickPasteNumber: (0...8).contains(n) ? n : nil,
+                                        selectionNumber: selectionNumber,
                                         onSelect: { _ in
+                                            appState.searchState.multiSelection.clear()
                                             appState.searchState.selectedIndex = index
                                         },
                                         onPaste: { selected in
@@ -46,7 +52,9 @@ struct CardGridView: View {
                                         },
                                         onDelete: {
                                             restoreSelectionAfterDeletingItem(at: index)
-                                        }
+                                        },
+                                        onCommandClick: { appState.toggleSelection(at: index) },
+                                        onShiftClick: { appState.extendSelection(to: index) }
                                     )
                                     .id(item.id)
                                 }

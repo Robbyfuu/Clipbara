@@ -122,6 +122,22 @@
         }
       }
     },
+    "%lld selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld selected"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld seleccionados"
+          }
+        }
+      }
+    },
     "1,000" : {
       "shouldTranslate" : false
     },
@@ -662,6 +678,22 @@
         }
       }
     },
+    "Comma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comma"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coma"
+          }
+        }
+      }
+    },
     "Copyd" : {
       "shouldTranslate" : false
     },
@@ -1013,6 +1045,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "创建钉板"
+          }
+        }
+      }
+    },
+    "Custom…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personalizado…"
           }
         }
       }
@@ -2117,6 +2165,22 @@
         }
       }
     },
+    "New line" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New line"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nueva línea"
+          }
+        }
+      }
+    },
     "New Pinboard" : {
       "localizations" : {
         "es" : {
@@ -2978,6 +3042,22 @@
         }
       }
     },
+    "Separator" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separator"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separador"
+          }
+        }
+      }
+    },
     "Settings..." : {
       "localizations" : {
         "es" : {
@@ -3154,6 +3234,22 @@
         }
       }
     },
+    "Tab" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabulación"
+          }
+        }
+      }
+    },
     "TEXT" : {
       "localizations" : {
         "es" : {
@@ -3216,6 +3312,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文本"
+          }
+        }
+      }
+    },
+    "Text only — %lld skipped" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text only — %lld skipped"
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Solo texto — %lld omitido"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Solo texto — %lld omitidos"
+                }
+              }
+            }
           }
         }
       }
@@ -3744,6 +3868,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以 %@ 解锁"
+          }
+        }
+      }
+    },
+    "Use \\n for a new line and \\t for a tab." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use \\n for a new line and \\t for a tab."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa \\n para una nueva línea y \\t para una tabulación."
           }
         }
       }

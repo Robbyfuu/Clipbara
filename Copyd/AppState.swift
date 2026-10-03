@@ -112,6 +112,36 @@ final class AppState {
         hidePanel()
     }
 
+    /// ⌘-click: adds or removes a card from the multi-selection.
+    func toggleSelection(at index: Int) {
+        searchState.selectedIndex = searchState.multiSelection.toggle(
+            index, focus: searchState.selectedIndex, in: currentFilteredItems.map(\.id))
+    }
+
+    /// ⇧-click and ⇧-arrows: selects the range up to `index`.
+    func extendSelection(to index: Int) {
+        searchState.selectedIndex = searchState.multiSelection.extend(
+            to: index, focus: searchState.selectedIndex, in: currentFilteredItems.map(\.id))
+    }
+
+    /// The multi-selection's cards on the current tab, in the order they were picked.
+    var multiSelectedItems: [ClipboardItem] {
+        searchState.multiSelection.items(in: currentFilteredItems)
+    }
+
+    /// Pastes the multi-selection's text joined by the saved separator, always as plain text.
+    /// Does nothing when none of it is text.
+    func pasteSelection() {
+        guard let joined = MultiPaste.join(multiSelectedItems, separator: .saved()) else {
+            NSSound.beep()
+            return
+        }
+        ReviewPrompter.recordPaste()
+        clipboardMonitor.skipNextChange()
+        pasteService.pastePlainText(joined.text)
+        hidePanel()
+    }
+
     /// Command-number: paste the Nth visible card. `paste` already skips the
     /// monitor's next change and hides the panel. Live Shift decides plain text
     /// exactly as it does for Return. No-op when no card is there.

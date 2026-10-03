@@ -96,6 +96,10 @@ struct PasteService {
 
     func pastePlainText(item: ClipboardItem) {
         guard let text = item.textContent else { return }
+        pastePlainText(text)
+    }
+
+    func pastePlainText(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
