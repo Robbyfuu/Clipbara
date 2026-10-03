@@ -1,6 +1,6 @@
 # Copyd — Claude Code project notes
 
-Copyd is a macOS clipboard manager whose history syncs across Macs through iCloud. It is a fork of Clipbara (mobrava/Clipbara, GPL-3.0). The fork ships only the App Store build; the DMG/Sparkle build was removed.
+Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPhones and iPads. The iPhone/iPad app ships a paste keyboard. It is a fork of Clipbara (mobrava/Clipbara, GPL-3.0). The fork ships only the App Store build; the DMG/Sparkle build was removed.
 
 ## Build and run
 
@@ -21,6 +21,7 @@ Copyd is a macOS clipboard manager whose history syncs across Macs through iClou
   open -n "$PWD/DerivedData/Build/Products/Debug/Copyd.app" --args -CopydDebugOriginalAppVersion 1.0
   ```
   `-CopydDebugOriginalAppVersion 1.0` bypasses the paywall in Debug builds. It is a launch argument, so it applies only to that launch.
+- **Never run `xcodebuild clean` or delete `DerivedData/` while Copyd runs from it.** The running app loses its binary, and cloudd then rejects every upload (`Client went away before operation … could be validated`).
 - Paste (Setapp) also uses ⌘⇧V and sometimes takes the shortcut first. Quit it while testing Copyd.
 
 ## Release (App Store only)
@@ -42,7 +43,9 @@ Copyd is a macOS clipboard manager whose history syncs across Macs through iClou
 | Bundle ID | `com.robbyfuu.copyd` |
 | Team | `TQC76W2BKK` |
 | iCloud container | `iCloud.com.robbyfuu.copyd` (permanent) |
-| Targets / schemes | `Copyd` (app), `CopydTests` |
+| Targets / schemes | `Copyd` (macOS app), `CopydiOS` (iPhone/iPad app, same bundle ID), `CopydKeyboard` (keyboard extension), `CopydTests` |
+| Keyboard bundle ID | `com.robbyfuu.copyd.keyboard` |
+| App Group | `group.com.robbyfuu.copyd` (iOS store and `lastSyncAt`) |
 | Logger subsystem | `com.robbyfuu.copyd` (sync logs use category `Sync`) |
 
 **Never rename these.** Existing history depends on them:
@@ -50,7 +53,7 @@ Copyd is a macOS clipboard manager whose history syncs across Macs through iClou
 - UserDefaults keys (`historyLimit`, `iCloudSyncEnabled`, …).
 - The CloudKit zone `Clipboard` and the record types `Clip`, `Pinboard` and `PinboardEntry`.
 
-## iCloud sync (`Copyd/Sync/`)
+## iCloud sync (`Shared/Sync/`)
 
 - Sync runs on `CKSyncEngine` against the user's private database. Spec: `docs/superpowers/specs/2026-10-01-icloud-sync-design.md`.
 - **End-to-end encryption.** Fields go in `encryptedValues`. Payloads over 256 KB (`rawData`, plus long text in `textPayload`) are sealed with AES-GCM (`AssetCrypto`) before they upload as a `CKAsset`.
@@ -61,7 +64,27 @@ Copyd is a macOS clipboard manager whose history syncs across Macs through iClou
 - **Change capture.** `LocalChangeTracker`, an observer on `willSave`, is the only place local changes are captured. **Every SwiftData write made by the sync layer must run inside `tracker.suppressing(ids)`**, or it echoes back to iCloud.
 - **Store configuration.** `ModelConfiguration(..., cloudKitDatabase: .none)` is required. With the iCloud entitlement present, SwiftData would otherwise try to mirror on its own and fail to open the store.
 - **Environment.** Debug builds use the CloudKit **Development** environment.
+- **Recovery.** On start with saved state, records iCloud never confirmed (`syncSystemFields == nil`) are queued again, so a failed upload heals on the next launch.
+- **iOS differences** (`#if os(iOS)`): an account change or a deleted zone wipes the local mirror and restarts sync; `.upToDate` writes `lastSyncAt` to the App Group defaults.
 - **Two-Mac check.** The pending verification is in `docs/testing/icloud-sync.md`.
+
+## iPhone/iPad app and keyboard
+
+- Spec: `docs/superpowers/specs/2026-10-02-ios-app-design.md`. Device check: `docs/testing/ios-app.md`.
+- **Shared code** (models, sync, brand tokens, `CopydMark`, `CopydWordmark`, pure units) lives in `Shared/` and compiles into every target. Mac-only code stays in `Copyd/`.
+- **Simulator build** (no provisioning flags):
+  ```
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Copyd.xcodeproj -scheme CopydiOS -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData build
+  ```
+- **Device build and install** (separate derived data so it never collides with Mac builds):
+  ```
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Copyd.xcodeproj -scheme CopydiOS -configuration Debug -destination 'id=<udid>' -derivedDataPath DerivedData-device -allowProvisioningUpdates build
+  xcrun devicectl device install app --device <udid> DerivedData-device/Build/Products/Debug-iphoneos/Copyd.app
+  ```
+- **Store.** The app writes `Copyd.store` in the App Group; the keyboard opens it read-only (`allowsSave: false`) and checks `SharedStore.storeExists` first, because opening a missing file throws.
+- **Keyboard memory (~48–50 MB).** Rows and cards use `thumbnailData` only; `rawData` is read once, for the tapped image, through `PasteboardImage`.
+- **Keyboard look.** Transparent root so the system keyboard glass shows; cards and keys use `keyCap`. Keep space/delete/return: guideline 4.4.1 needs a keyboard that types without Full Access.
+- **DEBUG seed.** `-CopydSeedSampleClips YES -iCloudSyncEnabled NO` inserts `seed-*` clips; any other DEBUG launch deletes them before sync starts. Always pass `-iCloudSyncEnabled NO` with the seed.
 
 ## History panel
 
@@ -78,7 +101,7 @@ Copyd is a macOS clipboard manager whose history syncs across Macs through iClou
 
 ## Project rules
 
-- **Language and platform.** Swift 6 strict concurrency (`SWIFT_STRICT_CONCURRENCY: complete`), targeting macOS 14+.
+- **Language and platform.** Swift 6 strict concurrency (`SWIFT_STRICT_CONCURRENCY: complete`), targeting macOS 14+ and iOS 17+.
 - **SwiftData.** Do not use `#Index` or `#Unique`, which require macOS 15.
 - **SwiftData saves.** After any insert, delete or update, call `try? modelContext.save()`. Do not rely on autosave. Sync code uses `do`/`catch` and logs the error.
 - **`skipNextChange` pattern.** Call `ClipboardMonitor.skipNextChange()` before every paste. `AppState.paste` already does this.
