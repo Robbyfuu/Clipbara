@@ -105,7 +105,7 @@ struct KeyboardView: View {
                 modePill("Recent", .recent)
                 modePill("Pinned", .pinned)
             }
-            .padding(3)
+            .padding(.horizontal, 3)
             .background(DesignTokens.Brand.chip, in: Capsule())
             .layoutPriority(1)
         }
@@ -131,7 +131,9 @@ struct KeyboardView: View {
                             .shadow(color: DesignTokens.Brand.ink.opacity(0.12), radius: 2, y: 1)
                     }
                 }
-                .contentShape(Capsule())
+                // 3 pt each side keeps the visible capsule at 38 pt while the tap target is 44 pt.
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(active ? .isSelected : [])

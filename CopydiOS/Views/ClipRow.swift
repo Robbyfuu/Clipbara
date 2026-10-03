@@ -46,6 +46,7 @@ struct ClipRow: View {
                     .frame(width: 60, height: 60)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
+                    if let title { mainLine(title) }
                     Text(item.textContent ?? "").brandFont(14, design: .monospaced)
                         .foregroundStyle(DesignTokens.Brand.ink)
                     meta
@@ -54,9 +55,16 @@ struct ClipRow: View {
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
         } else if item.contentType == .url, let parts = LinkParts.split(item.textContent ?? "") {
             VStack(alignment: .leading, spacing: 6) {
-                Text(parts.host).brandFont(18, .bold).tracking(-0.18).lineLimit(1)
-                    .foregroundStyle(DesignTokens.Brand.ink)
-                if !parts.rest.isEmpty {
+                if let title {
+                    mainLine(title)
+                    Text(parts.host + parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
+                        .foregroundStyle(DesignTokens.Brand.ink2)
+                        .lineLimit(2).truncationMode(.middle)
+                } else {
+                    Text(parts.host).brandFont(18, .bold).tracking(-0.18).lineLimit(1)
+                        .foregroundStyle(DesignTokens.Brand.ink)
+                }
+                if title == nil, !parts.rest.isEmpty {
                     Text(parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
                         .foregroundStyle(DesignTokens.Brand.ink2)
                         .lineLimit(2).truncationMode(.middle)
@@ -66,12 +74,16 @@ struct ClipRow: View {
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text(title ?? item.textContent ?? "").brandFont(16).lineSpacing(3).lineLimit(4)
-                    .foregroundStyle(DesignTokens.Brand.ink)
+                mainLine(title ?? item.textContent ?? "")
                 meta
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         }
+    }
+
+    private func mainLine(_ text: String) -> some View {
+        Text(text).brandFont(16).lineSpacing(3).lineLimit(4)
+            .foregroundStyle(DesignTokens.Brand.ink)
     }
 
     private var title: String? { item.userTitle.flatMap { $0.isEmpty ? nil : $0 } }
