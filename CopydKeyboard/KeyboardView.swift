@@ -118,6 +118,7 @@ struct KeyboardView: View {
                 .padding(.horizontal, 3)
             }
             .scrollIndicators(.hidden)
+            .scrollEdgeEffectOff()
             .background(DesignTokens.Brand.line, in: Capsule())
         }
         .padding(.horizontal, 4)
@@ -203,6 +204,7 @@ struct KeyboardView: View {
             .padding(.bottom, 8)
         }
         .scrollIndicators(.hidden)
+        .scrollEdgeEffectOff()
     }
 
     @ViewBuilder private func card(_ clip: KeyboardClip) -> some View {
@@ -322,6 +324,12 @@ private extension View {
     /// A native-key surface behind the view: `fill` in `shape`, with a hard 1 pt shadow below. A clear fill casts none.
     func keyCap(_ fill: Color = DesignTokens.Brand.keyCap, in shape: some Shape) -> some View {
         background { shape.fill(fill).shadow(color: DesignTokens.Brand.keyShadow, radius: 0, y: 1) }
+    }
+
+    /// iOS 26+ softens a scroll view's content near the keyboard's edges. The 44 pt chip row was blurred across its
+    /// whole height, and the grid's last row above the keys too.
+    @ViewBuilder func scrollEdgeEffectOff() -> some View {
+        if #available(iOS 26, *) { scrollEdgeEffectHidden(true, for: .all) } else { self }
     }
 }
 
