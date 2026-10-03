@@ -83,6 +83,11 @@ targets:
       - path: Shared/Sync/ModelSnapshots.swift
       - path: Shared/Sync/LocalChangeTracker.swift
       - path: Shared/Sync/RemoteApplier.swift
+      - path: Shared/Utilities/SharedDefaults.swift
+      - path: Shared/Utilities/SharedStore.swift
+      - path: Shared/Utilities/KeyboardFeed.swift
+      - path: Shared/Utilities/PasteAction.swift
+      - path: Shared/Utilities/RelativeSyncTime.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests
