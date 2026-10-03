@@ -36,6 +36,7 @@ final class AppModel {
         isInMemory = inMemory
         #if DEBUG
         Self.seedSampleClipsIfRequested(container)
+        Self.removeSeedClipsUnlessSeeding(container)
         #endif
         sync = CloudSyncEngine(container: container) {}
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
@@ -65,6 +66,18 @@ final class AppModel {
     #if DEBUG
     /// `-CopydSeedSampleClips`: inserts 3 sample clips when the store is nearly empty.
     /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`), so samples never reach iCloud.
+    /// Without `-CopydSeedSampleClips`, deletes leftover `seed-*` rows. Runs before the sync engine exists,
+    /// so no tracker sees the delete and `queueEverything` never uploads the samples.
+    private static func removeSeedClipsUnlessSeeding(_ container: ModelContainer) {
+        guard !UserDefaults.standard.bool(forKey: "CopydSeedSampleClips") else { return }
+        let context = ModelContext(container)
+        let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
+        guard !seeds.isEmpty else { return }
+        seeds.forEach(context.delete)
+        try? context.save()
+    }
+
     private static func seedSampleClipsIfRequested(_ container: ModelContainer) {
         guard UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),
               !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }

@@ -69,18 +69,19 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Fetches the one full item, then inserts it or leaves it on the pasteboard. Returns a toast for the latter.
     private func select(_ clip: KeyboardClip) -> String? {
-        guard let container else { return nil }
+        let failure = "Couldn't copy this clip."
+        guard let container else { return failure }
         let id = clip.id
         var descriptor = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
-        guard let item = try? ModelContext(container).fetch(descriptor).first else { return nil }
+        guard let item = try? ModelContext(container).fetch(descriptor).first else { return failure }
         switch PasteAction.decide(contentType: item.contentType, text: item.textContent) {
         case .insert(let text):
             textDocumentProxy.insertText(text)
             return nil
         case .copyToPasteboard:
             if item.contentType == .image {
-                guard let png = UIImage(data: item.rawData)?.pngData() else { return nil }
+                guard let png = UIImage(data: item.rawData)?.pngData() else { return failure }
                 UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
                 return "Copied. Touch and hold the field, then tap Paste."
             }

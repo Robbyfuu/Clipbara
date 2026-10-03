@@ -96,7 +96,7 @@ struct KeyboardView: View {
             }
             .pickerStyle(.segmented).frame(width: 170)
         }
-        .frame(height: 32)
+        .frame(minHeight: 44)
     }
 
     @ViewBuilder private var content: some View {
@@ -136,18 +136,18 @@ struct KeyboardView: View {
     private func card(_ clip: KeyboardClip) -> some View {
         Group {
             if clip.contentType == .image, let data = clip.thumbnail, let image = UIImage(data: data) {
-                Image(uiImage: image).resizable().scaledToFill()
-                    .frame(maxWidth: .infinity).frame(height: 72).clipped()
-                    .accessibilityLabel("Image")
+                Color.clear.overlay(Image(uiImage: image).resizable().scaledToFill())
+                    .accessibilityElement().accessibilityLabel("Image")
             } else if clip.contentType == .image {
-                Image(systemName: "photo").frame(maxWidth: .infinity, minHeight: 72)
+                Image(systemName: "photo").frame(maxWidth: .infinity, maxHeight: .infinity)
                     .foregroundStyle(DesignTokens.Brand.ink2).accessibilityLabel("Image")
             } else {
                 Text(clip.preview).font(.footnote).lineLimit(3)
                     .foregroundStyle(DesignTokens.Brand.ink)
-                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading).padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(8)
             }
         }
+        .frame(height: 88)
         .background(DesignTokens.Brand.card)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(DesignTokens.Brand.line))
