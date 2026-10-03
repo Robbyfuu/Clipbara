@@ -107,7 +107,6 @@ private struct MultiPasteBar: View {
         if case .custom(let raw) = Separator.saved() { return raw }
         return ""
     }()
-    @State private var isEditingCustom = false
 
     private static let height: CGFloat = 26
     private static let presets: [Separator] = [.newline, .space, .comma, .tab]
@@ -127,6 +126,18 @@ private struct MultiPasteBar: View {
             }
 
             separatorMenu
+
+            // In the panel itself, like the search field: a popover opens its own window and can activate Copyd.
+            if case .custom = separator {
+                TextField("Separator", text: $customText)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .frame(width: 90, height: Self.height - 6)
+                    .background(DesignTokens.Brand.chip, in: Capsule())
+                    .help("Use \\n for a new line, \\t for a tab")
+                    .onSubmit { appState.pasteSelection() }
+                    .onChange(of: customText) { _, text in separator = .custom(text) }
+            }
 
             Button {
                 appState.pasteSelection()
@@ -178,7 +189,6 @@ private struct MultiPasteBar: View {
             Divider()
             Button {
                 separator = .custom(customText)
-                isEditingCustom = true
             } label: {
                 if case .custom = separator {
                     Label("Custom…", systemImage: "checkmark")
@@ -203,19 +213,6 @@ private struct MultiPasteBar: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Separator")
-        .popover(isPresented: $isEditingCustom, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 6) {
-                TextField("Separator", text: $customText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 200)
-                    .onSubmit { isEditingCustom = false }
-                Text("Use \\n for a new line and \\t for a tab.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(DesignTokens.Brand.ink2)
-            }
-            .padding(12)
-            .onChange(of: customText) { _, text in separator = .custom(text) }
-        }
     }
 
     private func title(of separator: Separator) -> Text {

@@ -137,7 +137,8 @@ final class AppState {
     /// Pastes the multi-selection's text joined by the saved separator, always as plain text.
     /// Does nothing when none of it is text.
     func pasteSelection() {
-        guard let joined = MultiPaste.join(multiSelectedItems, separator: .saved()) else {
+        let items = multiSelectedItems
+        guard items.count >= 2, let joined = MultiPaste.join(items, separator: .saved()) else {
             NSSound.beep()
             return
         }

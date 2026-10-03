@@ -137,7 +137,7 @@ struct ClipboardCardView: View {
                     .padding(-DesignTokens.Card.ringWidth)
             }
         }
-        .overlay(alignment: .topLeading) { numberBadge }
+        .overlay(alignment: .topTrailing) { numberBadge }
         .shadow(
             color: .black.opacity(isHovered ? DesignTokens.Selection.hoverShadowOpacity : DesignTokens.Selection.defaultShadowOpacity),
             radius: isHovered ? DesignTokens.Selection.hoverShadowRadius : DesignTokens.Selection.defaultShadowRadius,
@@ -168,7 +168,7 @@ struct ClipboardCardView: View {
                 .frame(minWidth: 20, minHeight: 20)
                 .background(DesignTokens.Brand.butter, in: Circle())
                 .overlay(Circle().strokeBorder(DesignTokens.Brand.card, lineWidth: 1.5))
-                .offset(x: -6, y: -6)
+                .offset(x: 6, y: -6)
                 .accessibilityHidden(true)
         } else if let number = quickPasteNumber, appState.isCommandHeld,
            let hint = QuickPasteShortcut.hint(number: number) {
@@ -178,7 +178,7 @@ struct ClipboardCardView: View {
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)
                 .background(DesignTokens.Brand.butter, in: Capsule())
-                .offset(x: -6, y: -6)
+                .offset(x: 6, y: -6)
                 .accessibilityHidden(true)
         }
     }

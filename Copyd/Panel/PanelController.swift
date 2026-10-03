@@ -504,7 +504,7 @@ final class PanelController {
             }
 
             // Return and Shift-Return both paste the joined text as plain text.
-            if !appState.searchState.multiSelection.ids.isEmpty {
+            if appState.multiSelectedItems.count >= 2 {
                 appState.pasteSelection()
                 return true
             }

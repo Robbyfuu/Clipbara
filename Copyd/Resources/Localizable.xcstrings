@@ -4048,18 +4048,18 @@
         }
       }
     },
-    "Use \\n for a new line and \\t for a tab." : {
+    "Use \\n for a new line, \\t for a tab" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use \\n for a new line and \\t for a tab."
+            "value" : "Use \\n for a new line, \\t for a tab"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Usa \\n para una nueva línea y \\t para una tabulación."
+            "value" : "Usa \\n para nueva línea, \\t para tabulación"
           }
         }
       }
