@@ -7,15 +7,19 @@ import OSLog
 @MainActor @Observable
 final class AppModel {
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "AppModel")
+    /// The one instance. The scene delegate, which SwiftUI does not reach, hands it quick actions.
+    static let shared = AppModel()
 
     let container: ModelContainer
     let sync: CloudSyncEngine
     /// True when the App Group container was unavailable and the store lives in memory only.
     let isInMemory: Bool
     var toastVisible = false
+    /// A quick action or `copyd://` link the root view has not handled yet. Set before any view exists on a cold launch.
+    var pendingRoute: QuickRoute?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
 
-    init() {
+    private init() {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
         let schema = Schema([ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self])
         var inMemory = false
@@ -35,6 +39,9 @@ final class AppModel {
         #endif
         sync = CloudSyncEngine(container: container) {}
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
+        #if DEBUG
+        applyDebugRoute()
+        #endif
     }
 
     /// The phone only mirrors iCloud, so a store that won't open is deleted with its sync state and downloaded again,
@@ -89,6 +96,21 @@ final class AppModel {
     }
 
     #if DEBUG
+    /// `-CopydOpenURL copyd://search`: sets `pendingRoute` before any view exists, as a cold-launch quick action does.
+    /// With `-CopydOpenURLDelay 2`, opens the URL through the system after the delay instead, so it arrives by
+    /// `onOpenURL` while the app runs. The simulator stops `simctl openurl` at a prompt that cannot be tapped headless.
+    private func applyDebugRoute() {
+        let defaults = UserDefaults.standard
+        guard let url = defaults.string(forKey: "CopydOpenURL").flatMap(URL.init(string:)),
+              let route = QuickRoute(url: url) else { return }
+        let delay = defaults.double(forKey: "CopydOpenURLDelay")
+        guard delay > 0 else { return pendingRoute = route }
+        Task {
+            try? await Task.sleep(for: .seconds(delay))
+            _ = await UIApplication.shared.open(url)
+        }
+    }
+
     /// `-CopydSeedSampleClips`: inserts 7 sample clips (one per card type) when the store is nearly empty.
     /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`), so samples never reach iCloud.
     /// Without `-CopydSeedSampleClips`, deletes leftover `seed-*` rows. Runs before the sync engine exists,

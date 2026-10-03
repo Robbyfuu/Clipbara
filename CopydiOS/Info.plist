@@ -18,10 +18,56 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.4</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.robbyfuu.copyd</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>copyd</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>32</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.robbyfuu.copyd.save-clipboard</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Save Clipboard</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>doc.on.clipboard</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.robbyfuu.copyd.search</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Search</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>magnifyingglass</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.robbyfuu.copyd.pinboards</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Pinboards</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>pin</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.robbyfuu.copyd.keyboard-setup</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Set Up Keyboard</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>keyboard</string>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

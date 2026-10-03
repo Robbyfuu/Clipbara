@@ -11,6 +11,9 @@ struct HistoryView: View {
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse) private var items: [ClipboardItem]
     @State private var search = ""
     @State private var filter = Filter.all
+    @FocusState private var searchFocused: Bool
+    /// Set by the Search quick action; focuses the field once, then resets.
+    @Binding var focusSearch: Bool
     var openSettings: () -> Void = {}
 
     // ponytail: in-memory filter, move to #Predicate if history grows past a few thousand
@@ -48,6 +51,11 @@ struct HistoryView: View {
         }
         .brandList()
         .scrollDismissesKeyboard(.immediately)
+        .onChange(of: focusSearch, initial: true) { _, requested in
+            guard requested else { return }
+            focusSearch = false
+            searchFocused = true
+        }
     }
 
     private var syncChip: some View {
@@ -94,6 +102,7 @@ struct HistoryView: View {
                 .textFieldStyle(.plain)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
+                .focused($searchFocused)
             if !search.isEmpty {
                 Button { search = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(DesignTokens.Brand.ink2)

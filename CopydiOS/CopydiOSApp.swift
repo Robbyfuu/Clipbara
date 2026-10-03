@@ -10,23 +10,62 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) async -> UIBackgroundFetchResult {
         .newData
     }
+
+    /// The SwiftUI `App` lifecycle only delivers Home Screen quick actions to a scene delegate.
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = SceneDelegate.self
+        return configuration
+    }
+}
+
+/// Hands Home Screen quick actions to `AppModel.pendingRoute`. SwiftUI's `WindowGroup` still owns the window,
+/// so this never creates one.
+@MainActor
+final class SceneDelegate: NSObject, UIWindowSceneDelegate {
+    /// Cold launch: the item arrives with the connection options, before any view exists.
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        if let item = connectionOptions.shortcutItem { route(item) }
+    }
+
+    /// Warm launch: the app was already running.
+    func windowScene(
+        _ windowScene: UIWindowScene,
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        completionHandler(route(shortcutItem))
+    }
+
+    @discardableResult
+    private func route(_ item: UIApplicationShortcutItem) -> Bool {
+        guard let route = QuickRoute(shortcutType: item.type) else { return false }
+        AppModel.shared.pendingRoute = route
+        return true
+    }
 }
 
 @main
 struct CopydiOSApp: App {
     @UIApplicationDelegateAdaptor private var delegate: AppDelegate
-    @State private var model = AppModel()
+    private let model = AppModel.shared
     @Environment(\.scenePhase) private var scenePhase
     #if DEBUG
     @State private var tab = UserDefaults.standard.string(forKey: "CopydInitialTab") ?? "history"
     #else
     @State private var tab = "history"
     #endif
+    @State private var focusSearch = false
 
     var body: some Scene {
         WindowGroup {
             TabView(selection: $tab) {
-                HistoryView { tab = "settings" }.tabItem { Label("History", systemImage: "clock") }.tag("history")
+                HistoryView(focusSearch: $focusSearch) { tab = "settings" }
+                    .tabItem { Label("History", systemImage: "clock") }.tag("history")
                 PinboardsView().tabItem { Label("Pinboards", systemImage: "pin") }.tag("pinboards")
                 SettingsView().tabItem { Label("Settings", systemImage: "gearshape") }.tag("settings")
             }
@@ -41,6 +80,30 @@ struct CopydiOSApp: App {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { model.sync.fetchIfStale() }
             }
+            .onOpenURL { url in
+                if let route = QuickRoute(url: url) { model.pendingRoute = route }
+            }
+            // `initial` picks up a quick action the scene delegate stored before this view existed.
+            .onChange(of: model.pendingRoute, initial: true) { _, route in
+                guard let route else { return }
+                model.pendingRoute = nil
+                open(route)
+            }
+        }
+    }
+
+    private func open(_ route: QuickRoute) {
+        switch route {
+        case .search:
+            tab = "history"
+            focusSearch = true
+        case .pinboards:
+            tab = "pinboards"
+        case .keyboardSetup:
+            tab = "settings"
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        case .saveClipboard:
+            tab = "history"
         }
     }
 }
