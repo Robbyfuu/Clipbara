@@ -26,6 +26,8 @@ extension DesignTokens {
         /// Keyboard key surface: lighter than the system keyboard background in both modes, like native keys.
         static let keyCap = dynamic(light: 0xFEFDFB, dark: 0x3B3B48)
         static let keyCapPressed = dynamic(light: 0xD8D8E0, dark: 0x4C4C5A)
+        /// The hard 1 pt shadow under a key cap: dark in both modes (ink turns light in dark mode).
+        static let keyShadow = dynamic(light: 0x191926, dark: 0x000000, alpha: 0.35)
         /// Liquid Glass tint (macOS 26+): faint paper / ink keeps text legible over any wallpaper.
         static let glassTint = dynamic(light: 0xF2F0E9, dark: 0x12121A, alpha: 0.4)
 

@@ -297,7 +297,7 @@ private struct KeyStyle: ButtonStyle {
 private extension View {
     /// A native-key surface behind the view: `fill` in `shape`, with a hard 1 pt shadow below. A clear fill casts none.
     func keyCap(_ fill: Color = DesignTokens.Brand.keyCap, in shape: some Shape) -> some View {
-        background { shape.fill(fill).shadow(color: DesignTokens.Brand.ink.opacity(0.3), radius: 0, y: 1) }
+        background { shape.fill(fill).shadow(color: DesignTokens.Brand.keyShadow, radius: 0, y: 1) }
     }
 }
 
