@@ -1,4 +1,6 @@
+#if os(macOS)
 import AppKit
+#endif
 import CloudKit
 import OSLog
 import SwiftData
@@ -474,7 +476,9 @@ import SwiftData
         tracker = LocalChangeTracker(context: modelContext) { [weak self] changes in
             self?.engine?.state.add(pendingRecordZoneChanges: changes)
         }
+        #if os(macOS)
         NSApplication.shared.registerForRemoteNotifications()
+        #endif
         if saved == nil { queueEverything(on: engine) }
     }
 

@@ -25,6 +25,7 @@ targets:
     platform: macOS
     sources:
       - path: Copyd
+      - path: Shared
       # Local StoreKit testing only. Listed so Xcode can open it; never bundled.
       - path: StoreKit/Copyd.storekit
         buildPhase: none
@@ -69,19 +70,19 @@ targets:
       - path: Copyd/Utilities/PanelGeometry.swift
       - path: Copyd/Utilities/PanelTabShortcut.swift
       - path: Copyd/Utilities/QuickPasteShortcut.swift
-      - path: Copyd/Utilities/PinboardDot.swift
+      - path: Shared/Design/PinboardDot.swift
       - path: Copyd/Utilities/WheelScrollTranslation.swift
       - path: Copyd/Utilities/ReviewPromptPolicy.swift
       - path: Copyd/Utilities/AccessPolicy.swift
-      - path: Copyd/Utilities/Thumbnail.swift
-      - path: Copyd/Sync/AssetCrypto.swift
-      - path: Copyd/Sync/SyncRecordMapper.swift
-      - path: Copyd/Sync/DuplicateRule.swift
-      - path: Copyd/Sync/SyncBatchPlanner.swift
-      - path: Copyd/Models
-      - path: Copyd/Sync/ModelSnapshots.swift
-      - path: Copyd/Sync/LocalChangeTracker.swift
-      - path: Copyd/Sync/RemoteApplier.swift
+      - path: Shared/Utilities/Thumbnail.swift
+      - path: Shared/Sync/AssetCrypto.swift
+      - path: Shared/Sync/SyncRecordMapper.swift
+      - path: Shared/Sync/DuplicateRule.swift
+      - path: Shared/Sync/SyncBatchPlanner.swift
+      - path: Shared/Models
+      - path: Shared/Sync/ModelSnapshots.swift
+      - path: Shared/Sync/LocalChangeTracker.swift
+      - path: Shared/Sync/RemoteApplier.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests
