@@ -147,6 +147,8 @@ targets:
       - path: Shared/Utilities/KeyboardFeed.swift
       - path: Shared/Utilities/PasteAction.swift
       - path: Shared/Utilities/RelativeSyncTime.swift
+      - path: Shared/Utilities/ClipAge.swift
+      - path: Shared/Utilities/LinkParts.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests
