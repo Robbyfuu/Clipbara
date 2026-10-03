@@ -149,6 +149,8 @@ targets:
       - path: Shared/Utilities/RelativeSyncTime.swift
       - path: Shared/Utilities/ClipAge.swift
       - path: Shared/Utilities/LinkParts.swift
+      - path: Shared/Utilities/QuickRoute.swift
+      - path: Shared/Utilities/ClipCapture.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests

@@ -1,0 +1,55 @@
+import SwiftData
+import XCTest
+
+@MainActor
+final class ClipCaptureTests: XCTestCase {
+    func testPlainText() throws {
+        let clip = try XCTUnwrap(ClipCapture.text("héllo world"))
+        XCTAssertEqual(clip.contentType, .plainText)
+        XCTAssertEqual(clip.rawData, Data("héllo world".utf8))
+        XCTAssertEqual(clip.textContent, "héllo world")
+        XCTAssertEqual(clip.contentHash, ClipCapture.hash(Data("héllo world".utf8)))
+    }
+
+    func testURLTextBecomesURL() {
+        XCTAssertEqual(ClipCapture.text("https://airbnb.cl/rooms/1")?.contentType, .url)
+        XCTAssertEqual(ClipCapture.text("airbnb.cl")?.contentType, .plainText, "no scheme, so not a link")
+    }
+
+    func testHashMatchesMacFormat() {
+        XCTAssertEqual(ClipCapture.hash(Data("hello".utf8)),
+                       "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
+    }
+
+    func testEmptyTextIsNil() {
+        XCTAssertNil(ClipCapture.text(""))
+    }
+
+    func testImage() throws {
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+        let clip = try XCTUnwrap(ClipCapture.image(png))
+        XCTAssertEqual(clip.contentType, .image)
+        XCTAssertEqual(clip.rawData, png)
+        XCTAssertNil(clip.textContent)
+        XCTAssertEqual(clip.contentHash, ClipCapture.hash(png))
+        XCTAssertNil(ClipCapture.image(Data()))
+    }
+
+    func testRecentDuplicateWithin10s() throws {
+        let container = try ModelContainer(
+            for: ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let item = ClipboardItem(contentType: .plainText, rawData: Data("a".utf8), textContent: "a", contentHash: "h")
+        item.copiedAt = now.addingTimeInterval(-5)
+        context.insert(item)
+        try context.save()
+        XCTAssertTrue(try ClipCapture.isRecentDuplicate(hash: "h", in: context, now: now))
+        XCTAssertFalse(try ClipCapture.isRecentDuplicate(hash: "other", in: context, now: now))
+
+        item.copiedAt = now.addingTimeInterval(-15)
+        try context.save()
+        XCTAssertFalse(try ClipCapture.isRecentDuplicate(hash: "h", in: context, now: now))
+    }
+}
