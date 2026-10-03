@@ -6,29 +6,28 @@ import UniformTypeIdentifiers
 /// App Group defaults (`SharedDefaults.lastCapturedChangeCountKey`) before the read.
 @MainActor
 enum PasteboardCapture {
-    /// An image this process left for the app, so the keyboard does not read it again.
-    private static var leftForApp: Int?
+    /// The `changeCount` the last actual read saw, so a second read of the same copy (a second paste prompt) can be skipped.
+    private(set) static var lastReadCount: Int?
 
     /// The copy no part of Copyd has handled yet, or nil. `changeCount`, `types` and the `has…` checks never show
     /// the paste prompt. The read may; a denied prompt returns nil, and the claimed count keeps it from asking again.
-    /// An image over `maxImageBytes` (the keyboard's memory budget) is left for the app.
-    static func newClip(maxImageBytes: Int = .max) -> CapturedClip? {
+    /// With `readsImages` false (the keyboard: an image can exceed its ~50 MB budget) an image is neither read nor
+    /// claimed, so the app captures it on its next open.
+    /// A reboot resets `changeCount`, so one copy may be skipped; that is acceptable.
+    static func newClip(readsImages: Bool = true) -> CapturedClip? {
         let pasteboard = UIPasteboard.general
         let count = pasteboard.changeCount
+        let stored = SharedDefaults.store?.object(forKey: SharedDefaults.lastCapturedChangeCountKey) as? Int
         // Private and empty copies are claimed too, so they are never checked again.
-        guard count != leftForApp, SharedDefaults.claimPasteboardChange(count),
+        guard SharedDefaults.pasteboardAction(hasImages: pasteboard.hasImages, readsImages: readsImages,
+                                              changeCount: count, stored: stored) == .claim,
+              SharedDefaults.claimPasteboardChange(count),
               !pasteboard.contains(pasteboardTypes: ClipCapture.skippedPasteboardTypes),
-              pasteboard.hasStrings || pasteboard.hasURLs || pasteboard.hasImages,
-              let clip = read() else { return nil }
-        guard clip.contentType != .image || clip.rawData.count <= maxImageBytes else {
-            leaveForApp()
-            leftForApp = count
-            return nil
-        }
-        return clip
+              pasteboard.hasStrings || pasteboard.hasURLs || pasteboard.hasImages else { return nil }
+        return read()
     }
 
-    /// Unclaims the current copy, so the app saves it the next time it opens.
+    /// Unclaims the current copy after a failed inbox write, so the app saves it the next time it opens.
     static func leaveForApp() {
         SharedDefaults.store?.removeObject(forKey: SharedDefaults.lastCapturedChangeCountKey)
     }
@@ -36,6 +35,7 @@ enum PasteboardCapture {
     /// One read, so one paste prompt: an image (PNG first, else the first image type), otherwise the string.
     static func read() -> CapturedClip? {
         let pasteboard = UIPasteboard.general
+        lastReadCount = pasteboard.changeCount
         guard pasteboard.hasImages else {
             return (pasteboard.string ?? pasteboard.url?.absoluteString).flatMap(ClipCapture.text)
         }

@@ -6,7 +6,7 @@ final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
     private var container: ModelContainer?
     /// A copy this keyboard captured. It leads Recent until the store has it; a tap uses its content directly.
-    private var clipboard: (card: KeyboardClip, clip: CapturedClip)?
+    private var clipboard: (card: KeyboardClip, clip: CapturedClip, changeCount: Int)?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -46,10 +46,14 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     /// Queues a copy made since Copyd last looked. A keyboard cannot write the store, so the copy goes to the inbox,
-    /// which the app drains the next time it opens. Images over 10 MB are left for the app.
+    /// which the app drains the next time it opens. Text and URLs only: an image is left for the app, unread.
     private func captureClipboard() {
-        guard hasFullAccess, let group = SharedStore.groupContainer, SharedStore.storeExists(groupContainer: group),
-              let clip = PasteboardCapture.newClip(maxImageBytes: 10_000_000) else { return }
+        guard hasFullAccess, let group = SharedStore.groupContainer, SharedStore.storeExists(groupContainer: group) else { return }
+        guard let clip = PasteboardCapture.newClip(readsImages: false) else {
+            // A new copy (an image, or a private one) replaced the card's; an unchanged count keeps it.
+            if clipboard?.changeCount != UIPasteboard.general.changeCount { clipboard = nil }
+            return
+        }
         let image = clip.contentType == .image
         let item = InboxItem(kind: image ? .image : .text, text: clip.textContent, createdAt: Date(),
                              source: UIDevice.current.model, auto: true)
@@ -58,7 +62,7 @@ final class KeyboardViewController: UIInputViewController {
         } catch {
             PasteboardCapture.leaveForApp()
         }
-        clipboard = (KeyboardFeed.clipboardCard(clip, now: Date()), clip)
+        clipboard = (KeyboardFeed.clipboardCard(clip, now: Date()), clip, UIPasteboard.general.changeCount)
     }
 
     override func viewWillDisappear(_ animated: Bool) {

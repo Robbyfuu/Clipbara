@@ -92,4 +92,18 @@ final class ClipCaptureTests: XCTestCase {
         XCTAssertTrue(SharedDefaults.claimPasteboardChange(6, in: defaults), "a new copy")
         XCTAssertFalse(SharedDefaults.claimPasteboardChange(6, in: defaults))
     }
+
+    func testNoDefaultsNeverClaims() {
+        XCTAssertFalse(SharedDefaults.claimPasteboardChange(5, in: nil), "no App Group: the app must not read every activation")
+    }
+
+    func testPasteboardAction() {
+        typealias S = SharedDefaults
+        XCTAssertEqual(S.pasteboardAction(hasImages: false, readsImages: false, changeCount: 5, stored: 5), .skip)
+        XCTAssertEqual(S.pasteboardAction(hasImages: true, readsImages: true, changeCount: 5, stored: 5), .skip)
+        XCTAssertEqual(S.pasteboardAction(hasImages: true, readsImages: false, changeCount: 5, stored: 4), .leaveForApp,
+                       "the keyboard never reads or claims an image")
+        XCTAssertEqual(S.pasteboardAction(hasImages: true, readsImages: true, changeCount: 5, stored: 4), .claim)
+        XCTAssertEqual(S.pasteboardAction(hasImages: false, readsImages: false, changeCount: 5, stored: nil), .claim)
+    }
 }

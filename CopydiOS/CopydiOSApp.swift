@@ -88,6 +88,7 @@ struct CopydiOSApp: App {
                 model.sync.fetchIfStale()
             }
             .onOpenURL { url in
+                // A link that only foregrounds the app still runs auto-capture behind the iOS prompt.
                 // A link must never read the pasteboard: only the Home Screen quick action may save the clipboard.
                 if let route = QuickRoute(url: url), route != .saveClipboard { model.pendingRoute = route }
             }

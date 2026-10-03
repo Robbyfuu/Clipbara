@@ -137,6 +137,8 @@ final class AppModel {
     /// Saves the iPhone pasteboard as a new clip, as the Mac's monitor would. Reading it shows iOS's paste prompt.
     /// The sync tracker uploads the insert like any other local save.
     func saveClipboard() {
+        // The auto-capture or an earlier tap already read this copy; reading again would show a second paste prompt.
+        guard UIPasteboard.general.changeCount != PasteboardCapture.lastReadCount else { return flash("Already saved") }
         // This copy is handled now, so the auto-capture never reads it (or asks to paste) again.
         PasteboardCapture.markHandled()
         // Types only, so no paste prompt. Matches the Mac, which skips password-manager and transient copies.
