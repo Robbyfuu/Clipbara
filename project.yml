@@ -68,6 +68,8 @@ targets:
     sources:
       - path: CopydiOS
       - path: Shared
+      # DEBUG-only -CopydKeyboardPreview harness renders the keyboard view inside the app.
+      - path: CopydKeyboard/KeyboardView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
@@ -111,6 +113,7 @@ targets:
         SWIFT_STRICT_CONCURRENCY: complete
         INFOPLIST_FILE: CopydKeyboard/Info.plist
         GENERATE_INFOPLIST_FILE: false
+        APPLICATION_EXTENSION_API_ONLY: YES
     entitlements:
       path: CopydKeyboard/CopydKeyboard.entitlements
       properties:

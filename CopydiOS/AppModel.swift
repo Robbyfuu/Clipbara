@@ -34,6 +34,9 @@ final class AppModel {
             fatalError("Could not create the store: \(error)")
         }
         isInMemory = inMemory
+        #if DEBUG
+        Self.seedSampleClipsIfRequested(container)
+        #endif
         sync = CloudSyncEngine(container: container) {}
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
     }
@@ -55,4 +58,28 @@ final class AppModel {
             if !Task.isCancelled { toastVisible = false }
         }
     }
+
+    #if DEBUG
+    /// `-CopydSeedSampleClips`: inserts 3 sample clips when the store is nearly empty.
+    /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`), so samples never reach iCloud.
+    private static func seedSampleClipsIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>())) ?? 0) < 3 else { return }
+        let long = String(repeating: "The quick brown fox jumps over the lazy dog. ", count: 5)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 400))
+        let png = renderer.pngData { ctx in
+            UIColor.systemTeal.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 400))
+            UIColor.systemYellow.setFill(); ctx.fill(CGRect(x: 150, y: 100, width: 300, height: 200))
+        }
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data("Hello from Copyd".utf8),
+                                     textContent: "Hello from Copyd", contentHash: "seed-short"))
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(long.utf8),
+                                     textContent: long, contentHash: "seed-long"))
+        context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png),
+                                     contentHash: "seed-image"))
+        try? context.save()
+    }
+    #endif
 }
