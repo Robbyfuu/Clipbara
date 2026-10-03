@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
 
     private var statusText: String {
         switch model.sync.status {
@@ -35,9 +36,19 @@ struct SettingsView: View {
 
                 sectionLabel("Use the Copyd keyboard")
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("1. Open Settings \u{2192} General \u{2192} Keyboard \u{2192} Keyboards")
-                    Text("2. Tap Add New Keyboard\u{2026} \u{2192} Copyd")
-                    Text("3. Tap Copyd \u{2192} turn on Allow Full Access")
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    } label: {
+                        Label("Open Copyd in Settings", systemImage: "gear")
+                            .brandFont(17, .bold)
+                            .foregroundStyle(DesignTokens.Brand.onButter)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .buttonStyle(SettingsButtonStyle())
+                    .accessibilityLabel("Open Copyd in Settings")
+                    Text("1. Tap Open Copyd in Settings")
+                    Text("2. Tap Keyboards")
+                    Text("3. Turn on Copyd and Allow Full Access")
                 }
                 .brandFont(16)
                 .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
@@ -64,5 +75,16 @@ struct SettingsView: View {
             .padding(.horizontal, 4)
             .padding(.bottom, 8)
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// Butter primary button; `butterInk` at 20 % darkens it while pressed.
+private struct SettingsButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14)
+        configuration.label
+            .background(DesignTokens.Brand.butter, in: shape)
+            .overlay { if configuration.isPressed { shape.fill(DesignTokens.Brand.butterInk.opacity(0.2)) } }
+            .contentShape(shape)
     }
 }

@@ -144,9 +144,9 @@ struct KeyboardView: View {
                     .font(.system(size: 15, weight: .bold)).foregroundStyle(DesignTokens.Brand.ink)
                     .multilineTextAlignment(.center)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("1. Open Settings \u{2192} General \u{2192} Keyboard \u{2192} Keyboards")
-                    Text("2. Tap Add New Keyboard\u{2026} \u{2192} Copyd")
-                    Text("3. Tap Copyd \u{2192} turn on Allow Full Access")
+                    Text("1. Open Settings \u{2192} Apps \u{2192} Copyd")
+                    Text("2. Tap Keyboards")
+                    Text("3. Turn on Allow Full Access")
                 }
                 .font(.system(size: 13)).foregroundStyle(DesignTokens.Brand.ink2)
             }
