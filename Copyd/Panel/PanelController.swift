@@ -156,11 +156,8 @@ final class PanelController {
         installFlagsMonitor()
     }
 
-    func restoreKeyboardNavigationFocus(activateApp: Bool = false) {
+    func restoreKeyboardNavigationFocus() {
         guard isVisible, let panel else { return }
-        if activateApp {
-            NSApp.activate(ignoringOtherApps: true)
-        }
         panel.orderFrontRegardless()
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(nil)

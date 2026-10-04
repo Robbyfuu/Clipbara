@@ -80,6 +80,15 @@ final class AutoPastePolicyTests: XCTestCase {
                        "the system prompt is asked for once; later picks only hint")
     }
 
+    // MARK: - Focus ready
+
+    func testFocusReadyOnlyWhenPreviousAppIsFrontmost() {
+        XCTAssertTrue(AutoPastePolicy.focusReady(frontmost: 42, previous: 42))
+        XCTAssertFalse(AutoPastePolicy.focusReady(frontmost: 7, previous: 42))
+        XCTAssertFalse(AutoPastePolicy.focusReady(frontmost: nil, previous: 42))
+        XCTAssertFalse(AutoPastePolicy.focusReady(frontmost: 42, previous: nil), "no app to hand back to")
+    }
+
     // MARK: - Synthetic ⌘V marker
 
     func testOnlyMarkedEventsCountAsCopydsPaste() throws {

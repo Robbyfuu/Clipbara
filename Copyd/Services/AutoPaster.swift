@@ -48,13 +48,24 @@ final class AutoPaster {
             // The panel is non-activating, yet it holds keyboard focus until it is ordered out at the end
             // of its 0.2 s slide; a ⌘V posted before that would land in the panel. Wait for it (max 1 s).
             var waited = 0
-            while NSApp.keyWindow != nil, waited < 1000 {
+            while NSApp.keyWindow != nil, waited < 1000, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(10))
                 waited += 10
             }
-            // Let the pasteboard write settle and focus return to the app in front.
+            // Let the pasteboard write settle, then wait for the app the user was in to be frontmost
+            // (the menu bar path hands focus back asynchronously). Max 500 ms, otherwise no paste.
             try? await Task.sleep(for: .milliseconds(50))
-            guard !Task.isCancelled else { return }
+            waited = 0
+            while !AutoPastePolicy.focusReady(frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                                              previous: self?.previousApp?.processIdentifier),
+                  waited < 500, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(20))
+                waited += 20
+            }
+            guard !Task.isCancelled,
+                  AutoPastePolicy.focusReady(frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                                             previous: self?.previousApp?.processIdentifier)
+            else { return }
             self?.finishPick()
         }
     }
@@ -62,7 +73,7 @@ final class AutoPaster {
     /// The menu bar list makes Copyd the active app, so ⌘V would land in Copyd. With the setting on,
     /// hand focus back to the app the user was in, which also closes the list.
     func returnFocusFromMenuBar() {
-        guard isEnabled, let previousApp, !previousApp.isTerminated else { return }
+        guard isEnabled, !titledCopydWindowVisible, let previousApp, !previousApp.isTerminated else { return }
         _ = previousApp.activate(options: [])
     }
 
@@ -75,12 +86,19 @@ final class AutoPaster {
         }
     }
 
+    /// Settings or Paywall is open: the user is working in Copyd, so ⌘V would land there.
+    private var titledCopydWindowVisible: Bool {
+        NSApp.windows.contains { $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel) }
+    }
+
+    private var hintShown = false
+
     private func finishPick() {
         let defaults = UserDefaults.standard
         let action = AutoPastePolicy.decide(
             enabled: isEnabled,
             hasAccess: hasAccess,
-            copydIsActive: NSApp.isActive,
+            copydIsActive: NSApp.isActive || NSApp.keyWindow != nil || titledCopydWindowVisible,
             alreadyPrompted: defaults.bool(forKey: Self.promptedDefaultsKey)
         )
         Self.log.notice("pick action=\(String(describing: action), privacy: .public)")
@@ -91,8 +109,12 @@ final class AutoPaster {
             // Once ever: adds Copyd to Privacy & Security › Accessibility and shows macOS's own prompt.
             defaults.set(true, forKey: Self.promptedDefaultsKey)
             _ = CGRequestPostEventAccess()
+            hintShown = true
             showHint()
         case .hintOnly:
+            // Once per launch: repeating it on every pick is noise.
+            guard !hintShown else { break }
+            hintShown = true
             showHint()
         case .none:
             break

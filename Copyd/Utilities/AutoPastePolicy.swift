@@ -25,6 +25,12 @@ enum AutoPastePolicy {
         if hasAccess { return .paste }
         return alreadyPrompted ? .hintOnly : .requestAccessAndHint
     }
+
+    /// The app the user was in is frontmost again, so a ⌘V posted now reaches it.
+    static func focusReady(frontmost: pid_t?, previous: pid_t?) -> Bool {
+        guard let frontmost, let previous else { return false }
+        return frontmost == previous
+    }
 }
 
 /// Tags the ⌘V that Copyd posts, so Paste Stack's tap never takes it for the user's own.

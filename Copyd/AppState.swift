@@ -184,11 +184,11 @@ final class AppState {
     func finishClipboardDrag() {
         draggedClipboardItemID = nil
         searchState.ensureSelection(itemCount: currentFilteredItems.count)
-        panelController.restoreKeyboardNavigationFocus(activateApp: true)
+        panelController.restoreKeyboardNavigationFocus()
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(80))
-            panelController.restoreKeyboardNavigationFocus(activateApp: true)
+            panelController.restoreKeyboardNavigationFocus()
         }
     }
 
