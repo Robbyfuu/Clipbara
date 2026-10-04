@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 /// Which permissions Copyd has and which are missing, with a button to fix each missing one.
@@ -95,19 +96,36 @@ struct PermissionsSettingsTab: View {
         configuration.createsNewApplicationInstance = true
         configuration.arguments = ["-\(LaunchGuard.relaunchAfterPIDKey)", String(ProcessInfo.processInfo.processIdentifier)]
         // The new instance blocks in LaunchGuard until this pid is gone, and the completion may only
-        // fire once it has finished launching: quit after a short beat instead, unless the launch failed.
+        // fire once it has finished launching: quit on success or after a short beat, never after an error.
         let launch = RelaunchState()
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
-            if error != nil { Task { @MainActor in launch.failed = true } }
+            let message = error?.localizedDescription
+            Task { @MainActor in
+                if let message { relaunchLog.error("Restart failed, Copyd stays open: \(message, privacy: .public)") }
+                launch.launched = message == nil
+                launch.quitIfReady()
+            }
         }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
-            if !launch.failed { NSApp.terminate(nil) }
+            launch.beatPassed = true
+            launch.quitIfReady()
         }
     }
 }
 
-/// Set when the relaunch fails, so the running instance stays open.
+private let relaunchLog = Logger(subsystem: "com.robbyfuu.copyd", category: "Permissions")
+
+/// What "Restart Copyd" knows so far: the running instance quits only per `LaunchGuard.restartQuits`.
 @MainActor private final class RelaunchState {
-    var failed = false
+    /// nil until `openApplication` reports.
+    var launched: Bool?
+    var beatPassed = false
+    private var quitting = false
+
+    func quitIfReady() {
+        guard !quitting, LaunchGuard.restartQuits(launched: launched, beatPassed: beatPassed) else { return }
+        quitting = true
+        NSApp.terminate(nil)
+    }
 }

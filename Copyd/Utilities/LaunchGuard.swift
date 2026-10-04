@@ -13,9 +13,31 @@ enum LaunchGuard {
     /// Passed by "Restart Copyd" as `-CopydRelaunchAfterPID <pid>`; read through the arguments domain.
     static let relaunchAfterPIDKey = "CopydRelaunchAfterPID"
 
-    static func decide(otherInstancePIDs: [pid_t], relaunchAfterPID: pid_t?) -> Decision {
+    /// `exitsWithinASecond` waits for the running instance: after a quick quit and relaunch it is only still saving,
+    /// and handing over to it would leave nothing running once it is gone.
+    static func decide(otherInstancePIDs: [pid_t], relaunchAfterPID: pid_t?,
+                       exitsWithinASecond: (pid_t) -> Bool = { _ in false }) -> Decision {
         if let relaunchAfterPID { return otherInstancePIDs.contains(relaunchAfterPID) ? .waitFor(relaunchAfterPID) : .proceed }
-        return otherInstancePIDs.first.map { .quitAndActivate($0) } ?? .proceed
+        guard let other = otherInstancePIDs.first else { return .proceed }
+        return exitsWithinASecond(other) ? .proceed : .quitAndActivate(other)
+    }
+
+    /// "Restart Copyd" quits the running instance once the new one launched, or after a short beat with no error:
+    /// the new one waits here for this one to quit, so its launch may only report once this one is gone. Never after
+    /// a failed launch (`launched == false`), which would leave nothing running.
+    static func restartQuits(launched: Bool?, beatPassed: Bool) -> Bool {
+        launched ?? beatPassed
+    }
+
+    /// Polls until `pid` is gone. kill(pid, 0) rather than NSRunningApplication, whose values only refresh on a main
+    /// run loop turn, which this loop blocks. EPERM means the process exists.
+    private static func waitForExit(_ pid: pid_t, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while kill(pid, 0) == 0 || errno == EPERM {
+            guard Date() < deadline else { return false }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return true
     }
 
     /// Runs first in `CopydApp.init`, before `AppState.shared` exists and before the store, the clipboard monitor,
@@ -26,17 +48,14 @@ enum LaunchGuard {
             .filter { $0.processIdentifier != me && !$0.isTerminated }
             .map(\.processIdentifier)
         let relaunch = UserDefaults.standard.integer(forKey: relaunchAfterPIDKey)
-        switch decide(otherInstancePIDs: others, relaunchAfterPID: relaunch > 0 ? pid_t(relaunch) : nil) {
+        // The waits are synchronous on purpose: no window exists yet, so nothing visibly hangs, and the store must not
+        // open while the old instance still has it.
+        switch decide(otherInstancePIDs: others, relaunchAfterPID: relaunch > 0 ? pid_t(relaunch) : nil,
+                      exitsWithinASecond: { waitForExit($0, timeout: 1) }) {
         case .proceed:
             break
         case .waitFor(let pid):
-            // Synchronous on purpose: no window exists yet, so nothing visibly hangs, and the store must not open
-            // while the old instance still has it. kill(pid, 0) rather than NSRunningApplication, whose values only
-            // refresh on a main run loop turn, which this loop blocks. EPERM means the process exists.
-            let deadline = Date().addingTimeInterval(5)
-            while Date() < deadline, kill(pid, 0) == 0 || errno == EPERM {
-                Thread.sleep(forTimeInterval: 0.1)
-            }
+            _ = waitForExit(pid, timeout: 5)
         case .quitAndActivate(let pid):
             _ = NSRunningApplication(processIdentifier: pid)?.activate()
             exit(0)

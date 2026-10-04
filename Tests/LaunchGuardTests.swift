@@ -18,4 +18,31 @@ final class LaunchGuardTests: XCTestCase {
     func testRelaunchProceedsOnceTheOldInstanceIsGone() {
         XCTAssertEqual(LaunchGuard.decide(otherInstancePIDs: [], relaunchAfterPID: 412), .proceed)
     }
+
+    func testProceedsWhenTheRunningInstanceWasOnlyQuitting() {
+        XCTAssertEqual(LaunchGuard.decide(otherInstancePIDs: [412], relaunchAfterPID: nil, exitsWithinASecond: { $0 == 412 }),
+                       .proceed, "a quick quit and relaunch: the old instance was still saving, so nothing would be left")
+    }
+
+    func testHandsOverWhenTheRunningInstanceStays() {
+        XCTAssertEqual(LaunchGuard.decide(otherInstancePIDs: [412], relaunchAfterPID: nil, exitsWithinASecond: { _ in false }),
+                       .quitAndActivate(412))
+    }
+
+    // MARK: - "Restart Copyd": when the running instance quits
+
+    func testRestartQuitsOnceTheNewInstanceLaunched() {
+        XCTAssertTrue(LaunchGuard.restartQuits(launched: true, beatPassed: false))
+    }
+
+    func testRestartQuitsAfterTheBeatWithNoError() {
+        XCTAssertFalse(LaunchGuard.restartQuits(launched: nil, beatPassed: false))
+        XCTAssertTrue(LaunchGuard.restartQuits(launched: nil, beatPassed: true),
+                      "the new instance waits for this one in LaunchGuard, so its success may never come first")
+    }
+
+    func testRestartNeverQuitsWhenTheLaunchFailed() {
+        XCTAssertFalse(LaunchGuard.restartQuits(launched: false, beatPassed: false))
+        XCTAssertFalse(LaunchGuard.restartQuits(launched: false, beatPassed: true), "nothing would be left running")
+    }
 }
