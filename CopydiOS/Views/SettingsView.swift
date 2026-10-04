@@ -3,6 +3,10 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    /// Re-read each time the app comes to the front, e.g. back from Settings.
+    @State private var keyboardStatus = PermissionStatus.missing
+    @State private var fullAccessStatus = PermissionStatus.unconfirmed
     #if DEBUG
     /// `-CopydShowQuickGuide YES` (with `-CopydInitialTab settings`) opens the Back Tap guide at launch.
     @State private var showQuickGuide = UserDefaults.standard.bool(forKey: "CopydShowQuickGuide")
@@ -26,6 +30,31 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenTitle(text: String(localized: "Settings")).padding(.bottom, 24)
+
+                sectionLabel("Permissions")
+                VStack(alignment: .leading, spacing: 0) {
+                    let iCloud = PermissionStatus.resolve(granted: model.sync.status != .accountUnavailable,
+                                                          featureOn: model.sync.status != .off)
+                    permissionRow("iCloud", symbol: "icloud", status: iCloud,
+                                  fix: iCloud == .missing ? "Sign in to iCloud" : nil)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    permissionRow("Copyd keyboard added", symbol: "keyboard", status: keyboardStatus,
+                                  chip: keyboardStatus == .granted ? Text("Added") : Text("Not added"),
+                                  fix: keyboardStatus == .missing ? "Open Settings" : nil)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    permissionRow("Full Access", symbol: "lock.open", status: fullAccessStatus,
+                                  hint: fullAccessStatus == .unconfirmed
+                                      ? "Not confirmed yet \u{2014} open the Copyd keyboard once" : nil,
+                                  fix: fullAccessStatus == .unconfirmed ? "Open Settings" : nil)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    // No public API reads this setting, so the row never claims a state.
+                    permissionRow("Paste from other apps", symbol: "doc.on.clipboard", status: .unconfirmed,
+                                  hint: "Set to Allow to skip the paste prompt.", fix: "Open Settings")
+                }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .brandCard()
+                .padding(.bottom, 24)
 
                 sectionLabel("iCloud")
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -106,6 +135,62 @@ struct SettingsView: View {
         }
         .background(DesignTokens.Brand.shelf)
         .sheet(isPresented: $showQuickGuide) { QuickGuideView() }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active else { return }
+            keyboardStatus = .resolve(enabledKeyboards: UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String])
+            fullAccessStatus = .resolve(fullAccessSeenAt:
+                SharedDefaults.store?.object(forKey: SharedDefaults.keyboardFullAccessSeenAtKey) as? Date)
+        }
+    }
+
+    /// One permissions card row. `chip` defaults to the status's own label; `fix` opens Copyd in Settings.
+    private func permissionRow(_ name: LocalizedStringKey, symbol: String, status: PermissionStatus, chip: Text? = nil,
+                               hint: LocalizedStringKey? = nil, fix: LocalizedStringKey?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Image(systemName: symbol)
+                .foregroundStyle(DesignTokens.Brand.ink2)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(name).brandFont(16, .semibold)
+                    Spacer(minLength: 8)
+                    PermissionChip(status: status, label: chip ?? chipLabel(status))
+                }
+                if let hint {
+                    Text(hint)
+                        .brandFont(13, relativeTo: .footnote)
+                        .foregroundStyle(DesignTokens.Brand.ink2)
+                }
+                if let fix {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    } label: {
+                        Text(fix)
+                            .brandFont(15, .semibold)
+                            .foregroundStyle(DesignTokens.Brand.ink)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 44)
+                            .background(DesignTokens.Brand.chip, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
+            }
+        }
+        .padding(.vertical, 14)
+    }
+
+    private func chipLabel(_ status: PermissionStatus) -> Text {
+        switch status {
+        case .granted: Text("Allowed")
+        case .missing: Text("Not allowed")
+        // Its own key: plain "Off" is the sync status, which reads differently in Spanish.
+        case .notNeeded:
+            Text(String(localized: "Permission.notNeeded", defaultValue: "Off",
+                        comment: "Chip on a permission whose feature is turned off"))
+        case .unconfirmed: Text("Check in Settings")
+        }
     }
 
     private func sectionLabel(_ text: LocalizedStringResource) -> some View {

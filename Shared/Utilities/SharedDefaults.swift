@@ -7,6 +7,9 @@ enum SharedDefaults {
     /// The `UIPasteboard.changeCount` Copyd has already handled: captured, declined, or written by Copyd itself.
     /// An `Int`, shared by the app and the keyboard, so each copy is read at most once.
     static let lastCapturedChangeCountKey = "lastCapturedPasteboardChange"
+    /// A `Date` the keyboard writes each time it loads with Full Access. The App Group is writable only with
+    /// Full Access, so the app takes its presence as proof.
+    static let keyboardFullAccessSeenAtKey = "keyboardFullAccessSeenAt"
     static var store: UserDefaults? { UserDefaults(suiteName: suiteName) }
 
     /// Records `changeCount` as handled. Returns false when it already was, so the caller leaves that copy alone.

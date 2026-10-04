@@ -188,7 +188,11 @@ final class PasteStackController {
         alert.addButton(withTitle: String(localized: "Cancel"))
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        // Adds Copyd to the Input Monitoring list; the first time macOS also shows its own prompt.
+        Self.openInputMonitoringSettings()
+    }
+
+    /// Adds Copyd to the Input Monitoring list (the first time macOS also shows its own prompt) and opens it.
+    static func openInputMonitoringSettings() {
         _ = CGRequestListenEventAccess()
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
             NSWorkspace.shared.open(url)

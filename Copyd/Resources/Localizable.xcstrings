@@ -260,6 +260,16 @@
         }
       }
     },
+    "Accessibility" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesibilidad"
+          }
+        }
+      }
+    },
     "Actual Size (double-click image)" : {
       "localizations" : {
         "es" : {
@@ -360,6 +370,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Permite Copyd en Accesibilidad para pegar directo. Por ahora, pulsa ⌘V."
+          }
+        }
+      }
+    },
+    "Allowed" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitido"
           }
         }
       }
@@ -1823,6 +1843,9 @@
         }
       }
     },
+    "iCloud" : {
+      "shouldTranslate" : false
+    },
     "Image" : {
       "localizations" : {
         "es" : {
@@ -2021,6 +2044,16 @@
         }
       }
     },
+    "Input Monitoring" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoreo de entrada"
+          }
+        }
+      }
+    },
     "It ends on %@. You can unlock Copyd anytime from the menu bar." : {
       "localizations" : {
         "es" : {
@@ -2077,6 +2110,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Primero lo último copiado"
+          }
+        }
+      }
+    },
+    "Lets Paste Stack see ⌘V." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite que Paste Stack detecte ⌘V."
           }
         }
       }
@@ -2165,6 +2208,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "链接"
+          }
+        }
+      }
+    },
+    "macOS may need Copyd to restart after you allow a permission." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS puede necesitar que reinicies Copyd después de dar un permiso."
           }
         }
       }
@@ -2399,6 +2452,16 @@
         }
       }
     },
+    "Not allowed" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta"
+          }
+        }
+      }
+    },
     "Not Now" : {
       "localizations" : {
         "es" : {
@@ -2559,6 +2622,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abrir ajustes de Monitorización de entrada"
+          }
+        }
+      }
+    },
+    "Open Settings" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Configuración"
           }
         }
       }
@@ -2753,6 +2826,16 @@
         }
       }
     },
+    "Pastes a picked clip straight into your app." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pega directo en tu app el clip que eliges."
+          }
+        }
+      }
+    },
     "Pasting" : {
       "localizations" : {
         "es" : {
@@ -2771,6 +2854,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "粘贴"
+          }
+        }
+      }
+    },
+    "Permission.notNeeded" : {
+      "comment" : "Chip on a permission whose feature is turned off",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No usado"
+          }
+        }
+      }
+    },
+    "Permissions" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permisos"
           }
         }
       }
@@ -2947,6 +3058,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出 Copyd"
+          }
+        }
+      }
+    },
+    "Restart Copyd" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reiniciar Copyd"
           }
         }
       }
@@ -3454,6 +3575,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Detener Paste Stack"
+          }
+        }
+      }
+    },
+    "Syncs your history with your other devices." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincroniza tu historial con tus otros equipos."
           }
         }
       }

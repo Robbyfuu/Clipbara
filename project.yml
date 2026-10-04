@@ -220,6 +220,7 @@ targets:
       - path: Shared/Sync/LocalChangeTracker.swift
       - path: Shared/Sync/RemoteApplier.swift
       - path: Shared/Utilities/SharedDefaults.swift
+      - path: Shared/Utilities/PermissionStatus.swift
       - path: Shared/Utilities/SharedStore.swift
       - path: Shared/Utilities/KeyboardFeed.swift
       - path: Shared/Utilities/PasteAction.swift

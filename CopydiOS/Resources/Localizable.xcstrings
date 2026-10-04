@@ -265,6 +265,22 @@
         }
       }
     },
+    "Added" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agregado"
+          }
+        }
+      }
+    },
     "Added %lld from Share" : {
       "localizations" : {
         "en" : {
@@ -305,6 +321,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Todos"
+          }
+        }
+      }
+    },
+    "Allowed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitido"
           }
         }
       }
@@ -353,6 +385,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancelar"
+          }
+        }
+      }
+    },
+    "Check in Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check in Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revisa en Configuración"
           }
         }
       }
@@ -555,6 +603,22 @@
     "Copyd" : {
       "shouldTranslate" : false
     },
+    "Copyd keyboard added" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyd keyboard added"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teclado de Copyd agregado"
+          }
+        }
+      }
+    },
     "Couldn't copy" : {
       "localizations" : {
         "en" : {
@@ -695,6 +759,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Archivos"
+          }
+        }
+      }
+    },
+    "Full Access" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Access"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acceso total"
           }
         }
       }
@@ -990,6 +1070,54 @@
         }
       }
     },
+    "Not added" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin agregar"
+          }
+        }
+      }
+    },
+    "Not allowed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not allowed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta"
+          }
+        }
+      }
+    },
+    "Not confirmed yet — open the Copyd keyboard once" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not confirmed yet — open the Copyd keyboard once"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin confirmar: abre el teclado de Copyd una vez"
+          }
+        }
+      }
+    },
     "Not saved: private copy" : {
       "localizations" : {
         "en" : {
@@ -1119,6 +1247,22 @@
         }
       }
     },
+    "Open Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Configuración"
+          }
+        }
+      }
+    },
     "Open Shortcuts" : {
       "localizations" : {
         "en" : {
@@ -1163,6 +1307,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Otro"
+          }
+        }
+      }
+    },
+    "Paste from other apps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste from other apps"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar desde otras apps"
+          }
+        }
+      }
+    },
+    "Permission.notNeeded" : {
+      "comment" : "Chip on a permission whose feature is turned off",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No usado"
+          }
+        }
+      }
+    },
+    "Permissions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permissions"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permisos"
           }
         }
       }
@@ -1439,6 +1633,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Buscar clips"
+          }
+        }
+      }
+    },
+    "Set to Allow to skip the paste prompt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set to Allow to skip the paste prompt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige Permitir para no ver la pregunta de pegar."
           }
         }
       }
