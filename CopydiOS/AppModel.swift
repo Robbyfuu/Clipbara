@@ -121,6 +121,28 @@ final class AppModel {
         return true
     }
 
+    /// A file clip's tap: writes its files to a temporary folder (reused on the next share) and opens the share sheet.
+    func share(_ item: ClipboardItem) {
+        let bundle = item.rawData
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Share/\(item.id.uuidString)", isDirectory: true)
+        Task {
+            // Off the main actor: a bundle can hold up to 10 files of 20 MB.
+            guard let urls = try? await Task.detached(operation: { try FileBundle.write(bundle, to: dir) }).value,
+                  !urls.isEmpty else { return flash("Couldn't share") }
+            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+                .first { $0.activationState == .foregroundActive }
+            var top = scene?.keyWindow?.rootViewController
+            while let presented = top?.presentedViewController { top = presented }
+            guard let top else { return }
+            let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+            // iPad shows it as a popover: centered, with no arrow.
+            sheet.popoverPresentationController?.sourceView = top.view
+            sheet.popoverPresentationController?.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
+            sheet.popoverPresentationController?.permittedArrowDirections = []
+            top.present(sheet, animated: true)
+        }
+    }
+
     /// The widget's `copyd://copy/<uuid>`: copies that clip the same way a tap does.
     func copy(id: UUID) {
         var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })

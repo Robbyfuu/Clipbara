@@ -43,7 +43,7 @@ enum MultiPaste {
         // Rich text and HTML keep their plain text; links their URL; colors their hex.
         case .plainText, .richText, .html, .url, .color, .unknown:
             item.textContent.flatMap { $0.isEmpty ? nil : $0 }
-        case .image, .fileURL:
+        case .image, .fileURL, .files:
             nil
         }
     }

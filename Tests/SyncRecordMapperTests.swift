@@ -65,6 +65,41 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "fileURL", byteCount: 1))
         XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_520))
         XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_521))
+        // A file bundle holds up to 10 files of 20 MB each, plus its manifest.
+        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: 30_000_000))
+        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes))
+        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes + 1))
+    }
+
+    func testFileClipRoundTripCarriesManifest() throws {
+        let files: [(name: String, data: Data, uti: String)] = [
+            (name: "a.pdf", data: Data(count: SyncRecordMapper.inlineLimit), uti: "com.adobe.pdf"),
+            (name: "b.txt", data: Data("b".utf8), uti: "public.plain-text"),
+        ]
+        var clip = makeClip(type: "files")
+        clip.rawData = try FileBundle.encode(files)
+        clip.textContent = "a.pdf, b.txt"
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+
+        // The bundle goes up sealed, like a large image; the manifest rides encrypted on the record.
+        XCTAssertNotNil(rec["payload"] as CKAsset?)
+        XCTAssertNil(rec.encryptedValues["rawData"] as Data?)
+        XCTAssertTrue(plainKeys(rec).isSubset(of: ["payload", "textPayload"]))
+        let manifest = try JSONDecoder().decode([FileManifestEntry].self,
+                                                from: try XCTUnwrap(rec.encryptedValues["fileManifest"] as Data?))
+        XCTAssertEqual(manifest.map(\.name), ["a.pdf", "b.txt"])
+        XCTAssertEqual(manifest.map(\.size), [SyncRecordMapper.inlineLimit, 1])
+        XCTAssertEqual(manifest.map(\.uti), ["com.adobe.pdf", "public.plain-text"])
+
+        XCTAssertEqual(try SyncRecordMapper.clip(from: rec), clip)
+    }
+
+    func testOnlyFileClipsCarryAManifest() throws {
+        let clip = makeClip(type: "image")
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        XCTAssertNil(rec.encryptedValues["fileManifest"] as Data?)
     }
 
     func testOnlyAllowedPlainKeys() throws {

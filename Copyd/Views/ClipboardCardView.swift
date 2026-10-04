@@ -190,7 +190,7 @@ struct ClipboardCardView: View {
         case .url:
             let text = item.textContent ?? ""
             return URL(string: text)?.host ?? text
-        case .color, .fileURL:
+        case .color, .fileURL, .files:
             return item.textContent ?? ""
         default:
             return String((item.textContent ?? "").prefix(60))
@@ -305,6 +305,8 @@ struct ClipboardCardView: View {
             return item.sourceAppName ?? String(localized: "Link")
         case .fileURL:
             return String(localized: "Stays on this Mac")
+        case .files:
+            return ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
         case .image:
             let size = ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
             guard let dims = imageDimensions else { return size }
@@ -331,7 +333,7 @@ struct ClipboardCardView: View {
             ImageCardContent(item: item)
         case .url:
             LinkCardContent(item: item, searchText: searchText)
-        case .fileURL:
+        case .fileURL, .files:
             FileCardContent(item: item, searchText: searchText)
         case .color:
             ColorCardContent(item: item)

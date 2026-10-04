@@ -128,7 +128,7 @@ struct PreviewView: View {
         case .plainText, .richText, .html, .unknown: return .blue
         case .image: return .purple
         case .url: return .teal
-        case .fileURL: return .orange
+        case .fileURL, .files: return .orange
         case .color: return .pink
         }
     }
@@ -145,7 +145,7 @@ struct PreviewView: View {
                 imagePreview
             case .url:
                 urlPreview
-            case .fileURL:
+            case .fileURL, .files:
                 filePreview
             case .color:
                 colorPreview
@@ -265,13 +265,7 @@ struct PreviewView: View {
 
     private var filePreview: some View {
         HStack(spacing: 14) {
-            let fileIcon: NSImage = {
-                if let urlString = String(data: item.rawData, encoding: .utf8),
-                   let url = URL(string: urlString) {
-                    return NSWorkspace.shared.icon(forFile: url.path)
-                }
-                return NSWorkspace.shared.icon(for: .data)
-            }()
+            let fileIcon = item.fileIcon
 
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -382,6 +376,8 @@ struct PreviewView: View {
             return item.textContent ?? String(localized: "Link")
         case .fileURL:
             return item.textContent ?? String(localized: "File")
+        case .files:
+            return ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
         case .color:
             return item.textContent ?? ""
         }

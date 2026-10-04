@@ -190,7 +190,8 @@ import SwiftData
                 // Size only the clips that can fit in this batch; the planner stops at either cap.
                 guard sizedClips < Self.batchRecords, sizedBytes < Self.batchBytes else { clipsHeldBack = true; continue }
                 let bytes = clip.rawData.count
-                guard bytes <= SyncRecordMapper.maxClipBytes else { dead.append(change); continue }
+                // Per type: a file bundle may be bigger than any other clip.
+                guard SyncRecordMapper.isEligible(contentType: clip.contentTypeRaw, byteCount: bytes) else { dead.append(change); continue }
                 let byteCount = bytes + (clip.textContent?.utf8.count ?? 0)
                 sizedClips += 1
                 sizedBytes += byteCount
@@ -198,7 +199,7 @@ import SwiftData
             } else if boards[id] != nil {
                 candidates.append(.init(change: change, kind: .pinboard, byteCount: 0))
             } else if let clipID = entries[id]?.snapshot?.clipID, let clip = clips[clipID],
-                      clip.contentTypeRaw != "fileURL", clip.rawData.count <= SyncRecordMapper.maxClipBytes {
+                      clip.contentTypeRaw != "fileURL", clip.isSyncEligible {
                 // ponytail: sizes every pending entry's clip; entries are few, cap them like clips if that changes.
                 candidates.append(.init(change: change, kind: .entry, byteCount: 0))
             } else {

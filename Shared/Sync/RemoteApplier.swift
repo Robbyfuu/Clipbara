@@ -122,18 +122,14 @@ struct RemoteApplier {
         out.touched.insert(s.id)
         if let m = try clip(s.id) {
             if hasPendingSave(s.id) { return }
-            let rawChanged = m.update(from: s)
-            if s.contentType == ContentType.image.rawValue && rawChanged {
-                m.thumbnailData = Thumbnail.png(from: s.rawData)
-            }
+            // Thumbnails never sync: images and file clips with an image file get one from their data.
+            if m.update(from: s) { m.thumbnailData = Thumbnail.png(for: m.contentType, rawData: s.rawData) }
         } else {
             let m = ClipboardItem(contentType: ContentType(rawValue: s.contentType) ?? .unknown,
                                   rawData: s.rawData, contentHash: s.contentHash)
             m.id = s.id
             m.update(from: s)
-            if s.contentType == ContentType.image.rawValue {
-                m.thumbnailData = Thumbnail.png(from: s.rawData)
-            }
+            m.thumbnailData = Thumbnail.png(for: m.contentType, rawData: s.rawData)
             context.insert(m)
         }
     }

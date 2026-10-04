@@ -98,10 +98,8 @@ final class ClipboardMonitor {
             contentHash: hash
         )
 
-        // Generate thumbnail for images
-        if content.contentType == .image {
-            item.thumbnailData = Thumbnail.png(from: content.rawData)
-        }
+        // Images, and file clips with an image file
+        item.thumbnailData = Thumbnail.png(for: content.contentType, rawData: content.rawData)
 
         modelContext?.insert(item)
         try? modelContext?.save()

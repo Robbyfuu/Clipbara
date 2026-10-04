@@ -1,9 +1,31 @@
 import AppKit
+import OSLog
+import SwiftData
 
 @MainActor
 struct PasteService {
 
     private static let tempDir = NSTemporaryDirectory() + "Copyd/"
+    private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Paste")
+
+    /// Where a file clip's files are written to be pasted: `Application Support/Copyd/Files/<clip-id>/`.
+    nonisolated static func filesDirectory(for id: UUID) -> URL {
+        URL.applicationSupportDirectory.appendingPathComponent("Copyd/Files/\(id.uuidString)", isDirectory: true)
+    }
+
+    /// Removes a file clip's folder when the clip is deleted, whatever deletes it: the panel, the history limit or sync.
+    /// Runs on the main context's saves, as `LocalChangeTracker` does.
+    static func removeFilesOnDelete(in context: ModelContext) {
+        // Read only inside assumeIsolated: the main context posts willSave synchronously on the main thread.
+        nonisolated(unsafe) let context = context
+        _ = NotificationCenter.default.addObserver(forName: ModelContext.willSave, object: context, queue: nil) { _ in
+            MainActor.assumeIsolated {
+                for case let clip as ClipboardItem in context.deletedModelsArray where clip.contentTypeRaw == ContentType.files.rawValue {
+                    try? FileManager.default.removeItem(at: filesDirectory(for: clip.id))
+                }
+            }
+        }
+    }
 
     /// Backing key for the "Always Paste as Plain Text" setting (Settings > General).
     nonisolated static let alwaysPlainTextDefaultsKey = "alwaysPastePlainText"
@@ -83,6 +105,15 @@ struct PasteService {
                let urlString = String(data: item.rawData, encoding: .utf8) {
                 pasteboard.setString(urlString, forType: .fileURL)
                 pasteboard.setString(text, forType: .string)
+            }
+
+        case .files:
+            // Written on the first paste and reused after that, so Paste Stack staging stays cheap.
+            do {
+                let urls = try FileBundle.write(item.rawData, to: Self.filesDirectory(for: item.id))
+                pasteboard.writeObjects(urls.map { $0 as NSURL })
+            } catch {
+                Self.log.error("Files of \(item.id, privacy: .public) not written: \(error.localizedDescription, privacy: .public)")
             }
 
         case .color:

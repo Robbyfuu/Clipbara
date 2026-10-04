@@ -12,6 +12,16 @@ enum Thumbnail {
     private static let pixelScale: CGFloat = 1
     #endif
 
+    /// The thumbnail a clip shows: the image itself, or a file clip's first image file. Nil for anything else.
+    static func png(for type: ContentType, rawData: Data) -> Data? {
+        switch type {
+        case .image: png(from: rawData)
+        case .files: (try? FileBundle.decode(rawData))?.first { UTType($0.uti)?.conforms(to: .image) == true }
+            .flatMap { png(from: $0.data) }
+        default: nil
+        }
+    }
+
     /// PNG thumbnail whose point size fits `maxSize` on the longest side. Never upscales.
     /// The Mac renders twice the pixels and stamps a DPI that keeps the point size unchanged.
     static func png(from data: Data, maxSize: CGFloat = 320) -> Data? {

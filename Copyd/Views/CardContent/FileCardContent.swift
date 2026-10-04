@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct FileCardContent: View {
     let item: ClipboardItem
@@ -10,18 +11,11 @@ struct FileCardContent: View {
         item.textContent ?? "File"
     }
 
-    private func loadFileIcon() -> NSImage {
-        if let urlString = String(data: item.rawData, encoding: .utf8),
-           let url = URL(string: urlString) {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        return NSWorkspace.shared.icon(for: .data)
-    }
-
     var body: some View {
         VStack(spacing: 8) {
             Image(nsImage: cachedFileIcon ?? NSWorkspace.shared.icon(for: .data))
                 .resizable()
+                .scaledToFit()
                 .frame(width: 36, height: 36)
 
             Text(TextHighlighter.highlight(fileName, query: searchText))
@@ -34,7 +28,23 @@ struct FileCardContent: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Brand.chip)
         .task(id: item.id) {
-            cachedFileIcon = loadFileIcon()
+            cachedFileIcon = item.fileIcon
         }
+    }
+}
+
+extension ClipboardItem {
+    /// A `.fileURL` clip's Finder icon. A `.files` clip shows its image file's thumbnail, else the icon of its
+    /// first file's type, taken from the name so the bundle is never read.
+    var fileIcon: NSImage {
+        if contentType == .files {
+            if let data = thumbnailData, let image = NSImage(data: data) { return image }
+            let first = textContent?.components(separatedBy: ", ").first ?? ""
+            return NSWorkspace.shared.icon(for: UTType(filenameExtension: (first as NSString).pathExtension) ?? .data)
+        }
+        if let urlString = String(data: rawData, encoding: .utf8), let url = URL(string: urlString) {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        return NSWorkspace.shared.icon(for: .data)
     }
 }

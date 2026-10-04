@@ -1,15 +1,18 @@
 import SwiftUI
 import SwiftData
 
-/// One clip card. Tap copies; swipe pins or deletes. `onDelete` lets Pinboards remove the entry instead of the clip.
+/// One clip card. Tap copies (a file clip opens the share sheet); swipe pins or deletes.
+/// `onDelete` lets Pinboards remove the entry instead of the clip.
 struct ClipRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.modelContext) private var modelContext
     let item: ClipboardItem
     var onDelete: (() -> Void)?
+    /// A file clip's names and sizes, read once the card shows.
+    @State private var files: [FileManifestEntry]?
 
     var body: some View {
-        Button { model.copy(item) } label: {
+        Button { if item.contentType == .files { model.share(item) } else { model.copy(item) } } label: {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
@@ -53,6 +56,22 @@ struct ClipRow: View {
                 }
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
+        } else if item.contentType == .files {
+            HStack(spacing: 14) {
+                fileIcon
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title ?? filesTitle).brandFont(16, .semibold).lineLimit(2)
+                        .foregroundStyle(DesignTokens.Brand.ink)
+                    if let filesDetail {
+                        Text(verbatim: filesDetail).brandFont(12, design: .monospaced, relativeTo: .caption)
+                            .foregroundStyle(DesignTokens.Brand.ink2)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                    meta
+                }
+            }
+            .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
+            .task(id: item.id) { files = try? FileBundle.manifest(item.rawData) }
         } else if let parts = linkParts {
             VStack(alignment: .leading, spacing: 6) {
                 if let title {
@@ -87,6 +106,35 @@ struct ClipRow: View {
     }
 
     private var title: String? { item.userTitle.flatMap { $0.isEmpty ? nil : $0 } }
+
+    /// One file's name, or "3 files". The joined names until the manifest is read.
+    private var filesTitle: String {
+        guard let files, files.count > 1 else { return files?.first?.name ?? item.textContent ?? "" }
+        return String(localized: "\(files.count) files", comment: "Title of a clip holding several copied files")
+    }
+
+    /// The total size, after the names when there are several files.
+    private var filesDetail: String? {
+        guard let files else { return nil }
+        let size = ByteCountFormatter.string(fromByteCount: Int64(files.reduce(0) { $0 + $1.size }), countStyle: .file)
+        return files.count > 1 ? "\(item.textContent ?? "") \u{00b7} \(size)" : size
+    }
+
+    /// An image file's thumbnail, else a document symbol: one page, or a stack for several files.
+    @ViewBuilder private var fileIcon: some View {
+        if let data = item.thumbnailData, let image = UIImage(data: data) {
+            Image(uiImage: image).resizable().scaledToFill()
+                .frame(width: 60, height: 60)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
+        } else {
+            Image(systemName: (files?.count ?? 1) > 1 ? "doc.on.doc" : "doc").font(.system(size: 22))
+                .foregroundStyle(DesignTokens.Brand.ink2)
+                .frame(width: 60, height: 60)
+                .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
+        }
+    }
 
     /// Link clips, and text clips that are nothing but one http(s) URL, render as the link card.
     private var linkParts: (host: String, rest: String)? {

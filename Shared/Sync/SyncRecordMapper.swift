@@ -48,8 +48,14 @@ enum SyncRecordMapper {
         CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
     }
 
+    /// `fileURL` clips hold a local path and never sync. A `files` bundle may hold up to `FileBundle.maxFiles`
+    /// files of `FileBundle.maxFileBytes` each, so it gets its own cap.
     static func isEligible(contentType: String, byteCount: Int) -> Bool {
-        contentType != "fileURL" && byteCount <= maxClipBytes
+        switch contentType {
+        case ContentType.fileURL.rawValue: false
+        case ContentType.files.rawValue: byteCount <= FileBundle.maxBundleBytes
+        default: byteCount <= maxClipBytes
+        }
     }
 
     static func assetURL(for id: UUID, in directory: URL) -> URL {
@@ -73,6 +79,9 @@ enum SyncRecordMapper {
         values["contentHash"] = clip.contentHash
         values["copiedAt"] = clip.copiedAt
         values["isPinned"] = Int64(clip.isPinned ? 1 : 0)
+        // Names, sizes and types of a file clip, readable without opening the payload. Nil for other clips.
+        values["fileManifest"] = clip.contentType == ContentType.files.rawValue
+            ? (try? FileBundle.manifest(clip.rawData)).flatMap { try? JSONEncoder().encode($0) } : nil
 
         let text = clip.textContent.map { Data($0.utf8) }
         let largeText = (text?.count ?? 0) > inlineLimit

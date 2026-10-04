@@ -216,6 +216,8 @@ struct MenuBarItemRow: View {
             return String(localized: "Image")
         case .fileURL:
             return item.textContent ?? String(localized: "File")
+        case .files:
+            return item.textContent ?? String(localized: "Files")
         case .color:
             return item.textContent ?? String(localized: "Color")
         case .unknown:

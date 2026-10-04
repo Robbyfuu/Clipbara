@@ -53,7 +53,7 @@ final class MultiPasteTests: XCTestCase {
     }
 
     func testAllNonTextJoinsToNil() {
-        XCTAssertNil(MultiPaste.join([clip(.image, nil), clip(.fileURL, "a.pdf")], separator: .newline))
+        XCTAssertNil(MultiPaste.join([clip(.image, nil), clip(.fileURL, "a.pdf"), clip(.files, "b.pdf")], separator: .newline))
         XCTAssertNil(MultiPaste.join([], separator: .newline))
     }
 

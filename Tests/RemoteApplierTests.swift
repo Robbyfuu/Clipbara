@@ -214,6 +214,14 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertNotNil(NSImage(data: thumb))
     }
 
+    func testIncomingFileClipGetsThumbnailFromItsImageFile() throws {
+        let bundle = try FileBundle.encode([(name: "a.txt", data: Data("a".utf8), uti: "public.plain-text"),
+                                            (name: "b.png", data: try png(), uti: "public.png")])
+        try apply(clips: [clip(1, type: "files", data: bundle)])
+        let thumb = try XCTUnwrap(try clips().first?.thumbnailData)
+        XCTAssertNotNil(NSImage(data: thumb))
+    }
+
     // MARK: Duplicate merges
 
     func testUniversalClipboardDuplicateMerges() throws {
