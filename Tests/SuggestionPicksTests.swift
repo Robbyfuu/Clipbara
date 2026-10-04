@@ -21,11 +21,22 @@ final class SuggestionPicksTests: XCTestCase {
         XCTAssertEqual(SuggestionPicks.reorder([1], of: Array(habit.prefix(2))), [habit[1], habit[0]])
     }
 
-    func testPreviewIsOneLineOfAtMost120Characters() {
+    func testPreviewIsOneLineOfAtMostPreviewLimitCharacters() {
+        XCTAssertEqual(SuggestionPicks.previewLimit, 80, "the latency budget")
         XCTAssertEqual(SuggestionPicks.preview("  git status\n\n\tgit push  "), "git status git push")
-        XCTAssertEqual(SuggestionPicks.preview(String(repeating: "a\n", count: 500)).count, 120)
-        XCTAssertFalse(SuggestionPicks.preview(String(repeating: "a\n", count: 500)).contains("\n"))
+        let long = SuggestionPicks.preview(String(repeating: "a\n", count: 500))
+        XCTAssertEqual(long.count, SuggestionPicks.previewLimit)
+        XCTAssertFalse(long.contains("\n"))
         XCTAssertEqual(SuggestionPicks.preview(nil), "")
+    }
+
+    /// The model gets at most the habit's top clips within the budget, and nothing when there are 3 or fewer.
+    func testRerankSendsTheHabitTopEightAndSkipsThreeOrFewer() {
+        XCTAssertEqual(SuggestionPicks.rerankCandidateLimit, 8, "the latency budget")
+        XCTAssertEqual(SuggestionPicks.rerankInput(Array(0..<15)), Array(0..<SuggestionPicks.rerankCandidateLimit))
+        XCTAssertEqual(SuggestionPicks.rerankInput(Array(0..<4)), Array(0..<4))
+        XCTAssertEqual(SuggestionPicks.rerankInput(Array(0..<3)), [])
+        XCTAssertEqual(SuggestionPicks.rerankInput([Int]()), [])
     }
 
     func testFirstWithinReturnsAFastAnswer() async {

@@ -10,7 +10,8 @@ import FoundationModels
 final class SuggestionModel {
     /// "Use Apple Intelligence" in General, under "Show suggestions". On by default.
     static let enabledDefaultsKey = "useAppleIntelligence"
-    static let timeout: Duration = .milliseconds(600)
+    /// The answer must land this soon after the panel opens; the panel never waits for it.
+    static let timeout: Duration = .milliseconds(1_500)
 
     /// Apple Intelligence is on and its model is ready. Always false before macOS 26.
     static var isAvailable: Bool {
@@ -20,8 +21,11 @@ final class SuggestionModel {
         return false
     }
 
+    /// "Show suggestions" and "Use Apple Intelligence" are on, and the model is ready.
     static var isEnabled: Bool {
-        (UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true) && isAvailable
+        let defaults = UserDefaults.standard
+        return (defaults.object(forKey: SuggestedRow.enabledDefaultsKey) as? Bool ?? true)
+            && (defaults.object(forKey: enabledDefaultsKey) as? Bool ?? true) && isAvailable
     }
 
     private static let instructions = """
@@ -34,10 +38,11 @@ final class SuggestionModel {
 
     /// A `LanguageModelSession` on macOS 26+, typed `Any` so this class still loads on macOS 14. It serves one
     /// request: a session keeps every prompt in its transcript, so a reused one would soon fill its context window.
+    /// `rerank` takes it and leaves nil; `prewarm` makes the next one.
     private var session: Any?
     private var request: Task<Void, Never>?
 
-    /// On panel open: loads the model ahead of the request.
+    /// On panel close: a fresh session, loaded now so the next opening's request starts warm.
     func prewarm() {
         #if canImport(FoundationModels)
         guard #available(macOS 26, *), Self.isEnabled else { return }
@@ -51,16 +56,17 @@ final class SuggestionModel {
         request = nil
     }
 
-    /// Asks the model to reorder `clips`, the habit's top 15 in order. `apply` gets the new top 3 only if the answer
-    /// arrives within 600 ms and keeps at least one valid index. Reads only each clip's type and text, never
-    /// `rawData`; file clips never reach here (they are not candidates).
+    /// Asks the model to reorder `clips`, the habit's top `SuggestionPicks.rerankInput` in order. `apply` gets the new
+    /// top 3 only if the answer arrives within `timeout` and keeps at least one valid index. Reads only each clip's
+    /// type and text, never `rawData`; file clips never reach here (they are not candidates).
     func rerank(_ clips: [ClipboardItem], pastedHere: [ClipboardItem], appName: String, bundleID: String,
                 apply: @escaping @MainActor ([UUID]) -> Void) {
         cancel()
         #if canImport(FoundationModels)
-        guard #available(macOS 26, *), Self.isEnabled, clips.count > 1 else { return }
+        guard #available(macOS 26, *), Self.isEnabled, !clips.isEmpty else { return }
         let habit = clips.map(\.id), historyCount = pastedHere.count
         let prompt = Self.prompt(clips, pastedHere: pastedHere, appName: appName, bundleID: bundleID)
+        // The session `prewarm` loaded when the panel last closed, or a new one on the first opening.
         let session = warmSession()
         self.session = nil
         request = Task {
@@ -103,7 +109,8 @@ final class SuggestionModel {
         return session
     }
 
-    /// The app, the types it gets most, then each clip as `index. [type] preview`. No clip text beyond 120 characters.
+    /// The app, the types it gets most, then each clip as `index. [type] preview`. No clip text beyond
+    /// `SuggestionPicks.previewLimit` characters.
     private static func prompt(_ clips: [ClipboardItem], pastedHere: [ClipboardItem], appName: String,
                                bundleID: String) -> String {
         let history = pastedHere.map { item in

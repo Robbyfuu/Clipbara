@@ -79,6 +79,7 @@ final class AppState {
             self?.searchState.reset()
             self?.previewItem = nil
             self?.suggestionModel.cancel()
+            self?.suggestionModel.prewarm()
             ReviewPrompter.panelWillHide { [weak self] in
                 self?.panelController.isVisible ?? false
             }
@@ -129,11 +130,11 @@ final class AppState {
     }
 
     /// Once per opening: the last 200 clips plus pinned clips, never a file, ranked for the app the panel opened over.
-    /// The habit's top 3 show at once; Apple Intelligence may reorder its top 15 within 600 ms.
+    /// The habit's top 3 show at once; Apple Intelligence may reorder its top `SuggestionPicks.rerankCandidateLimit`
+    /// within `SuggestionModel.timeout`.
     private func rankSuggestions() -> [UUID] {
         guard UserDefaults.standard.object(forKey: SuggestedRow.enabledDefaultsKey) as? Bool ?? true,
               let context = modelContainer?.mainContext else { return [] }
-        suggestionModel.prewarm()
         let clips = SuggestionRanker.candidateClips(in: context)
         let candidates = clips.map { SuggestionRanker.Candidate(id: $0.id, copiedAt: $0.copiedAt, isPinned: $0.isPinned) }
         let events = ((try? context.fetch(FetchDescriptor<PasteEvent>())) ?? [])
@@ -141,12 +142,13 @@ final class AppState {
         let app = panelController.focusReturnApp
         let ranked = SuggestionRanker.rank(candidates: candidates, events: events, app: app?.bundleIdentifier,
                                            now: .now, limit: 15)
-        if let app, let bundleID = app.bundleIdentifier, bundleID != Bundle.main.bundleIdentifier {
+        let sent = SuggestionPicks.rerankInput(ranked)
+        if !sent.isEmpty, let app, let bundleID = app.bundleIdentifier, bundleID != Bundle.main.bundleIdentifier {
             let byID = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             var pastes: [UUID: Int] = [:]
             for event in events where event.appBundleID == bundleID { pastes[event.clipID, default: 0] += 1 }
             let pastedHere = pastes.sorted { $0.value > $1.value }.prefix(5).compactMap { byID[$0.key] }
-            suggestionModel.rerank(ranked.compactMap { byID[$0] }, pastedHere: pastedHere,
+            suggestionModel.rerank(sent.compactMap { byID[$0] }, pastedHere: pastedHere,
                                    appName: app.localizedName ?? bundleID, bundleID: bundleID) { [weak self] ids in
                 // Only while the user hasn't touched the row since it opened; otherwise the habit order stays.
                 guard let self, ids != self.suggestedIDs, self.selectedTab == .history,
