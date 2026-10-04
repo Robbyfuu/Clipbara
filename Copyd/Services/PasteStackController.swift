@@ -1,5 +1,6 @@
 import AppKit
 import KeyboardShortcuts
+import os
 import SwiftData
 import SwiftUI
 
@@ -19,6 +20,7 @@ final class PasteStackController {
     weak var appState: AppState?
 
     @ObservationIgnored private var stack = PasteStack(order: .fifo)
+    private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "PasteStack")
     @ObservationIgnored private var tap: CFMachPort?
     @ObservationIgnored private var tapSource: CFRunLoopSource?
     @ObservationIgnored private var hud: NSPanel?
@@ -46,6 +48,7 @@ final class PasteStackController {
         stack = PasteStack(order: .saved())
         count = 0
         isActive = true
+        Self.log.notice("start order=\(self.stack.order.rawValue, privacy: .public)")
         showHUD()
     }
 
@@ -71,6 +74,7 @@ final class PasteStackController {
 
     fileprivate func pasteKeyDown() {
         // Inside Copyd (Settings, the paywall, the panel) ⌘V pastes the staged clip and keeps the stack.
+        Self.log.notice("⌘V down active=\(self.isActive) count=\(self.stack.count) appActive=\(NSApp.isActive) panel=\(self.appState?.panelController.isVisible == true)")
         guard isActive, !stack.isEmpty, !NSApp.isActive,
               appState?.panelController.isVisible != true else { return }
         pendingPaste = true
@@ -91,6 +95,7 @@ final class PasteStackController {
     }
 
     fileprivate func pasteKeyUp() {
+        Self.log.notice("V up pending=\(self.pendingPaste)")
         guard pendingPaste else { return }
         Task { @MainActor [weak self] in self?.finishPaste() }
     }
@@ -105,8 +110,10 @@ final class PasteStackController {
         // be what got pasted. Then the head was never pasted: keep it. The monitor captures that copy
         // and `push` re-stages (FIFO) or makes it the head (LIFO), after the capture so the skip flag
         // can't swallow it.
+        let current = NSPasteboard.general.changeCount
+        Self.log.notice("finish staged=\(self.stagedChangeCount) current=\(current)")
         guard PasteStack.shouldPop(stagedChangeCount: stagedChangeCount,
-                                   currentChangeCount: NSPasteboard.general.changeCount) else { return }
+                                   currentChangeCount: current) else { return }
         // The one place a stack paste counts toward the review prompt.
         ReviewPrompter.recordPaste()
         stage(stack.stagingAfterPop())
@@ -135,6 +142,7 @@ final class PasteStackController {
             recordPaste: false
         )
         stagedChangeCount = NSPasteboard.general.changeCount
+        Self.log.notice("staged count=\(self.stack.count) changeCount=\(self.stagedChangeCount)")
     }
 
     // MARK: - Event tap
