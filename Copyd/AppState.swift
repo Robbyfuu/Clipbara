@@ -51,16 +51,18 @@ final class AppState {
         clipboardMonitor.start(modelContext: modelContext)
         PasteService.removeFilesOnDelete(in: modelContext)
         PasteService.removeOrphanFiles(in: modelContainer)
+        PasteEvent.removeWithClips(in: modelContext)
         pasteStack.appState = self
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)
         }
         // Every pick in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) comes through here, right
         // before the clip is written. It ends Paste Stack, then pastes into the app the user was in once
-        // the write is done and the panel is gone.
-        clipboardMonitor.onPick = { [weak self] in
+        // the write is done and the panel is gone, and records which app the clips went into.
+        clipboardMonitor.onPick = { [weak self] ids in
             self?.pasteStack.stop()
             self?.autoPaster.pasteIntoFrontApp()
+            self?.recordPick(of: ids)
         }
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()
@@ -87,6 +89,15 @@ final class AppState {
             guard let self, let container = self.modelContainer else { return }
             self.panelController.prewarm(modelContainer: container, appState: self)
         }
+    }
+
+    /// Paste history for suggestions. Whether the pick pastes directly or only copies, the clips go into the app the
+    /// panel opened over, or for the menu bar list the app the user was in. Nothing when that app is Copyd.
+    private func recordPick(of ids: [UUID]) {
+        let app = panelController.isVisible ? panelController.focusReturnApp : autoPaster.menuBarTarget
+        guard !ids.isEmpty, let bundleID = app?.bundleIdentifier, bundleID != Bundle.main.bundleIdentifier,
+              let context = modelContainer?.mainContext else { return }
+        PasteEvent.record(ids, app: bundleID, in: context)
     }
 
     func togglePanel() {
@@ -122,7 +133,7 @@ final class AppState {
     /// Shared paste path for panel and pinboard cards.
     /// - Parameter asPlainText: `nil` resolves from the setting combined with the Shift modifier.
     func paste(_ item: ClipboardItem, asPlainText: Bool? = nil) {
-        clipboardMonitor.skipNextChange()
+        clipboardMonitor.skipNextChange(picking: [item.id])
         pasteService.paste(item: item, asPlainText: asPlainText)
         hidePanel()
     }
@@ -153,7 +164,8 @@ final class AppState {
             return
         }
         ReviewPrompter.recordPaste()
-        clipboardMonitor.skipNextChange()
+        // One event per joined clip: images and files left out of the text don't count.
+        clipboardMonitor.skipNextChange(picking: items.filter { MultiPaste.text(of: $0) != nil }.map(\.id))
         pasteService.pastePlainText(joined.text)
         hidePanel()
     }

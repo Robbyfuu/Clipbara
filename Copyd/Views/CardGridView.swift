@@ -46,7 +46,7 @@ struct CardGridView: View {
                                             appState.searchState.selectedIndex = index
                                         },
                                         onPaste: { selected in
-                                            appState.clipboardMonitor.skipNextChange()
+                                            appState.clipboardMonitor.skipNextChange(picking: [selected.id])
                                             appState.pasteService.paste(item: selected)
                                             appState.hidePanel()
                                         },

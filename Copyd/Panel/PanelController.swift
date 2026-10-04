@@ -23,7 +23,7 @@ final class PanelController {
     private var keyMonitor: Any?
     private var flagsMonitor: Any?
     /// The app in front when the panel opened. It gets focus back when the panel hides.
-    private var focusReturnApp: NSRunningApplication?
+    private(set) var focusReturnApp: NSRunningApplication?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
 
@@ -522,7 +522,7 @@ final class PanelController {
 
         case 36: // Return - paste
             if let item = quickLookItem {
-                appState.clipboardMonitor.skipNextChange()
+                appState.clipboardMonitor.skipNextChange(picking: [item.id])
                 appState.pasteService.paste(item: item)
                 appState.hidePanel()
                 return true
@@ -537,7 +537,7 @@ final class PanelController {
             guard let idx = appState.searchState.selectedIndex,
                   idx < items.count else { return false }
             let item = items[idx]
-            appState.clipboardMonitor.skipNextChange()
+            appState.clipboardMonitor.skipNextChange(picking: [item.id])
             appState.pasteService.paste(item: item)
             appState.hidePanel()
             return true
@@ -580,7 +580,7 @@ final class PanelController {
                 },
                 onPaste: { [weak self, weak appState] in
                     guard let self, let appState else { return }
-                    appState.clipboardMonitor.skipNextChange()
+                    appState.clipboardMonitor.skipNextChange(picking: [item.id])
                     appState.pasteService.paste(item: item)
                     self.hidePanel()
                 }

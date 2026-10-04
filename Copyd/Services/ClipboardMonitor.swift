@@ -15,8 +15,8 @@ final class ClipboardMonitor {
     /// Gets the id of every clip the user copies, including a recent duplicate that is not saved
     /// again (its existing id), so Paste Stack can queue it. Copyd's own pastes are skipped before this.
     @ObservationIgnored var onCapture: ((UUID) -> Void)?
-    /// Called before Copyd writes a clip picked in its own UI. Every pick goes through `skipNextChange`.
-    @ObservationIgnored var onPick: (() -> Void)?
+    /// Called before Copyd writes clips picked in its own UI, with their ids. Every pick goes through `skipNextChange`.
+    @ObservationIgnored var onPick: (([UUID]) -> Void)?
 
     var isMonitoring: Bool = false
     var latestItems: [ClipboardItem] = []
@@ -180,9 +180,9 @@ final class ClipboardMonitor {
         return (try? modelContext.fetch(descriptor))?.first?.id
     }
 
-    /// A clip picked in Copyd's UI is about to be written: don't capture it, and tell `onPick`.
-    func skipNextChange() {
-        onPick?()
+    /// Clips picked in Copyd's UI are about to be written: don't capture them, and tell `onPick`.
+    func skipNextChange(picking ids: [UUID]) {
+        onPick?(ids)
         shouldSkipNextChange = true
     }
 
