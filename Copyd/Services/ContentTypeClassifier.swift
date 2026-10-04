@@ -10,6 +10,16 @@ struct ContentTypeClassifier: Sendable {
         let textContent: String?
         /// Universal Clipboard brought this copy from another device (`ClipboardItem.fromUniversalClipboard`).
         var fromUniversalClipboard = false
+        /// Copied files that `readingFiles()` reads into a `.files` clip. The rest is the local file clip kept when they can't be.
+        var fileURLs: [URL]? = nil
+
+        /// The copied files as a `.files` clip, or this content when there are none or they can't be read.
+        /// Reads up to 48 MB: call it off the main thread.
+        func readingFiles() -> ClassifiedContent {
+            guard let fileURLs, var files = ContentTypeClassifier.readFiles(fileURLs) else { return self }
+            files.fromUniversalClipboard = fromUniversalClipboard
+            return files
+        }
     }
 
     /// Universal Clipboard adds this type to what it brings from another device; Maccy reads the same marker for its
@@ -51,13 +61,19 @@ struct ContentTypeClassifier: Sendable {
             }
         }
 
-        // Files: read into a bundle that syncs. Folders, packages, unreadable or oversized files stay a local path.
-        if types.contains(.fileURL),
-           let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
-           let files = Self.readFiles(urls) {
-            return files
+        // Files: read into a bundle that syncs, later and off the main thread (`readingFiles`). Until then, and for folders,
+        // packages, unreadable or oversized files, the copy is what follows: a local path.
+        let rest = Self.classifyRest(pasteboard, types: types)
+        if types.contains(.fileURL), var fallback = rest,
+           let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
+            fallback.fileURLs = urls
+            return fallback
         }
+        return rest
+    }
 
+    /// File URL, URL, HTML, rich text and plain text.
+    private static func classifyRest(_ pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> ClassifiedContent? {
         // File URL
         if types.contains(.fileURL),
            let urlString = pasteboard.string(forType: .fileURL),

@@ -39,4 +39,53 @@ final class ContentTypeClassifierTests: XCTestCase {
         board.setString("copied on this Mac", forType: .string)
         XCTAssertFalse(try XCTUnwrap(ContentTypeClassifier().classify(board)).fromUniversalClipboard)
     }
+
+    // MARK: - Copied files are read later, off the main thread
+
+    private func tempDirectory() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CopydTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        return dir
+    }
+
+    func testClassifyLeavesCopiedFilesUnread() throws {
+        let file = try tempDirectory().appendingPathComponent("notes.txt")
+        try Data("hello".utf8).write(to: file)
+        board.clearContents()
+        board.writeObjects([file as NSURL])
+
+        let content = try XCTUnwrap(ContentTypeClassifier().classify(board))
+        XCTAssertEqual(content.contentType, .fileURL, "the main thread only gets the local file clip")
+        XCTAssertEqual(content.fileURLs?.map(\.lastPathComponent), ["notes.txt"])
+
+        let files = content.readingFiles()
+        XCTAssertEqual(files.contentType, .files)
+        XCTAssertEqual(files.textContent, "notes.txt")
+        XCTAssertEqual(try FileBundle.decode(files.rawData).map(\.data), [Data("hello".utf8)])
+    }
+
+    func testUnreadableFilesKeepTheFileURLClip() throws {
+        let folder = try tempDirectory()
+        board.clearContents()
+        board.writeObjects([folder as NSURL])
+        board.setData(Data([1]), forType: remote)
+
+        let kept = try XCTUnwrap(ContentTypeClassifier().classify(board)).readingFiles()
+        XCTAssertEqual(kept.contentType, .fileURL, "a folder stays a local path")
+        XCTAssertEqual(kept.textContent, folder.lastPathComponent)
+        XCTAssertTrue(kept.fromUniversalClipboard)
+    }
+
+    func testReadFilesKeepTheUniversalClipboardFlag() throws {
+        let file = try tempDirectory().appendingPathComponent("a.txt")
+        try Data("a".utf8).write(to: file)
+        board.clearContents()
+        board.writeObjects([file as NSURL])
+        board.setData(Data([1]), forType: remote)
+
+        let files = try XCTUnwrap(ContentTypeClassifier().classify(board)).readingFiles()
+        XCTAssertEqual(files.contentType, .files)
+        XCTAssertTrue(files.fromUniversalClipboard)
+    }
 }
