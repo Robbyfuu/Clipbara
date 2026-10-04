@@ -43,6 +43,8 @@ final class AppState {
     private(set) var suggestedIDs: [UUID] = []
     /// Bumped when Apple Intelligence reorders the open panel's suggestions, so the row crossfades to them.
     private(set) var suggestionsRerankID = 0
+    /// The History row's focus right after this opening built it (set by CardGridView); nil until then.
+    @ObservationIgnored var initialSelectedIndex: Int?
     /// Debounced search text that produced `currentFilteredItems`; quick paste is ignored while it lags the field.
     var currentFilteredQuery: String = ""
 
@@ -121,6 +123,7 @@ final class AppState {
     }
 
     func markPanelPresented() {
+        initialSelectedIndex = nil
         suggestedIDs = rankSuggestions()
         panelPresentationID += 1
     }
@@ -145,7 +148,9 @@ final class AppState {
             let pastedHere = pastes.sorted { $0.value > $1.value }.prefix(5).compactMap { byID[$0.key] }
             suggestionModel.rerank(ranked.compactMap { byID[$0] }, pastedHere: pastedHere,
                                    appName: app.localizedName ?? bundleID, bundleID: bundleID) { [weak self] ids in
-                guard let self, ids != self.suggestedIDs else { return }
+                // Only while the user hasn't touched the row since it opened; otherwise the habit order stays.
+                guard let self, ids != self.suggestedIDs, self.selectedTab == .history,
+                      self.searchState.mayReorderSuggestions(initialIndex: self.initialSelectedIndex) else { return }
                 self.suggestedIDs = ids
                 self.suggestionsRerankID += 1
             }

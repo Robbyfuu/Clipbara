@@ -54,6 +54,12 @@ final class SearchState {
         !isActive && multiSelection.ids.isEmpty
     }
 
+    /// Apple Intelligence's order may replace the habit's only while the row is as the panel opened it: focus still at
+    /// `initialIndex` (nil until the History row has shown), nothing typed or filtered, no multi-selection.
+    func mayReorderSuggestions(initialIndex: Int?) -> Bool {
+        initialIndex != nil && selectedIndex == initialIndex && !isActive && multiSelection.ids.isEmpty
+    }
+
     func updateSearch(_ text: String) {
         searchText = text
         selectedIndex = nil

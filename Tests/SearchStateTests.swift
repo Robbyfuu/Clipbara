@@ -49,4 +49,27 @@ final class SearchStateTests: XCTestCase {
         state.multiSelection.clear()
         XCTAssertTrue(state.allowsSuggestions)
     }
+
+    /// Apple Intelligence's order lands only while the row is as the panel opened it, so it never moves the user.
+    func testSuggestionsReorderOnlyBeforeTheUserMovesTypesOrMultiSelects() {
+        let state = SearchState()
+        XCTAssertFalse(state.mayReorderSuggestions(initialIndex: nil), "the History row has not shown yet")
+        state.ensureSelection(itemCount: 5)
+        XCTAssertTrue(state.mayReorderSuggestions(initialIndex: 0))
+        state.moveSelection(by: 1, maxIndex: 4)
+        XCTAssertFalse(state.mayReorderSuggestions(initialIndex: 0), "moved")
+        state.moveSelection(by: -1, maxIndex: 4)
+        state.updateSearch("g")
+        state.ensureSelection(itemCount: 5)
+        XCTAssertFalse(state.mayReorderSuggestions(initialIndex: 0), "typed")
+        state.clearSearch()
+        state.ensureSelection(itemCount: 5)
+        state.toggleContentType(.url)
+        state.ensureSelection(itemCount: 5)
+        XCTAssertFalse(state.mayReorderSuggestions(initialIndex: 0), "filtered")
+        state.toggleContentType(.url)
+        state.ensureSelection(itemCount: 5)
+        _ = state.multiSelection.toggle(1, focus: 0, in: (0..<5).map { _ in UUID() })
+        XCTAssertFalse(state.mayReorderSuggestions(initialIndex: 0), "multi-select")
+    }
 }
