@@ -22,6 +22,8 @@ final class PanelController {
     private var wheelTranslator = WheelScrollTranslation.Translator()
     private var keyMonitor: Any?
     private var flagsMonitor: Any?
+    /// The app in front when the panel opened. It gets focus back when the panel hides.
+    private var focusReturnApp: NSRunningApplication?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
 
@@ -90,6 +92,7 @@ final class PanelController {
         let screenFrame = screen.visibleFrame
         let endFrame = panelFrame(in: screenFrame, y: screenFrame.origin.y)
         presentedScreen = screen
+        focusReturnApp = NSWorkspace.shared.frontmostApplication
 
         if panel == nil {
             panel = CopydPanel(contentRect: endFrame)
@@ -192,12 +195,30 @@ final class PanelController {
         }, completionHandler: { [weak self] in
             Task { @MainActor in
                 panel.orderOut(nil)
+                self?.giveFocusBack()
                 panel.hasShadow = true
                 self?.contentHost?.frame.origin.y = 0
                 self?.presentedScreen = nil
                 self?.isVisible = false
             }
         })
+    }
+
+    /// The panel took the key window from this app without deactivating it, and ordering the panel
+    /// out leaves that app in front with no key window: no caret, and direct paste's ⌘V lands nowhere.
+    /// Re-activating it brings its key window and text field back. Runs right after `orderOut`, so it
+    /// happens before AutoPaster, which waits for the panel to lose key, posts ⌘V.
+    private func giveFocusBack() {
+        let app = focusReturnApp
+        focusReturnApp = nil
+        guard let app, !app.isTerminated,
+              AutoPastePolicy.restoresFocus(
+                target: app.processIdentifier,
+                frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                own: ProcessInfo.processInfo.processIdentifier,
+                copydInFront: NSApp.isActive || NSApp.keyWindow != nil
+              ) else { return }
+        _ = app.activate()
     }
 
     // MARK: - Click Monitor (dismiss on outside click)

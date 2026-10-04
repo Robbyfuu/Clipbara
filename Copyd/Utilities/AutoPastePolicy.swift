@@ -31,6 +31,15 @@ enum AutoPastePolicy {
         guard let frontmost, let previous else { return false }
         return frontmost == previous
     }
+
+    /// The panel is non-activating, so opening it takes the key window from the app in front without
+    /// deactivating that app, and ordering it out gives the key window back to nobody. Re-activate the
+    /// app the panel opened over, unless the panel opened over Copyd, the user clicked into another app,
+    /// or a Copyd window (Settings, Paywall) took over.
+    static func restoresFocus(target: pid_t?, frontmost: pid_t?, own: pid_t, copydInFront: Bool) -> Bool {
+        guard let target, target != own, !copydInFront else { return false }
+        return frontmost == target
+    }
 }
 
 /// Tags the ⌘V that Copyd posts, so Paste Stack's tap never takes it for the user's own.

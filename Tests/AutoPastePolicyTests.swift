@@ -89,6 +89,32 @@ final class AutoPastePolicyTests: XCTestCase {
         XCTAssertFalse(AutoPastePolicy.focusReady(frontmost: 42, previous: nil), "no app to hand back to")
     }
 
+    // MARK: - Giving focus back when the panel hides
+
+    private func restores(target: pid_t?, frontmost: pid_t?, copydInFront: Bool = false) -> Bool {
+        AutoPastePolicy.restoresFocus(target: target, frontmost: frontmost, own: 1, copydInFront: copydInFront)
+    }
+
+    func testRestoresFocusToTheAppThePanelOpenedOver() {
+        XCTAssertTrue(restores(target: 42, frontmost: 42), "the app is still in front but lost its key window")
+    }
+
+    func testNoRestoreWithoutATarget() {
+        XCTAssertFalse(restores(target: nil, frontmost: 42))
+    }
+
+    func testNoRestoreWhenThePanelOpenedOverCopyd() {
+        XCTAssertFalse(restores(target: 1, frontmost: 1), "opened from Settings or the menu bar list")
+    }
+
+    func testNoRestoreWhenTheUserClickedIntoAnotherApp() {
+        XCTAssertFalse(restores(target: 42, frontmost: 7), "that click already gave the other app focus")
+    }
+
+    func testNoRestoreWhenCopydWindowTookOver() {
+        XCTAssertFalse(restores(target: 42, frontmost: 42, copydInFront: true), "Settings opened from the panel")
+    }
+
     // MARK: - Synthetic ⌘V marker
 
     func testOnlyMarkedEventsCountAsCopydsPaste() throws {
