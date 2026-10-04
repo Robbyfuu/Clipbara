@@ -192,7 +192,7 @@ When the user copies on Mac A, Handoff also places the content on Mac B's pasteb
 
 - **Duplicates:** two clips with the same `contentHash` whose `copiedAt` values are at most 60 seconds apart.
 - **Survivor:** the clip whose `id.uuidString` sorts first. Every device applies the same rule, so all devices converge on the same survivor.
-- **Merge:** survivor `isPinned` = `a || b`; survivor `userTitle` = survivor's, or the other's when the survivor's is nil. The loser's pinboard entries move to the survivor (an entry is deleted instead when the survivor is already in that pinboard).
+- **Merge:** survivor `isPinned` = `a || b`; survivor `userTitle` = survivor's, or the other's when the survivor's is nil; survivor `fromUniversalClipboard` = `a && b`, so a real copy wins over its relayed twin. The loser's pinboard entries move to the survivor (an entry is deleted instead when the survivor is already in that pinboard).
 - **Loser:** deleted locally, with `.deleteRecord` queued. An `unknownItem` answer means another device already deleted it, which is fine.
 - **When it runs:** for each incoming clip, against local clips with the same hash.
 

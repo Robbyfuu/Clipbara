@@ -15,10 +15,11 @@ struct RemoteApplier {
         var deletes: Set<UUID> = []
         var orphans: [EntrySnapshot] = []
         var touched: Set<UUID> = []
-        /// Clips this apply inserted, as opposed to updated, except those the Mac captured from Universal Clipboard:
-        /// the user's own iPhone (or iPad) copy coming back. Those are treated like a copy this device already had.
+        /// Clips this apply inserted, as opposed to updated, except those the Mac captured from Universal Clipboard
+        /// (usually the user's own iPhone copy coming back), plus the survivor of a merge that absorbed one of them.
         var inserted: Set<UUID> = []
-        /// Both sides of every merge in which one side was not in `inserted`, or had itself merged with such a copy.
+        /// Both sides of every merge in which one side is a copy this device already had and announced (an existing
+        /// clip not from Universal Clipboard), or had itself merged with one.
         var mergedWithExisting: Set<UUID> = []
         /// New clips that stayed new: what the iPhone announces. Two new copies that merge with each other give one.
         var arrivals: Set<UUID> { inserted.subtracting(deletes).subtracting(mergedWithExisting) }
@@ -189,7 +190,10 @@ struct RemoteApplier {
         for other in others where other.id != id && !out.deletes.contains(other.id) {
             if out.deletes.contains(id) { break }
             guard let merge = DuplicateRule.merge(incoming.snapshot, other.snapshot) else { continue }
-            if [id, other.id].contains(where: { !out.inserted.contains($0) || out.mergedWithExisting.contains($0) }) {
+            // A relayed copy was never announced, so merging with one does not make the other a known copy.
+            if [incoming, other].contains(where: {
+                (!out.inserted.contains($0.id) && !$0.fromUniversalClipboard) || out.mergedWithExisting.contains($0.id)
+            }) {
                 out.mergedWithExisting.formUnion([id, other.id])
             }
             let survivor = merge.survivorID == id ? incoming : other
@@ -197,6 +201,10 @@ struct RemoteApplier {
             survivor.isPinned = merge.isPinned
             survivor.userTitle = merge.userTitle
             survivor.copiedAt = merge.copiedAt
+            // Two Macs: a copy on one reaches the other through Universal Clipboard. The real copy wins the flag, and a
+            // new one hands its arrival to the survivor, so the iPhone announces it once in any order.
+            survivor.fromUniversalClipboard = survivor.fromUniversalClipboard && loser.fromUniversalClipboard
+            if out.inserted.contains(loser.id) { out.inserted.insert(survivor.id) }
             out.saves.insert(survivor.id)
             out.touched.insert(survivor.id)
             var survivorBoards = Set(try entries(ofClip: survivor.id, excluding: out.deletes).compactMap { $0.pinboard?.id })
