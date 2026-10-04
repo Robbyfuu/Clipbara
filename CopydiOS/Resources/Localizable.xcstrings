@@ -265,22 +265,6 @@
         }
       }
     },
-    "Added" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Added"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agregado"
-          }
-        }
-      }
-    },
     "Added %lld from Share" : {
       "localizations" : {
         "en" : {
@@ -337,6 +321,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Permitido"
+          }
+        }
+      }
+    },
+    "Allowed · confirmed %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowed · confirmed %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitido · confirmado %@"
           }
         }
       }
@@ -1066,22 +1066,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sin resultados"
-          }
-        }
-      }
-    },
-    "Not added" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not added"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sin agregar"
           }
         }
       }

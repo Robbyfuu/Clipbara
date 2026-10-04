@@ -7,7 +7,7 @@ struct CopydApp: App {
     // instance, but SwiftUI is free to discard the first @State value and build a new
     // one. Built with the Xcode 27 SDK it does exactly that, so the started instance
     // was deallocated right after launch and the UI got one that never started.
-    private let appState = AppState.shared
+    private let appState: AppState
 
     private var sharedModelContainer: ModelContainer { Self.sharedModelContainer }
 
@@ -66,6 +66,10 @@ struct CopydApp: App {
     }
 
     init() {
+        // First, before AppState.shared is built and the store, monitor, hotkeys or sync start: never two instances.
+        LaunchGuard.run()
+        appState = AppState.shared
+
         let context = sharedModelContainer.mainContext
         appState.start(modelContext: context, modelContainer: sharedModelContainer)
 

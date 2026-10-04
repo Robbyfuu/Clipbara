@@ -5,8 +5,8 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     /// Re-read each time the app comes to the front, e.g. back from Settings.
-    @State private var keyboardStatus = PermissionStatus.missing
-    @State private var fullAccessStatus = PermissionStatus.unconfirmed
+    @State private var keyboardStatus = PermissionStatus.unconfirmed
+    @State private var fullAccessSeenAt: Date?
     #if DEBUG
     /// `-CopydShowQuickGuide YES` (with `-CopydInitialTab settings`) opens the Back Tap guide at launch.
     @State private var showQuickGuide = UserDefaults.standard.bool(forKey: "CopydShowQuickGuide")
@@ -39,13 +39,16 @@ struct SettingsView: View {
                                   fix: iCloud == .missing ? "Sign in to iCloud" : nil)
                     Divider().overlay(DesignTokens.Brand.line)
                     permissionRow("Copyd keyboard added", symbol: "keyboard", status: keyboardStatus,
-                                  chip: keyboardStatus == .granted ? Text("Added") : Text("Not added"),
-                                  fix: keyboardStatus == .missing ? "Open Settings" : nil)
+                                  fix: keyboardStatus == .granted ? nil : "Open Settings")
                     Divider().overlay(DesignTokens.Brand.line)
-                    permissionRow("Full Access", symbol: "lock.open", status: fullAccessStatus,
-                                  hint: fullAccessStatus == .unconfirmed
+                    let fullAccess = PermissionStatus.resolve(fullAccessSeenAt: fullAccessSeenAt, now: .now)
+                    permissionRow("Full Access", symbol: "lock.open", status: fullAccess,
+                                  chip: fullAccess == .granted ? fullAccessSeenAt.map {
+                                      Text("Allowed \u{00b7} confirmed \($0.formatted(.relative(presentation: .named)))")
+                                  } : nil,
+                                  hint: fullAccess == .unconfirmed
                                       ? "Not confirmed yet \u{2014} open the Copyd keyboard once" : nil,
-                                  fix: fullAccessStatus == .unconfirmed ? "Open Settings" : nil)
+                                  fix: fullAccess == .unconfirmed ? "Open Settings" : nil)
                     Divider().overlay(DesignTokens.Brand.line)
                     // No public API reads this setting, so the row never claims a state.
                     permissionRow("Paste from other apps", symbol: "doc.on.clipboard", status: .unconfirmed,
@@ -137,9 +140,9 @@ struct SettingsView: View {
         .sheet(isPresented: $showQuickGuide) { QuickGuideView() }
         .onChange(of: scenePhase, initial: true) { _, phase in
             guard phase == .active else { return }
-            keyboardStatus = .resolve(enabledKeyboards: UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String])
-            fullAccessStatus = .resolve(fullAccessSeenAt:
-                SharedDefaults.store?.object(forKey: SharedDefaults.keyboardFullAccessSeenAtKey) as? Date)
+            fullAccessSeenAt = SharedDefaults.store?.object(forKey: SharedDefaults.keyboardFullAccessSeenAtKey) as? Date
+            keyboardStatus = .resolve(enabledKeyboards: UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String],
+                                      fullAccessSeenAt: fullAccessSeenAt)
         }
     }
 

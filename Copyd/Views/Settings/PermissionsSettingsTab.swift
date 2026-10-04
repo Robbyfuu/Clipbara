@@ -26,7 +26,7 @@ struct PermissionsSettingsTab: View {
                 // The engine checks the account when sync starts and follows sign-in and sign-out after that.
                 row("iCloud", symbol: "icloud",
                     why: "Syncs your history with your other devices.",
-                    status: .resolve(granted: appState.cloudSync?.status != .accountUnavailable,
+                    status: .resolve(granted: appState.cloudSync.map { $0.status != .accountUnavailable } ?? false,
                                      featureOn: iCloudSyncEnabled)) {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings") {
                         NSWorkspace.shared.open(url)
@@ -72,12 +72,15 @@ struct PermissionsSettingsTab: View {
 
     private func label(for status: PermissionStatus) -> Text {
         switch status {
-        case .granted: Text("Allowed")
-        case .missing: Text("Not allowed")
+        case .granted: return Text("Allowed")
+        case .missing: return Text("Not allowed")
+        case .unconfirmed:
+            assertionFailure("Every Mac permission can be read: .unconfirmed is iOS only")
+            fallthrough
         // Its own key: plain "Off" is the sync status, which reads differently in Spanish.
-        case .notNeeded, .unconfirmed:
-            Text(String(localized: "Permission.notNeeded", defaultValue: "Off",
-                        comment: "Chip on a permission whose feature is turned off"))
+        case .notNeeded:
+            return Text(String(localized: "Permission.notNeeded", defaultValue: "Off",
+                               comment: "Chip on a permission whose feature is turned off"))
         }
     }
 
@@ -86,10 +89,11 @@ struct PermissionsSettingsTab: View {
         hasListenAccess = CGPreflightListenEventAccess()
     }
 
-    /// A second instance starts, then this one quits. macOS grants some permissions only at launch.
+    /// A new instance starts and, in `LaunchGuard`, waits for this one to quit. macOS grants some permissions only at launch.
     private func restart() {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        configuration.arguments = ["-\(LaunchGuard.relaunchAfterPIDKey)", String(ProcessInfo.processInfo.processIdentifier)]
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
             guard error == nil else { return }
             Task { @MainActor in NSApp.terminate(nil) }

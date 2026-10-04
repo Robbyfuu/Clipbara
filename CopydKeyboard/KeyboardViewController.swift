@@ -41,6 +41,12 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         model.showsGlobe = needsInputModeSwitchKey
+        // Settings' permissions card reads this as proof of Full Access: never written without it, at most once a day.
+        let defaults = SharedDefaults.store
+        if hasFullAccess, PermissionStatus.shouldRecordFullAccess(
+            seenAt: defaults?.object(forKey: SharedDefaults.keyboardFullAccessSeenAtKey) as? Date, now: Date()) {
+            defaults?.set(Date(), forKey: SharedDefaults.keyboardFullAccessSeenAtKey)
+        }
         captureClipboard()
         reload()
     }
@@ -78,8 +84,6 @@ final class KeyboardViewController: UIInputViewController {
     private func reload() {
         model.lastSync = SharedDefaults.store?.object(forKey: SharedDefaults.lastSyncAtKey) as? Date
         guard hasFullAccess else { return model.state = .noFullAccess }
-        // Settings' permissions card reads this as proof of Full Access. Never written without it.
-        SharedDefaults.store?.set(Date(), forKey: SharedDefaults.keyboardFullAccessSeenAtKey)
         guard let group = SharedStore.groupContainer, SharedStore.storeExists(groupContainer: group) else {
             return model.state = .noStore
         }

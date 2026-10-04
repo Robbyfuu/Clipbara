@@ -208,6 +208,7 @@ targets:
       - path: Copyd/Utilities/WheelScrollTranslation.swift
       - path: Copyd/Utilities/ReviewPromptPolicy.swift
       - path: Copyd/Utilities/AccessPolicy.swift
+      - path: Copyd/Utilities/LaunchGuard.swift
       - path: Shared/Utilities/Thumbnail.swift
       - path: Shared/Utilities/FileBundle.swift
       - path: Shared/Utilities/PasteboardImage.swift
