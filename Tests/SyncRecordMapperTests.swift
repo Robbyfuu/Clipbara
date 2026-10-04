@@ -18,7 +18,8 @@ final class SyncRecordMapperTests: XCTestCase {
             id: UUID(), contentType: type, rawData: Data((0..<bytes).map { UInt8($0 % 251) }),
             textContent: full ? "text" : nil, userTitle: full ? "title" : nil,
             sourceAppName: full ? "App" : nil, sourceAppBundleId: full ? "com.app" : nil,
-            contentHash: "hash", copiedAt: Date(timeIntervalSince1970: 1_700_000_000), isPinned: full)
+            contentHash: "hash", copiedAt: Date(timeIntervalSince1970: 1_700_000_000), isPinned: full,
+            fromUniversalClipboard: full)
     }
 
     private func record(for clip: ClipSnapshot) -> CKRecord {
@@ -107,6 +108,28 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertNil(try SyncRecordMapper.clip(from: rec).fileManifest)
     }
 
+    /// The Mac's mark for a copy Universal Clipboard brought from the iPhone: encrypted, 0/1 like `isPinned`.
+    func testUniversalClipboardFlagRoundTrips() throws {
+        for flag in [true, false] {
+            var clip = makeClip(full: false)
+            clip.fromUniversalClipboard = flag
+            let rec = record(for: clip)
+            try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+            XCTAssertEqual(rec.encryptedValues["fromUniversalClipboard"] as Int64?, flag ? 1 : 0)
+            XCTAssertEqual(try SyncRecordMapper.clip(from: rec).fromUniversalClipboard, flag)
+        }
+    }
+
+    /// Records saved before the field existed have none: they read as an ordinary copy.
+    func testMissingUniversalClipboardFlagReadsAsFalse() throws {
+        var clip = makeClip()
+        clip.fromUniversalClipboard = true
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        rec.encryptedValues["fromUniversalClipboard"] = nil as Int64?
+        XCTAssertFalse(try SyncRecordMapper.clip(from: rec).fromUniversalClipboard)
+    }
+
     func testOnlyAllowedPlainKeys() throws {
         let clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
         let rec = record(for: clip)
@@ -136,7 +159,7 @@ final class SyncRecordMapperTests: XCTestCase {
 
     func testEncryptedKeysMatchSpec() throws {
         let common: Set<String> = ["contentType", "textContent", "userTitle", "sourceAppName",
-                                   "sourceAppBundleId", "contentHash", "copiedAt", "isPinned"]
+                                   "sourceAppBundleId", "contentHash", "copiedAt", "isPinned", "fromUniversalClipboard"]
         let inline = makeClip()
         let irec = record(for: inline)
         try SyncRecordMapper.populate(irec, from: inline, assetDirectory: dir)

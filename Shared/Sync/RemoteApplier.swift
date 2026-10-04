@@ -15,12 +15,13 @@ struct RemoteApplier {
         var deletes: Set<UUID> = []
         var orphans: [EntrySnapshot] = []
         var touched: Set<UUID> = []
-        /// Clips this apply inserted, as opposed to updated.
+        /// Clips this apply inserted, as opposed to updated, except those the Mac captured from Universal Clipboard:
+        /// the user's own iPhone (or iPad) copy coming back. Those are treated like a copy this device already had.
         var inserted: Set<UUID> = []
-        /// New clips that stayed new: not deleted, and not merged with a copy this device already had (Universal
-        /// Clipboard puts one copy on both devices; a merge survivor is in `saves`). What the iPhone announces.
-        /// Two new copies that merge with each other are not announced either.
-        var arrivals: Set<UUID> { inserted.subtracting(deletes).subtracting(saves) }
+        /// Both sides of every merge in which one side was not in `inserted`, or had itself merged with such a copy.
+        var mergedWithExisting: Set<UUID> = []
+        /// New clips that stayed new: what the iPhone announces. Two new copies that merge with each other give one.
+        var arrivals: Set<UUID> { inserted.subtracting(deletes).subtracting(mergedWithExisting) }
     }
 
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
@@ -137,7 +138,7 @@ struct RemoteApplier {
             m.update(from: s)
             m.thumbnailData = Thumbnail.png(for: m.contentType, rawData: s.rawData)
             context.insert(m)
-            out.inserted.insert(s.id)
+            if !s.fromUniversalClipboard { out.inserted.insert(s.id) }
         }
     }
 
@@ -188,6 +189,9 @@ struct RemoteApplier {
         for other in others where other.id != id && !out.deletes.contains(other.id) {
             if out.deletes.contains(id) { break }
             guard let merge = DuplicateRule.merge(incoming.snapshot, other.snapshot) else { continue }
+            if [id, other.id].contains(where: { !out.inserted.contains($0) || out.mergedWithExisting.contains($0) }) {
+                out.mergedWithExisting.formUnion([id, other.id])
+            }
             let survivor = merge.survivorID == id ? incoming : other
             let loser = merge.loserID == id ? incoming : other
             survivor.isPinned = merge.isPinned

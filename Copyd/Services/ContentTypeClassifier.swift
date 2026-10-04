@@ -8,10 +8,23 @@ struct ContentTypeClassifier: Sendable {
         let contentType: ContentType
         let rawData: Data
         let textContent: String?
+        /// Universal Clipboard brought this copy from another device (`ClipboardItem.fromUniversalClipboard`).
+        var fromUniversalClipboard = false
     }
+
+    /// Universal Clipboard adds this type to what it brings from another device; Maccy reads the same marker for its
+    /// "ignore Universal Clipboard" option. Not yet seen on the user's own devices, where UC was not delivering when
+    /// this was written: if the iPhone still announces its own copies, check that the type is really there.
+    static let universalClipboardType = NSPasteboard.PasteboardType("com.apple.is-remote-clipboard")
 
     func classify(_ pasteboard: NSPasteboard) -> ClassifiedContent? {
         let types = pasteboard.types ?? []
+        guard var content = classify(pasteboard, types: types) else { return nil }
+        content.fromUniversalClipboard = types.contains(Self.universalClipboardType)
+        return content
+    }
+
+    private func classify(_ pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> ClassifiedContent? {
 
         // Check for transient/concealed content (password managers, etc.)
         if types.contains(NSPasteboard.PasteboardType("org.nspasteboard.TransientType")) ||

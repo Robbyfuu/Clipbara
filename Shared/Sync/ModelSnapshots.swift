@@ -6,7 +6,8 @@ extension ClipboardItem {
         ClipSnapshot(
             id: id, contentType: contentTypeRaw, rawData: rawData, textContent: textContent,
             userTitle: userTitle, sourceAppName: sourceAppName, sourceAppBundleId: sourceAppBundleId,
-            contentHash: contentHash, copiedAt: copiedAt, isPinned: isPinned, fileManifest: fileManifestData)
+            contentHash: contentHash, copiedAt: copiedAt, isPinned: isPinned, fileManifest: fileManifestData,
+            fromUniversalClipboard: fromUniversalClipboard)
     }
 
     /// Copies every field except `id`, `thumbnailData` and `syncSystemFields`. `rawData` is written only
@@ -24,6 +25,7 @@ extension ClipboardItem {
         contentHash = s.contentHash
         copiedAt = s.copiedAt
         isPinned = s.isPinned
+        fromUniversalClipboard = s.fromUniversalClipboard
         return rawChanged
     }
 

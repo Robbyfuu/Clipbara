@@ -114,7 +114,8 @@ final class AppModel {
     }
 
     /// One notification for the clips a fetch brought, while Copyd is not on screen. Only the sync engine calls this,
-    /// with remote inserts: local captures and Universal Clipboard never reach it.
+    /// with remote inserts: local captures never reach it, nor the iPhone's own copies that the Mac captured from
+    /// Universal Clipboard and synced back (`RemoteApplier.Outcome.arrivals` leaves them out).
     private func announceArrivals(_ ids: [UUID]) {
         guard UserDefaults.standard.bool(forKey: Self.arrivalNotificationsKey),
               UIApplication.shared.applicationState != .active else { return }

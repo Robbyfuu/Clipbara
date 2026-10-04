@@ -24,10 +24,11 @@ final class RemoteApplierTests: XCTestCase {
     }
 
     private func clip(_ n: Int, hash: String = "h", dt: TimeInterval = 0, pinned: Bool = false,
-                      title: String? = nil, type: String = "plainText", data: Data = Data("x".utf8)) -> ClipSnapshot {
+                      title: String? = nil, type: String = "plainText", data: Data = Data("x".utf8),
+                      universalClipboard: Bool = false) -> ClipSnapshot {
         ClipSnapshot(id: id(n), contentType: type, rawData: data, textContent: "text", userTitle: title,
                      sourceAppName: "App", sourceAppBundleId: "com.app", contentHash: hash,
-                     copiedAt: t0.addingTimeInterval(dt), isPinned: pinned)
+                     copiedAt: t0.addingTimeInterval(dt), isPinned: pinned, fromUniversalClipboard: universalClipboard)
     }
 
     private func board(_ n: Int, name: String = "Board", order: Int = 1) -> PinboardSnapshot {
@@ -321,6 +322,35 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertTrue(try apply(clips: [clip(1, dt: 5)]).arrivals.isEmpty, "incoming survivor")
         try apply(clips: [clip(3, hash: "k")])  // local copy, smaller UUID: the incoming one loses
         XCTAssertTrue(try apply(clips: [clip(4, hash: "k", dt: 5)]).arrivals.isEmpty, "incoming loser")
+    }
+
+    /// Two other devices copied the same thing within 60 s: the copies merge, and the iPhone announces one clip.
+    func testTwoNewCopiesThatMergeAreOneArrival() throws {
+        let out = try apply(clips: [clip(1), clip(2, dt: 5)])
+        XCTAssertEqual(try clips().map(\.id), [id(1)])
+        XCTAssertEqual(out.arrivals, [id(1)])
+    }
+
+    /// A new copy that merges with another new copy, which itself merged with this device's copy, is still a copy
+    /// this device had. The times make 1 and 2 duplicates only once 2 took 3's later time, in either fetch order.
+    func testNewCopyMergedThroughALocalCopyIsNotAnArrival() throws {
+        try apply(clips: [clip(3, dt: 60)])  // local copy
+        XCTAssertTrue(try apply(clips: [clip(2, dt: 0), clip(1, dt: 120)]).arrivals.isEmpty)
+        XCTAssertEqual(try clips().map(\.id), [id(1)])
+    }
+
+    /// The user's own iPhone copy, captured by the Mac from Universal Clipboard and synced back.
+    func testUniversalClipboardCopyIsNotAnArrival() throws {
+        XCTAssertTrue(try apply(clips: [clip(1, universalClipboard: true)]).arrivals.isEmpty)
+        XCTAssertEqual(try clips().count, 1, "still stored")
+    }
+
+    func testUniversalClipboardFlagIsStoredOnInsertAndUpdate() throws {
+        try apply(clips: [clip(1, universalClipboard: true)])
+        XCTAssertEqual(try clips().first?.fromUniversalClipboard, true)
+        XCTAssertEqual(try clips().first?.snapshot.fromUniversalClipboard, true, "and uploads with the clip")
+        try apply(clips: [clip(1, universalClipboard: false)])
+        XCTAssertEqual(try clips().first?.fromUniversalClipboard, false)
     }
 
     func testNoMergeAt61Seconds() throws {

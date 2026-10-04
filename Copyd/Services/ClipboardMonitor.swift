@@ -97,6 +97,8 @@ final class ClipboardMonitor {
             sourceAppBundleId: sourceApp?.bundleIdentifier,
             contentHash: hash
         )
+        // The iPhone's own copy coming back: it syncs, but the iPhone never announces it.
+        item.fromUniversalClipboard = content.fromUniversalClipboard
 
         // Images, and file clips with an image file
         item.thumbnailData = Thumbnail.png(for: content.contentType, rawData: content.rawData)

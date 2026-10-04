@@ -88,6 +88,7 @@ It is optional with no default, so SwiftData migrates the store lightweight. No 
 | `payload` | plain | `CKAsset`, present when `rawData` > 256 KB |
 | `textPayload` | plain | `CKAsset`, present when `textContent` (UTF-8) > 256 KB |
 | `fileManifest` | encrypted | Data?, JSON `[{name, size, uti}]`, present only for `.files` clips |
+| `fromUniversalClipboard` | encrypted | Int64 (0/1): the Mac captured the copy from Universal Clipboard. Missing on older records, read as 0 |
 
 `payload` holds `rawData` sealed with AES-GCM (CryptoKit) under a random per-clip key stored in `assetKey`. CloudKit encrypts assets at rest on its own, but only Advanced Data Protection makes that end-to-end; sealing the file first keeps clip content end-to-end encrypted for every user.
 
