@@ -32,7 +32,8 @@ final class SearchStateTests: XCTestCase {
         XCTAssertEqual(state.filteredItems(from: items).map(\.contentType), [.plainText])
     }
 
-    func testSuggestionsHideWhileSearchingFilteringOrMultiSelecting() {
+    /// Multi-select picks from the row as shown, so the suggestions stay put while it's active.
+    func testSuggestionsHideWhileSearchingOrFilteringButNotWhileMultiSelecting() {
         let state = SearchState()
         XCTAssertTrue(state.allowsSuggestions)
         state.updateSearch("a")
@@ -45,9 +46,7 @@ final class SearchStateTests: XCTestCase {
         XCTAssertFalse(state.allowsSuggestions, "date filter")
         state.dateFilter = .all
         _ = state.multiSelection.toggle(1, focus: 0, in: [UUID(), UUID()])
-        XCTAssertFalse(state.allowsSuggestions, "multi-select")
-        state.multiSelection.clear()
-        XCTAssertTrue(state.allowsSuggestions)
+        XCTAssertTrue(state.allowsSuggestions, "multi-select")
     }
 
     /// Apple Intelligence's order lands only while the row is as the panel opened it, so it never moves the user.
