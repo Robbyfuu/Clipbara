@@ -63,11 +63,17 @@ final class SuggestionRankerTests: XCTestCase {
         XCTAssertEqual(rank(clips, clips.flatMap { pastes($0, in: here) }).count, 3)
     }
 
-    /// Once any clip has history, one never pasted in this app is not suggested here; a new app gets none.
-    func testClipsNeverPastedHereWaitWhileAnyHistoryExists() {
+    /// Once this app has history, a clip never pasted here is not suggested here.
+    func testClipsNeverPastedHereWaitWhileThisAppHasHistory() {
         let pastedHere = clip(copiedDaysAgo: 5), elsewhere = clip(), never = clip()
         let events = pastes(pastedHere, in: here) + pastes(elsewhere, in: "com.apple.Terminal", count: 5)
         XCTAssertEqual(rank([never, elsewhere, pastedHere], events), [pastedHere.id])
-        XCTAssertEqual(rank([never, elsewhere, pastedHere], events, app: "com.apple.Notes"), [])
+    }
+
+    /// An app with no pastes yet still gets three: the clips pasted most anywhere, then the newest copies.
+    func testNewAppUsesGlobalHabitAndRecency() {
+        let habit = clip(copiedDaysAgo: 30), once = clip(copiedDaysAgo: 30), newest = clip(), older = clip(copiedDaysAgo: 2)
+        let events = pastes(habit, in: "com.apple.Terminal", count: 3) + pastes(once, in: here)
+        XCTAssertEqual(rank([older, newest, once, habit], events, app: "com.apple.Notes"), [habit.id, once.id, newest.id])
     }
 }
