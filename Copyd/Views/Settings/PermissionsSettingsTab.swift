@@ -94,9 +94,20 @@ struct PermissionsSettingsTab: View {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
         configuration.arguments = ["-\(LaunchGuard.relaunchAfterPIDKey)", String(ProcessInfo.processInfo.processIdentifier)]
+        // The new instance blocks in LaunchGuard until this pid is gone, and the completion may only
+        // fire once it has finished launching: quit after a short beat instead, unless the launch failed.
+        let launch = RelaunchState()
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
-            guard error == nil else { return }
-            Task { @MainActor in NSApp.terminate(nil) }
+            if error != nil { Task { @MainActor in launch.failed = true } }
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
+            if !launch.failed { NSApp.terminate(nil) }
         }
     }
+}
+
+/// Set when the relaunch fails, so the running instance stays open.
+@MainActor private final class RelaunchState {
+    var failed = false
 }
