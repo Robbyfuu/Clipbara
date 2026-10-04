@@ -93,6 +93,7 @@ final class PanelController {
         let endFrame = panelFrame(in: screenFrame, y: screenFrame.origin.y)
         presentedScreen = screen
         focusReturnApp = NSWorkspace.shared.frontmostApplication
+        appState.autoPaster.noteOpened()
 
         if panel == nil {
             panel = CopydPanel(contentRect: endFrame)
@@ -211,17 +212,14 @@ final class PanelController {
     private func giveFocusBack() {
         let app = focusReturnApp
         focusReturnApp = nil
-        // Copyd's own titled windows (Settings, the paywall) keep focus; the panel itself may still be
-        // key for a moment after `orderOut`, so it doesn't count.
-        let titledCopydWindow = NSApp.windows.contains {
-            $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel)
-        }
+        // A Copyd window opened from the panel (Settings from the sync chip) keeps focus; one left open behind
+        // other apps doesn't. The panel itself may still be key for a moment after `orderOut`, so it doesn't count.
         guard let app, !app.isTerminated,
               AutoPastePolicy.restoresFocus(
                 target: app.processIdentifier,
                 frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
                 own: ProcessInfo.processInfo.processIdentifier,
-                copydInFront: NSApp.isActive || titledCopydWindow
+                copydInFront: appState?.autoPaster.copydInFront ?? NSApp.isActive
               ) else { return }
         // The app never stopped being active (the panel is non-activating), so `activate()` alone is a
         // no-op and its window stays without key focus. Become active for an instant, then hand

@@ -141,7 +141,10 @@ struct MenuBarContentView: View {
             .padding(.bottom, 4)
         }
         .frame(width: 280)
-        .onAppear { Entitlements.shared.reevaluate() }
+        .onAppear {
+            Entitlements.shared.reevaluate()
+            appState.autoPaster.noteOpened()
+        }
     }
 
     /// Hidden once the app is owned, and while a StoreKit check has failed open.

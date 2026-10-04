@@ -40,6 +40,13 @@ enum AutoPastePolicy {
         guard let target, target != own, !copydInFront else { return false }
         return frontmost == target
     }
+
+    /// Copyd is in front only while it is the active app, or when a titled window (Settings, Onboarding, Paywall)
+    /// opened after the panel or the menu bar list did: Settings from the sync chip, before its activation lands.
+    /// Copyd is an agent whose windows stay "visible" behind other apps, so one left open there doesn't count.
+    static func copydInFront<Window: Hashable>(isActive: Bool, titledWindows: Set<Window>, titledAtOpen: Set<Window>) -> Bool {
+        isActive || !titledWindows.isSubset(of: titledAtOpen)
+    }
 }
 
 /// Tags the ⌘V that Copyd posts, so Paste Stack's tap never takes it for the user's own.

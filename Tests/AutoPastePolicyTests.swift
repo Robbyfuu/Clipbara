@@ -115,6 +115,34 @@ final class AutoPastePolicyTests: XCTestCase {
         XCTAssertFalse(restores(target: 42, frontmost: 42, copydInFront: true), "Settings opened from the panel")
     }
 
+    // MARK: - Copyd in front: active, or a titled window opened after the panel did
+
+    private func inFront(active: Bool = false, titled: Set<Int>, atOpen: Set<Int>) -> Bool {
+        AutoPastePolicy.copydInFront(isActive: active, titledWindows: titled, titledAtOpen: atOpen)
+    }
+
+    func testCopydInFrontWhileActive() {
+        XCTAssertTrue(inFront(active: true, titled: [], atOpen: []))
+    }
+
+    func testWindowOpenedAfterThePanelCountsAsInFront() {
+        XCTAssertTrue(inFront(titled: [7], atOpen: []), "Settings from the sync chip, before its activation lands")
+    }
+
+    func testWindowLeftOpenBehindOtherAppsDoesNotCount() {
+        XCTAssertFalse(inFront(titled: [7], atOpen: [7]), "Settings left open behind Notes")
+        XCTAssertFalse(inFront(titled: [], atOpen: [7]), "closed since the panel opened")
+        XCTAssertFalse(inFront(titled: [], atOpen: []))
+    }
+
+    func testBackgroundSettingsStillRestoresFocusAndPastes() {
+        let copydInFront = inFront(titled: [7], atOpen: [7])
+        XCTAssertTrue(restores(target: 42, frontmost: 42, copydInFront: copydInFront),
+                      "Copyd Settings visible in the background, target frontmost: focus goes back")
+        XCTAssertEqual(AutoPastePolicy.decide(enabled: true, hasAccess: true, copydIsActive: copydInFront, alreadyPrompted: true),
+                       .paste)
+    }
+
     // MARK: - Synthetic ⌘V marker
 
     func testOnlyMarkedEventsCountAsCopydsPaste() throws {

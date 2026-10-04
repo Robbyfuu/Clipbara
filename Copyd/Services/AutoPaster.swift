@@ -75,10 +75,25 @@ final class AutoPaster {
     }
 
     /// The menu bar list makes Copyd the active app, so ⌘V would land in Copyd. With the setting on,
-    /// hand focus back to the app the user was in, which also closes the list.
+    /// hand focus back to the app the user was in, which also closes the list. Not when the list opened over Copyd
+    /// itself: `NSApp.isActive` is always true here, so its value from when the list opened stands in for it.
     func returnFocusFromMenuBar() {
-        guard isEnabled, !titledCopydWindowVisible, let previousApp, !previousApp.isTerminated else { return }
+        guard isEnabled, !AutoPastePolicy.copydInFront(isActive: activeAtOpen, titledWindows: Self.titledWindows,
+                                                         titledAtOpen: titledAtOpen),
+              let previousApp, !previousApp.isTerminated else { return }
         _ = previousApp.activate(options: [])
+    }
+
+    /// Called when the panel or the menu bar list opens, before the list's own activation of Copyd lands.
+    func noteOpened() {
+        activeAtOpen = NSApp.isActive
+        titledAtOpen = Self.titledWindows
+    }
+
+    /// Copyd is active, or a titled window opened after the panel or the list did. A Settings window left open
+    /// behind other apps doesn't count: it would turn every pick into "no paste, no caret".
+    var copydInFront: Bool {
+        AutoPastePolicy.copydInFront(isActive: NSApp.isActive, titledWindows: Self.titledWindows, titledAtOpen: titledAtOpen)
     }
 
     /// The settings button: adds Copyd to the Accessibility list (macOS asks the first time) and opens it.
@@ -90,9 +105,13 @@ final class AutoPaster {
         }
     }
 
-    /// Settings or Paywall is open: the user is working in Copyd, so ⌘V would land there.
-    private var titledCopydWindowVisible: Bool {
-        NSApp.windows.contains { $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel) }
+    /// Copyd's state when the panel or the menu bar list last opened.
+    private var activeAtOpen = false
+    private var titledAtOpen: Set<Int> = []
+
+    /// Visible Settings, Onboarding and Paywall windows, by window number. Visible includes behind other apps.
+    private static var titledWindows: Set<Int> {
+        Set(NSApp.windows.filter { $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel) }.map(\.windowNumber))
     }
 
     private var hintShown = false
@@ -102,7 +121,7 @@ final class AutoPaster {
         let action = AutoPastePolicy.decide(
             enabled: isEnabled,
             hasAccess: hasAccess,
-            copydIsActive: NSApp.isActive || NSApp.keyWindow != nil || titledCopydWindowVisible,
+            copydIsActive: NSApp.keyWindow != nil || copydInFront,
             alreadyPrompted: defaults.bool(forKey: Self.promptedDefaultsKey)
         )
         Self.log.notice("pick action=\(String(describing: action), privacy: .public)")
