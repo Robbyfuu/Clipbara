@@ -238,15 +238,17 @@ import SwiftData
                 guard let id = UUID(uuidString: rid.recordName) else { continue }
                 do {
                     if let m = clips[id] {
-                        let r = Self.record(SyncRecordMapper.clipType, rid, m.syncSystemFields)
-                        try SyncRecordMapper.populate(r, from: m.snapshot, assetDirectory: assetDirectory)
+                        let (r, serverHash) = SyncRecordMapper.record(SyncRecordMapper.clipType, rid, systemFields: m.syncSystemFields)
+                        // A pin, rename or merge re-sends only the metadata when the server holds this content already.
+                        try SyncRecordMapper.populate(r, from: m.snapshot, assetDirectory: assetDirectory,
+                                                      serverContentHash: serverHash)
                         toSave.append(r)
                     } else if let m = boards[id] {
-                        let r = Self.record(SyncRecordMapper.pinboardType, rid, m.syncSystemFields)
+                        let r = SyncRecordMapper.record(SyncRecordMapper.pinboardType, rid, systemFields: m.syncSystemFields).record
                         SyncRecordMapper.populate(r, from: m.snapshot)
                         toSave.append(r)
                     } else if let m = entries[id], let s = m.snapshot {
-                        let r = Self.record(SyncRecordMapper.entryType, rid, m.syncSystemFields)
+                        let r = SyncRecordMapper.record(SyncRecordMapper.entryType, rid, systemFields: m.syncSystemFields).record
                         SyncRecordMapper.populate(r, from: s)
                         toSave.append(r)
                     }
@@ -341,7 +343,7 @@ import SwiftData
                     Self.log.notice("Skipped record of unknown type \(r.recordType, privacy: .public)")
                     continue
                 }
-                if let id = UUID(uuidString: r.recordID.recordName) { fields[id] = Self.archive(r) }
+                if let id = UUID(uuidString: r.recordID.recordName) { fields[id] = SyncRecordMapper.archive(r) }
             } catch {
                 Self.log.error("Skipped undecodable record \(r.recordID.recordName, privacy: .public): \(error.syncLogDescription, privacy: .public)")
             }
@@ -388,7 +390,7 @@ import SwiftData
 
         for r in e.savedRecords {
             removeAssets(of: r)
-            if let id = UUID(uuidString: r.recordID.recordName) { fields[id] = Self.archive(r) }
+            if let id = UUID(uuidString: r.recordID.recordName) { fields[id] = SyncRecordMapper.archive(r) }
         }
         for f in e.failedRecordSaves {
             removeAssets(of: f.record)
@@ -398,7 +400,7 @@ import SwiftData
             case .serverRecordChanged:
                 // Local pending change wins: keep local values, resend on the server's system fields.
                 if let server = f.error.serverRecord {
-                    fields[id] = Self.archive(server)
+                    fields[id] = SyncRecordMapper.archive(server)
                     requeue.append(save)
                 } else {
                     resendLater(save, id)
@@ -593,24 +595,5 @@ import SwiftData
 
     private static func byID<M>(_ models: [M], _ id: (M) -> UUID) -> [UUID: M] {
         Dictionary(models.map { (id($0), $0) }, uniquingKeysWith: { first, _ in first })
-    }
-
-    private static func archive(_ record: CKRecord) -> Data {
-        let coder = NSKeyedArchiver(requiringSecureCoding: true)
-        record.encodeSystemFields(with: coder)
-        coder.finishEncoding()
-        return coder.encodedData
-    }
-
-    /// A record carrying the cached system fields (avoids false conflicts), or a new one.
-    private static func record(_ type: CKRecord.RecordType, _ id: CKRecord.ID, _ systemFields: Data?) -> CKRecord {
-        if let systemFields, let coder = try? NSKeyedUnarchiver(forReadingFrom: systemFields) {
-            coder.requiresSecureCoding = true
-            let cached = CKRecord(coder: coder)
-            coder.finishDecoding()
-            // Type only: a cached recordID can carry the real owner name instead of the default one.
-            if let cached, cached.recordType == type { return cached }
-        }
-        return CKRecord(recordType: type, recordID: id)
     }
 }

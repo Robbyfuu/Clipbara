@@ -267,4 +267,64 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertNotNil(rec["payload"] as CKAsset?)
         XCTAssertEqual(try SyncRecordMapper.clip(from: rec).rawData, clip.rawData)
     }
+
+    // MARK: - Metadata changes leave the payload on the server
+
+    /// What `CloudSyncEngine` builds a send from: the record rebuilt from its archived system fields, with no values.
+    private func cached(_ rec: CKRecord) -> (record: CKRecord, serverContentHash: String?) {
+        SyncRecordMapper.record(rec.recordType, rec.recordID, systemFields: SyncRecordMapper.archive(rec))
+    }
+
+    func testArchivedSystemFieldsKeepTheServersContentHash() throws {
+        let clip = makeClip()
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        let (rebuilt, hash) = cached(rec)
+        XCTAssertEqual(rebuilt.recordID, rec.recordID)
+        XCTAssertEqual(hash, "hash")
+        XCTAssertTrue(rebuilt.changedKeys().isEmpty, "only system fields come back")
+    }
+
+    func testNoArchiveMeansANewRecordAndNoHash() {
+        let id = SyncRecordMapper.recordID(for: UUID())
+        let (rebuilt, hash) = SyncRecordMapper.record(SyncRecordMapper.clipType, id, systemFields: nil)
+        XCTAssertEqual(rebuilt.recordID, id)
+        XCTAssertNil(hash)
+        let board = CKRecord(recordType: SyncRecordMapper.pinboardType, recordID: id)
+        XCTAssertNil(cached(board).serverContentHash, "pinboards and entries carry no content")
+    }
+
+    func testMetadataChangeSendsNoPayload() throws {
+        var clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
+        clip.textContent = String(repeating: "t", count: SyncRecordMapper.inlineLimit + 1)
+        let first = record(for: clip)
+        try SyncRecordMapper.populate(first, from: clip, assetDirectory: dir)
+        try FileManager.default.removeItem(at: dir)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        clip.isPinned.toggle()
+        clip.userTitle = "renamed"
+        let (rec, serverHash) = cached(first)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir, serverContentHash: serverHash)
+
+        let sent = Set(rec.changedKeys()).union(rec.encryptedValues.changedKeys())
+        XCTAssertTrue(sent.isDisjoint(with: ["payload", "textPayload", "assetKey", "rawData", "textContent", "fileManifest"]),
+                      "untouched keys keep their server values: \(sent)")
+        XCTAssertEqual(rec.encryptedValues["isPinned"] as Int64?, clip.isPinned ? 1 : 0)
+        XCTAssertEqual(rec.encryptedValues["userTitle"] as String?, "renamed")
+        XCTAssertEqual(rec.encryptedValues["contentHash"] as String?, "hash")
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: dir.path).isEmpty, "nothing sealed")
+    }
+
+    func testChangedContentSendsThePayload() throws {
+        var clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
+        let first = record(for: clip)
+        try SyncRecordMapper.populate(first, from: clip, assetDirectory: dir)
+        clip.rawData = Data(count: SyncRecordMapper.inlineLimit + 2)
+        clip.contentHash = "other"
+        let (rec, serverHash) = cached(first)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir, serverContentHash: serverHash)
+        XCTAssertNotNil(rec["payload"] as CKAsset?)
+        XCTAssertNotNil(rec.encryptedValues["assetKey"] as Data?)
+    }
 }
