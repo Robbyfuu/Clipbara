@@ -14,6 +14,9 @@ import SwiftUI
 @MainActor
 @Observable
 final class PasteStackController {
+    /// Set on the first start, even one stopped by a missing permission: until then Settings shows Input Monitoring as not needed.
+    nonisolated static let everStartedDefaultsKey = "pasteStackEverStarted"
+
     private(set) var isActive = false
     /// Clips still queued, the staged one included, shown in the HUD.
     private(set) var count = 0
@@ -41,6 +44,7 @@ final class PasteStackController {
             PaywallWindowController.shared.show()
             return
         }
+        UserDefaults.standard.set(true, forKey: Self.everStartedDefaultsKey)
         guard CGPreflightListenEventAccess(), installTap() else {
             showInputMonitoringAlert()
             return

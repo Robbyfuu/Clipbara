@@ -129,8 +129,7 @@ final class AppModel {
                                                    sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         guard let clips = try? container.mainContext.fetch(fetch), !clips.isEmpty else { return }
         let notice = ArrivalNotice.content(
-            previews: clips.map { ArrivalNotice.preview(type: $0.contentType, text: $0.textContent) },
-            device: String(localized: "your Mac"))
+            previews: clips.map { ArrivalNotice.preview(type: $0.contentType, text: $0.textContent) })
         let content = UNMutableNotificationContent()
         content.title = notice.title
         content.body = notice.body

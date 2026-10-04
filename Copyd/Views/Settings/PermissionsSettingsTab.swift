@@ -6,6 +6,7 @@ struct PermissionsSettingsTab: View {
     @Environment(AppState.self) private var appState
     @AppStorage(AutoPaster.enabledDefaultsKey) private var autoPasteOnPick: Bool = true
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
+    @AppStorage(PasteStackController.everStartedDefaultsKey) private var pasteStackEverStarted: Bool = false
     /// Re-read when a window becomes key or Copyd comes back to the front, e.g. from System Settings.
     @State private var hasPasteAccess = CGPreflightPostEventAccess()
     @State private var hasListenAccess = CGPreflightListenEventAccess()
@@ -18,10 +19,11 @@ struct PermissionsSettingsTab: View {
                     status: .resolve(granted: hasPasteAccess, featureOn: autoPasteOnPick)) {
                     appState.autoPaster.openAccessibilitySettings()
                 }
-                // Paste Stack has no on/off setting: it can be started at any time, so this is always needed.
+                // Paste Stack has no on/off setting: the permission is needed once it has been started. Before that,
+                // a fresh install (and App Review) would see "Not allowed" for a feature never used.
                 row("Input Monitoring", symbol: "keyboard",
                     why: "Lets Paste Stack see \u{2318}V.",
-                    status: .resolve(granted: hasListenAccess, featureOn: true)) {
+                    status: .resolve(granted: hasListenAccess, featureOn: pasteStackEverStarted)) {
                     PasteStackController.openInputMonitoringSettings()
                 }
                 // The engine checks the account when sync starts and follows sign-in and sign-out after that.

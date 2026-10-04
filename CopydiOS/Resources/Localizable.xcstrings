@@ -1023,19 +1023,19 @@
         }
       }
     },
-    "New clip from %@" : {
-      "comment" : "Arrival notification title for one clip; the argument is \"your Mac\"",
+    "New clip from another device" : {
+      "comment" : "Arrival notification title for one clip that came from a Mac, an iPad or another iPhone",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "New clip from %@"
+            "value" : "New clip from another device"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clip nuevo de %@"
+            "value" : "Nuevo clip de otro equipo"
           }
         }
       }
@@ -2148,23 +2148,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Usa el teclado de Copyd"
-          }
-        }
-      }
-    },
-    "your Mac" : {
-      "comment" : "The device a clip arrived from, inside \"New clip from %@\"",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "your Mac"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tu Mac"
           }
         }
       }
