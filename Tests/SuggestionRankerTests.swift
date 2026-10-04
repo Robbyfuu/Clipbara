@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 
 final class SuggestionRankerTests: XCTestCase {
@@ -75,6 +76,41 @@ final class SuggestionRankerTests: XCTestCase {
         let habit = clip(copiedDaysAgo: 30), once = clip(copiedDaysAgo: 30), newest = clip(), older = clip(copiedDaysAgo: 2)
         let events = pastes(habit, in: "com.apple.Terminal", count: 3) + pastes(once, in: here)
         XCTAssertEqual(rank([older, newest, once, habit], events, app: "com.apple.Notes"), [habit.id, once.id, newest.id])
+    }
+}
+
+@MainActor
+final class SuggestionCandidateTests: XCTestCase {
+    /// Suggestions are text-like picks, and the model must never see a file: pinned or not, a file clip is never
+    /// a candidate. It still shows in the usual row.
+    func testPinnedFileClipIsNeverACandidate() throws {
+        let container = try ModelContainer(for: ClipboardItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        func add(_ type: ContentType, pinned: Bool) -> ClipboardItem {
+            let item = ClipboardItem(contentType: type, rawData: Data(), textContent: type.rawValue, contentHash: UUID().uuidString)
+            item.isPinned = pinned
+            context.insert(item)
+            return item
+        }
+        let text = add(.plainText, pinned: false), pinnedLink = add(.url, pinned: true)
+        _ = [add(.files, pinned: true), add(.fileURL, pinned: true), add(.files, pinned: false)]
+        try context.save()
+        XCTAssertEqual(Set(SuggestionRanker.candidateClips(in: context).map(\.id)), [text.id, pinnedLink.id])
+    }
+
+    /// The fetch loads only what ranking and the prompt read; anything else still loads on access, unchanged.
+    func testLightFetchStillLoadsTheRestOnAccess() throws {
+        let container = try ModelContainer(for: ClipboardItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let item = ClipboardItem(contentType: .plainText, rawData: Data("raw".utf8), textContent: "git status",
+                                 sourceAppName: "Terminal", contentHash: "h")
+        container.mainContext.insert(item)
+        try container.mainContext.save()
+        let fetched = try XCTUnwrap(SuggestionRanker.candidateClips(in: ModelContext(container)).first)
+        XCTAssertEqual(fetched.id, item.id)
+        XCTAssertEqual(fetched.textContent, "git status")
+        XCTAssertEqual(fetched.contentType, .plainText)
+        XCTAssertEqual(fetched.sourceAppName, "Terminal")
+        XCTAssertEqual(fetched.rawData, Data("raw".utf8))
     }
 }
 

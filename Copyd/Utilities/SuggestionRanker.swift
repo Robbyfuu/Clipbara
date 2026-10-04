@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// Orders clips by how likely the user is to paste them next in an app, from the paste history alone.
 enum SuggestionRanker {
@@ -39,6 +40,27 @@ enum SuggestionRanker {
             .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.copiedAt > $1.0.copiedAt }
             .prefix(limit)
             .map(\.0.id)
+    }
+}
+
+extension SuggestionRanker {
+    /// What suggestions pick from: the last 200 clips plus pinned clips, each once, never a file. Suggestions are
+    /// text-like picks and the model must never see a file; pinned file clips still show in the usual row.
+    static func candidateClips(in context: ModelContext) -> [ClipboardItem] {
+        let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
+        var recent = FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw },
+            sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        recent.fetchLimit = 200
+        var pinned = FetchDescriptor<ClipboardItem>(predicate: #Predicate {
+            $0.isPinned == true && $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw
+        })
+        // Only what ranking and the prompt read; the rest (rawData, thumbnails) loads if something else reads it.
+        recent.propertiesToFetch = [\.id, \.copiedAt, \.isPinned, \.contentTypeRaw, \.textContent]
+        pinned.propertiesToFetch = recent.propertiesToFetch
+        var seen = Set<UUID>()
+        return (((try? context.fetch(recent)) ?? []) + ((try? context.fetch(pinned)) ?? []))
+            .filter { seen.insert($0.id).inserted }
     }
 }
 

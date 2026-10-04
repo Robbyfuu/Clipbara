@@ -125,21 +125,13 @@ final class AppState {
         panelPresentationID += 1
     }
 
-    /// Once per opening: the last 200 non-file clips plus pinned clips, ranked for the app the panel opened over.
+    /// Once per opening: the last 200 clips plus pinned clips, never a file, ranked for the app the panel opened over.
     /// The habit's top 3 show at once; Apple Intelligence may reorder its top 15 within 600 ms.
     private func rankSuggestions() -> [UUID] {
         guard UserDefaults.standard.object(forKey: SuggestedRow.enabledDefaultsKey) as? Bool ?? true,
               let context = modelContainer?.mainContext else { return [] }
         suggestionModel.prewarm()
-        let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
-        var recent = FetchDescriptor<ClipboardItem>(
-            predicate: #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw },
-            sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
-        recent.fetchLimit = 200
-        let pinned = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.isPinned == true })
-        var seen = Set<UUID>()
-        let clips = (((try? context.fetch(recent)) ?? []) + ((try? context.fetch(pinned)) ?? []))
-            .filter { seen.insert($0.id).inserted }
+        let clips = SuggestionRanker.candidateClips(in: context)
         let candidates = clips.map { SuggestionRanker.Candidate(id: $0.id, copiedAt: $0.copiedAt, isPinned: $0.isPinned) }
         let events = ((try? context.fetch(FetchDescriptor<PasteEvent>())) ?? [])
             .map { SuggestionRanker.Event(clipID: $0.clipID, appBundleID: $0.appBundleID, at: $0.at) }
