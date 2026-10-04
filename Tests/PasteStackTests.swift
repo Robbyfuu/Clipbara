@@ -63,10 +63,11 @@ final class PasteStackTests: XCTestCase {
 
     // MARK: - Staging: a listen-only tap can't hold ⌘V, so the next clip waits on the pasteboard
 
-    func testStageHeadOnStart() {
+    func testFirstCopyIsLeftOnThePasteboard() {
         for order in [PasteStack.Order.fifo, .lifo] {
             var s = PasteStack(order: order)
-            XCTAssertEqual(s.stagingAfterPush(a), a, "the first copy after starting is staged (\(order))")
+            XCTAssertNil(s.stagingAfterPush(a), "the user's own copy is already the head; re-staging would rewrite it (\(order))")
+            XCTAssertEqual(s.head, a)
         }
     }
 

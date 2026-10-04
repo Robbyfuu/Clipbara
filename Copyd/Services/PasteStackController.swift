@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// ⌘V is seen by a listen-only session event tap, which needs Input Monitoring and can't hold or
 /// change the key. So the clip the next ⌘V takes (the head) is put on the pasteboard ahead of
-/// time: after the first copy, after each FIFO copy, and when a ⌘V finishes. Paste Stack posts no
+/// time: after each FIFO copy but the first, which is already there, and when a ⌘V finishes. Paste Stack posts no
 /// keystrokes. The tap lives from `start()` to `stop()`; the stack ends when the last clip is
 /// pasted, from the shortcut or the menu, or when a clip is picked in Copyd's own UI.
 @MainActor
@@ -27,7 +27,7 @@ final class PasteStackController {
     /// A ⌘V went down with the head staged; it is popped on the V key-up or the fallback.
     @ObservationIgnored private var pendingPaste = false
     @ObservationIgnored private var fallback: Task<Void, Never>?
-    /// `changeCount` right after the last staging write (or LIFO push that left the copy as head).
+    /// `changeCount` right after the last staging write, or after a push that left the copy as head (the first, or LIFO).
     @ObservationIgnored private var stagedChangeCount = 0
 
     func toggle() {
@@ -95,8 +95,9 @@ final class PasteStackController {
     }
 
     fileprivate func pasteKeyUp() {
-        Self.log.notice("V up pending=\(self.pendingPaste)")
+        // Only a pending paste: every V key-up includes the user typing a plain "v", which must not reach the log.
         guard pendingPaste else { return }
+        Self.log.notice("V up")
         Task { @MainActor [weak self] in self?.finishPaste() }
     }
 

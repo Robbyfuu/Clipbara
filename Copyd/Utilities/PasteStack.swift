@@ -41,11 +41,12 @@ struct PasteStack {
     var head: UUID? { order == .fifo ? ids.first : ids.last }
 
     /// Queues a copy and returns the clip to put back on the pasteboard, or nil when the copy that
-    /// just landed there is already the head (LIFO, after the first copy).
+    /// just landed there is already the head: the first copy, and every LIFO copy. Re-staging the first
+    /// one would replace the user's own pasteboard with Copyd's copy of it (one folder of a multi-folder copy).
     mutating func stagingAfterPush(_ id: UUID) -> UUID? {
         let wasEmpty = isEmpty
         push(id)
-        return wasEmpty || order == .fifo ? head : nil
+        return !wasEmpty && order == .fifo ? head : nil
     }
 
     /// The staged head was pasted: drops it and returns the next one to stage, or nil when the stack is done.
