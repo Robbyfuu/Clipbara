@@ -417,6 +417,14 @@ final class PanelController {
                     return true
                 }
 
+                // ⌥1-3 pastes a suggestion, but not while typing in the search field: there ⌥-digits are
+                // characters (@ and # on a Spanish keyboard). Consumed even when no suggestion is shown.
+                if let number = QuickPasteShortcut.suggestion(keyCode: keyCode, modifiers: event.modifierFlags),
+                   let panel = self.panel, !self.isTextInputFocused(in: panel) {
+                    self.appState?.pasteSuggestion(number: number)
+                    return true
+                }
+
                 // Handle tab shortcuts before the search-field pass-through.
                 // Missing tabs are a no-op, not a shortcut for the frontmost app.
                 if let index = PanelTabShortcut.index(keyCode: keyCode, modifiers: event.modifierFlags) {

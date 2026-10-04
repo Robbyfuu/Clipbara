@@ -9,6 +9,7 @@ struct GeneralSettingsTab: View {
     @AppStorage("historyLimit") private var historyLimit: Int = 500
     @AppStorage(PasteService.alwaysPlainTextDefaultsKey) private var alwaysPastePlainText: Bool = false
     @AppStorage(AutoPaster.enabledDefaultsKey) private var autoPasteOnPick: Bool = true
+    @AppStorage(SuggestedRow.enabledDefaultsKey) private var showSuggestions: Bool = true
     /// Re-read whenever Copyd comes back to the front, e.g. from System Settings.
     @State private var hasPasteAccess = CGPreflightPostEventAccess()
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
@@ -87,6 +88,8 @@ struct GeneralSettingsTab: View {
                     Toggle("", isOn: $alwaysPastePlainText)
                         .labelsHidden()
                 }
+
+                Toggle("Show suggestions", isOn: $showSuggestions)
             }
 
             Section("iCloud Sync") {

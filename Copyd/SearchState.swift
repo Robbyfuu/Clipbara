@@ -49,6 +49,11 @@ final class SearchState {
         !searchText.isEmpty || !selectedContentTypes.isEmpty || dateFilter != .all
     }
 
+    /// Suggestions lead the History row only while nothing narrows or picks from it.
+    var allowsSuggestions: Bool {
+        !isActive && multiSelection.ids.isEmpty
+    }
+
     func updateSearch(_ text: String) {
         searchText = text
         selectedIndex = nil

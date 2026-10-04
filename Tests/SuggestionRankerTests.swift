@@ -77,3 +77,18 @@ final class SuggestionRankerTests: XCTestCase {
         XCTAssertEqual(rank([older, newest, once, habit], events, app: "com.apple.Notes"), [habit.id, once.id, newest.id])
     }
 }
+
+final class SuggestedRowTests: XCTestCase {
+    private struct Card: Identifiable, Equatable { let id: Int }
+
+    /// Suggestions lead the row in rank order, and each appears only there.
+    func testMergeLeadsWithSuggestionsAndDropsThemFromTheRest() {
+        let row = SuggestedRow.merge(suggested: [Card(id: 7), Card(id: 2), Card(id: 9)],
+                                     rest: (1...9).map(Card.init))
+        XCTAssertEqual(row.map(\.id), [7, 2, 9, 1, 3, 4, 5, 6, 8])
+    }
+
+    func testNoSuggestionsLeavesTheRowAsIs() {
+        XCTAssertEqual(SuggestedRow.merge(suggested: [], rest: (1...3).map(Card.init)).map(\.id), [1, 2, 3])
+    }
+}

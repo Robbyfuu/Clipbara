@@ -36,6 +36,10 @@ final class AppState {
 
     /// Cached filtered items for keyboard navigation (updated by CardGridView)
     var currentFilteredItems: [ClipboardItem] = []
+    /// How many of `currentFilteredItems` are suggestions, at its front (updated by CardGridView).
+    var currentSuggestedCount = 0
+    /// Ranked when the panel opens, for the app it opened over.
+    private(set) var suggestedIDs: [UUID] = []
     /// Debounced search text that produced `currentFilteredItems`; quick paste is ignored while it lags the field.
     var currentFilteredQuery: String = ""
 
@@ -113,7 +117,28 @@ final class AppState {
     }
 
     func markPanelPresented() {
+        suggestedIDs = rankSuggestions()
         panelPresentationID += 1
+    }
+
+    /// Once per opening: the last 200 non-file clips plus pinned clips, ranked for the app the panel opened over.
+    private func rankSuggestions() -> [UUID] {
+        guard UserDefaults.standard.object(forKey: SuggestedRow.enabledDefaultsKey) as? Bool ?? true,
+              let context = modelContainer?.mainContext else { return [] }
+        let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
+        var recent = FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw },
+            sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        recent.fetchLimit = 200
+        let pinned = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.isPinned == true })
+        var seen = Set<UUID>()
+        let candidates = (((try? context.fetch(recent)) ?? []) + ((try? context.fetch(pinned)) ?? []))
+            .filter { seen.insert($0.id).inserted }
+            .map { SuggestionRanker.Candidate(id: $0.id, copiedAt: $0.copiedAt, isPinned: $0.isPinned) }
+        let events = ((try? context.fetch(FetchDescriptor<PasteEvent>())) ?? [])
+            .map { SuggestionRanker.Event(clipID: $0.clipID, appBundleID: $0.appBundleID, at: $0.at) }
+        return SuggestionRanker.rank(candidates: candidates, events: events,
+                                     app: panelController.focusReturnApp?.bundleIdentifier, now: .now)
     }
 
     func selectForPreview(_ item: ClipboardItem?) {
@@ -181,6 +206,13 @@ final class AppState {
             itemCount: currentFilteredItems.count
         ), currentFilteredItems.indices.contains(index) else { return }
         paste(currentFilteredItems[index], asPlainText: nil)
+    }
+
+    /// ⌥1-3: paste suggestion N as shown at the front of the History row. No-op when it isn't shown.
+    func pasteSuggestion(number: Int) {
+        guard selectedTab == .history, number < currentSuggestedCount,
+              currentFilteredItems.indices.contains(number) else { return }
+        paste(currentFilteredItems[number], asPlainText: nil)
     }
 
     func hidePanel() {

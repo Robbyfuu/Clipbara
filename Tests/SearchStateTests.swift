@@ -31,4 +31,22 @@ final class SearchStateTests: XCTestCase {
         state.toggleContentType(.plainText)
         XCTAssertEqual(state.filteredItems(from: items).map(\.contentType), [.plainText])
     }
+
+    func testSuggestionsHideWhileSearchingFilteringOrMultiSelecting() {
+        let state = SearchState()
+        XCTAssertTrue(state.allowsSuggestions)
+        state.updateSearch("a")
+        XCTAssertFalse(state.allowsSuggestions, "search text")
+        state.clearSearch()
+        state.toggleContentType(.image)
+        XCTAssertFalse(state.allowsSuggestions, "type filter")
+        state.toggleContentType(.image)
+        state.dateFilter = .today
+        XCTAssertFalse(state.allowsSuggestions, "date filter")
+        state.dateFilter = .all
+        _ = state.multiSelection.toggle(1, focus: 0, in: [UUID(), UUID()])
+        XCTAssertFalse(state.allowsSuggestions, "multi-select")
+        state.multiSelection.clear()
+        XCTAssertTrue(state.allowsSuggestions)
+    }
 }

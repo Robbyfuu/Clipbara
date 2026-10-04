@@ -41,3 +41,14 @@ enum SuggestionRanker {
             .map(\.0.id)
     }
 }
+
+/// The History row while suggestions show: up to three suggested clips first, then the usual cards without them.
+enum SuggestedRow {
+    /// "Show suggestions" in General, on by default.
+    static let enabledDefaultsKey = "showSuggestions"
+
+    static func merge<Card: Identifiable>(suggested: [Card], rest: [Card]) -> [Card] {
+        let ids = Set(suggested.map(\.id))
+        return suggested + rest.filter { !ids.contains($0.id) }
+    }
+}

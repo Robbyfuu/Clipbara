@@ -9,6 +9,8 @@ struct CardGridView: View {
     private var pinboards: [Pinboard]
 
     @State private var filteredItems: [ClipboardItem] = []
+    /// The first `suggestedCount` of `filteredItems` are suggestions.
+    @State private var suggestedCount = 0
     @State private var lastOffset: CGFloat = 0
 
     var body: some View {
@@ -41,6 +43,7 @@ struct CardGridView: View {
                                         pinboards: pinboards,
                                         quickPasteNumber: (0...8).contains(n) ? n : nil,
                                         selectionNumber: selectionNumber,
+                                        isSuggested: index < suggestedCount,
                                         onSelect: { _ in
                                             appState.searchState.multiSelection.clear()
                                             appState.searchState.selectedIndex = index
@@ -56,6 +59,17 @@ struct CardGridView: View {
                                         onCommandClick: { appState.toggleSelection(at: index) },
                                         onShiftClick: { appState.extendSelection(to: index) }
                                     )
+                                    .overlay(alignment: .trailing) {
+                                        // In the gap after the last suggestion, taking no width, so every card keeps
+                                        // the position `firstVisibleIndex` and the ⌘-numbers assume.
+                                        if index == suggestedCount - 1, index < filteredItems.count - 1 {
+                                            Capsule()
+                                                .fill(DesignTokens.Brand.line)
+                                                .frame(width: 2, height: DesignTokens.Card.height / 2)
+                                                .offset(x: (DesignTokens.Card.gridSpacing + 2) / 2)
+                                                .accessibilityHidden(true)
+                                        }
+                                    }
                                     .id(item.id)
                                 }
                             }
@@ -109,6 +123,17 @@ struct CardGridView: View {
                 updateFilteredItems(from: items)
             }
         }
+        .onChange(of: appState.searchState.allowsSuggestions) { _, _ in
+            guard appState.selectedTab == .history else { return }
+            // Suggestions coming or going reorder the row: the focused card stays focused.
+            let focused = appState.searchState.selectedIndex.flatMap {
+                filteredItems.indices.contains($0) ? filteredItems[$0].id : nil
+            }
+            updateFilteredItems(from: items)
+            if let focused, let index = appState.currentFilteredItems.firstIndex(where: { $0.id == focused }) {
+                appState.searchState.selectedIndex = index
+            }
+        }
         .onAppear {
             updateFilteredItems(from: items)
         }
@@ -123,8 +148,14 @@ struct CardGridView: View {
     }
 
     private func updateFilteredItems(from sourceItems: [ClipboardItem]) {
-        let updated = appState.searchState.filteredItems(from: sourceItems)
+        // Ranked on open; a suggestion deleted since then is simply gone.
+        let suggested = appState.searchState.allowsSuggestions
+            ? appState.suggestedIDs.compactMap { id in sourceItems.first { $0.id == id } }
+            : []
+        let updated = SuggestedRow.merge(suggested: suggested, rest: appState.searchState.filteredItems(from: sourceItems))
         filteredItems = updated
+        suggestedCount = suggested.count
+        appState.currentSuggestedCount = suggested.count
         appState.currentFilteredItems = updated
         appState.currentFilteredQuery = appState.searchState.debouncedSearchText
         appState.searchState.ensureSelection(itemCount: updated.count)
