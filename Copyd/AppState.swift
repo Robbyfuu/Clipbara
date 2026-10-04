@@ -21,6 +21,7 @@ final class AppState {
     let pasteStack = PasteStackController()
     let autoPaster = AutoPaster()
     let searchState = SearchState()
+    let suggestionModel = SuggestionModel()
 
     var selectedTab: PanelTab = .history
     /// Published by NavigationBarView so shortcuts follow its exact display order.
@@ -40,6 +41,8 @@ final class AppState {
     var currentSuggestedCount = 0
     /// Ranked when the panel opens, for the app it opened over.
     private(set) var suggestedIDs: [UUID] = []
+    /// Bumped when Apple Intelligence reorders the open panel's suggestions, so the row crossfades to them.
+    private(set) var suggestionsRerankID = 0
     /// Debounced search text that produced `currentFilteredItems`; quick paste is ignored while it lags the field.
     var currentFilteredQuery: String = ""
 
@@ -73,6 +76,7 @@ final class AppState {
         panelController.onPanelWillHide = { [weak self] in
             self?.searchState.reset()
             self?.previewItem = nil
+            self?.suggestionModel.cancel()
             ReviewPrompter.panelWillHide { [weak self] in
                 self?.panelController.isVisible ?? false
             }
@@ -122,9 +126,11 @@ final class AppState {
     }
 
     /// Once per opening: the last 200 non-file clips plus pinned clips, ranked for the app the panel opened over.
+    /// The habit's top 3 show at once; Apple Intelligence may reorder its top 15 within 600 ms.
     private func rankSuggestions() -> [UUID] {
         guard UserDefaults.standard.object(forKey: SuggestedRow.enabledDefaultsKey) as? Bool ?? true,
               let context = modelContainer?.mainContext else { return [] }
+        suggestionModel.prewarm()
         let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
         var recent = FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw },
@@ -132,13 +138,27 @@ final class AppState {
         recent.fetchLimit = 200
         let pinned = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.isPinned == true })
         var seen = Set<UUID>()
-        let candidates = (((try? context.fetch(recent)) ?? []) + ((try? context.fetch(pinned)) ?? []))
+        let clips = (((try? context.fetch(recent)) ?? []) + ((try? context.fetch(pinned)) ?? []))
             .filter { seen.insert($0.id).inserted }
-            .map { SuggestionRanker.Candidate(id: $0.id, copiedAt: $0.copiedAt, isPinned: $0.isPinned) }
+        let candidates = clips.map { SuggestionRanker.Candidate(id: $0.id, copiedAt: $0.copiedAt, isPinned: $0.isPinned) }
         let events = ((try? context.fetch(FetchDescriptor<PasteEvent>())) ?? [])
             .map { SuggestionRanker.Event(clipID: $0.clipID, appBundleID: $0.appBundleID, at: $0.at) }
-        return SuggestionRanker.rank(candidates: candidates, events: events,
-                                     app: panelController.focusReturnApp?.bundleIdentifier, now: .now)
+        let app = panelController.focusReturnApp
+        let ranked = SuggestionRanker.rank(candidates: candidates, events: events, app: app?.bundleIdentifier,
+                                           now: .now, limit: 15)
+        if let app, let bundleID = app.bundleIdentifier, bundleID != Bundle.main.bundleIdentifier {
+            let byID = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            var pastes: [UUID: Int] = [:]
+            for event in events where event.appBundleID == bundleID { pastes[event.clipID, default: 0] += 1 }
+            let pastedHere = pastes.sorted { $0.value > $1.value }.prefix(5).compactMap { byID[$0.key] }
+            suggestionModel.rerank(ranked.compactMap { byID[$0] }, pastedHere: pastedHere,
+                                   appName: app.localizedName ?? bundleID, bundleID: bundleID) { [weak self] ids in
+                guard let self, ids != self.suggestedIDs else { return }
+                self.suggestedIDs = ids
+                self.suggestionsRerankID += 1
+            }
+        }
+        return Array(ranked.prefix(3))
     }
 
     func selectForPreview(_ item: ClipboardItem?) {

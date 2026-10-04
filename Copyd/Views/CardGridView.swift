@@ -11,6 +11,8 @@ struct CardGridView: View {
     @State private var filteredItems: [ClipboardItem] = []
     /// The first `suggestedCount` of `filteredItems` are suggestions.
     @State private var suggestedCount = 0
+    /// Cards fading out of, then into, their places while Apple Intelligence's order swaps in.
+    @State private var fadingIDs: Set<UUID> = []
     @State private var lastOffset: CGFloat = 0
 
     var body: some View {
@@ -70,6 +72,7 @@ struct CardGridView: View {
                                                 .accessibilityHidden(true)
                                         }
                                     }
+                                    .opacity(fadingIDs.contains(item.id) ? 0 : 1)
                                     .id(item.id)
                                 }
                             }
@@ -134,6 +137,19 @@ struct CardGridView: View {
                 appState.searchState.selectedIndex = index
             }
         }
+        .onChange(of: appState.suggestionsRerankID) { _, _ in
+            guard appState.selectedTab == .history else { return }
+            // Only the places whose card changes fade: out at the old order, in at the new one.
+            let changed = zip(filteredItems.map(\.id), row(from: items).cards.map(\.id)).filter { $0 != $1 }
+            fadingIDs = []
+            guard !changed.isEmpty else { return updateFilteredItems(from: items) }
+            withAnimation(.easeOut(duration: 0.1)) {
+                fadingIDs = Set(changed.flatMap { [$0, $1] })
+            } completion: {
+                updateFilteredItems(from: items)
+                withAnimation(.easeIn(duration: 0.15)) { fadingIDs = [] }
+            }
+        }
         .onAppear {
             updateFilteredItems(from: items)
         }
@@ -147,15 +163,21 @@ struct CardGridView: View {
         if appState.firstVisibleIndex != index { appState.firstVisibleIndex = index }
     }
 
-    private func updateFilteredItems(from sourceItems: [ClipboardItem]) {
+    /// The suggestions, then the usual cards without them.
+    private func row(from sourceItems: [ClipboardItem]) -> (cards: [ClipboardItem], suggested: Int) {
         // Ranked on open; a suggestion deleted since then is simply gone.
         let suggested = appState.searchState.allowsSuggestions
             ? appState.suggestedIDs.compactMap { id in sourceItems.first { $0.id == id } }
             : []
-        let updated = SuggestedRow.merge(suggested: suggested, rest: appState.searchState.filteredItems(from: sourceItems))
+        return (SuggestedRow.merge(suggested: suggested, rest: appState.searchState.filteredItems(from: sourceItems)),
+                suggested.count)
+    }
+
+    private func updateFilteredItems(from sourceItems: [ClipboardItem]) {
+        let (updated, suggested) = row(from: sourceItems)
         filteredItems = updated
-        suggestedCount = suggested.count
-        appState.currentSuggestedCount = suggested.count
+        suggestedCount = suggested
+        appState.currentSuggestedCount = suggested
         appState.currentFilteredItems = updated
         appState.currentFilteredQuery = appState.searchState.debouncedSearchText
         appState.searchState.ensureSelection(itemCount: updated.count)
