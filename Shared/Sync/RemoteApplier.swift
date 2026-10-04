@@ -15,6 +15,12 @@ struct RemoteApplier {
         var deletes: Set<UUID> = []
         var orphans: [EntrySnapshot] = []
         var touched: Set<UUID> = []
+        /// Clips this apply inserted, as opposed to updated.
+        var inserted: Set<UUID> = []
+        /// New clips that stayed new: not deleted, and not merged with a copy this device already had (Universal
+        /// Clipboard puts one copy on both devices; a merge survivor is in `saves`). What the iPhone announces.
+        /// Two new copies that merge with each other are not announced either.
+        var arrivals: Set<UUID> { inserted.subtracting(deletes).subtracting(saves) }
     }
 
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
@@ -131,6 +137,7 @@ struct RemoteApplier {
             m.update(from: s)
             m.thumbnailData = Thumbnail.png(for: m.contentType, rawData: s.rawData)
             context.insert(m)
+            out.inserted.insert(s.id)
         }
     }
 

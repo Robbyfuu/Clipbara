@@ -122,6 +122,17 @@
         }
       }
     },
+    "%lld new clips" : {
+      "comment" : "Arrival notification title for two or more clips",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld clips nuevos"
+          }
+        }
+      }
+    },
     "%lld selected" : {
       "localizations" : {
         "en" : {
@@ -2300,6 +2311,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Necesita acceso en Accesibilidad. Mientras tanto, elegir un clip solo lo copia."
+          }
+        }
+      }
+    },
+    "New clip from %@" : {
+      "comment" : "Arrival notification title for one clip; the argument is \"your Mac\"",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip nuevo de %@"
           }
         }
       }
@@ -4513,6 +4535,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的历史记录都还在"
+          }
+        }
+      }
+    },
+    "your Mac" : {
+      "comment" : "The device a clip arrived from, inside \"New clip from %@\"",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tu Mac"
           }
         }
       }

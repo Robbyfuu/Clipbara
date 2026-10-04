@@ -306,6 +306,23 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertEqual(survivor.copiedAt, t0.addingTimeInterval(30))
     }
 
+    // MARK: Arrivals (what the iPhone announces)
+
+    func testArrivalsAreOnlyNewClips() throws {
+        let first = try apply(clips: [clip(1)], pinboards: [board(2)])
+        XCTAssertEqual(first.arrivals, [id(1)], "a new clip arrives; a pinboard is not a clip")
+        let again = try apply(clips: [clip(1, title: "renamed")])
+        XCTAssertTrue(again.arrivals.isEmpty, "an update of a clip this device has is not an arrival")
+    }
+
+    /// Universal Clipboard: this device already has the copy, and the other device's record merges into it.
+    func testDuplicateOfALocalCopyIsNotAnArrival() throws {
+        try apply(clips: [clip(2)])  // local copy, larger UUID: the incoming one survives
+        XCTAssertTrue(try apply(clips: [clip(1, dt: 5)]).arrivals.isEmpty, "incoming survivor")
+        try apply(clips: [clip(3, hash: "k")])  // local copy, smaller UUID: the incoming one loses
+        XCTAssertTrue(try apply(clips: [clip(4, hash: "k", dt: 5)]).arrivals.isEmpty, "incoming loser")
+    }
+
     func testNoMergeAt61Seconds() throws {
         try apply(clips: [clip(1)])
         let out = try apply(clips: [clip(2, dt: 61)])

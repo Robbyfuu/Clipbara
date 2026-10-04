@@ -38,6 +38,14 @@ import SwiftData
     /// Re-queued changes held back until the next willSendChanges: the engine keeps asking for
     /// batches until it gets nil, so resending them in the same send would loop.
     private var deferred: Set<UUID> = []
+    #if os(iOS)
+    /// Called once a fetch finishes, with the clips it brought that this iPhone never had (`Outcome.arrivals`).
+    /// Local captures and Universal Clipboard never pass through here. The first fetch of a fresh state (install,
+    /// sign-in, a wiped mirror) downloads the whole history and is not reported.
+    @ObservationIgnored var onRemoteInserts: (@MainActor ([UUID]) -> Void)?
+    @ObservationIgnored private var arrivals: Set<UUID> = []
+    @ObservationIgnored private var reportsArrivals = false
+    #endif
 
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
     private static let batchRecords = 100
@@ -138,6 +146,11 @@ import SwiftData
             status = .syncing
         case .didFetchChanges:
             retryOrphans(engine: syncEngine)
+            #if os(iOS)
+            if reportsArrivals, !arrivals.isEmpty { onRemoteInserts?(Array(arrivals)) }
+            arrivals = []
+            reportsArrivals = true
+            #endif
             lastFetch = Date()
             status = .upToDate(Date())
         case .didSendChanges:
@@ -343,6 +356,9 @@ import SwiftData
 
         let out = applyRemote(clips: clips, pinboards: boards, entries: entries, deletions: deletions,
                               fields: fields, engine: engine)
+        #if os(iOS)
+        arrivals.formUnion(out.arrivals)
+        #endif
         for o in out.orphans {
             orphans.append(o)
             orphanFields[o.id] = fields[o.id]
@@ -503,6 +519,10 @@ import SwiftData
     private func startEngine() {
         try? FileManager.default.removeItem(at: assetDirectory)  // leftovers of sends that never got a result
         let saved = loadState()
+        #if os(iOS)
+        reportsArrivals = saved != nil
+        arrivals = []
+        #endif
         let database = CKContainer(identifier: Self.containerID).privateCloudDatabase
         let engine = CKSyncEngine(CKSyncEngine.Configuration(database: database, stateSerialization: saved, delegate: self))
         self.engine = engine

@@ -89,6 +89,23 @@
         }
       }
     },
+    "%lld new clips" : {
+      "comment" : "Arrival notification title for two or more clips",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld new clips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld clips nuevos"
+          }
+        }
+      }
+    },
     "1 clip" : {
       "localizations" : {
         "en" : {
@@ -305,6 +322,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Todos"
+          }
+        }
+      }
+    },
+    "Allow notifications for Copyd in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow notifications for Copyd in Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite las notificaciones de Copyd en Configuración."
           }
         }
       }
@@ -958,6 +991,22 @@
         }
       }
     },
+    "Lock Screen & alerts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lock Screen & alerts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pantalla bloqueada y avisos"
+          }
+        }
+      }
+    },
     "Never synced" : {
       "localizations" : {
         "en" : {
@@ -970,6 +1019,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sin sincronizar"
+          }
+        }
+      }
+    },
+    "New clip from %@" : {
+      "comment" : "Arrival notification title for one clip; the argument is \"your Mac\"",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New clip from %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip nuevo de %@"
           }
         }
       }
@@ -1130,6 +1196,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No hay nada que guardar"
+          }
+        }
+      }
+    },
+    "Notify me when a clip arrives" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notify me when a clip arrives"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisarme cuando llegue un clip"
           }
         }
       }
@@ -1701,6 +1783,22 @@
         }
       }
     },
+    "Show latest clip on Lock Screen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show latest clip on Lock Screen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar el último clip en la pantalla bloqueada"
+          }
+        }
+      }
+    },
     "Sign in to iCloud" : {
       "localizations" : {
         "en" : {
@@ -1926,6 +2024,22 @@
         }
       }
     },
+    "Turn on Live Activities for Copyd in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on Live Activities for Copyd in Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa las Actividades en vivo de Copyd en Configuración."
+          }
+        }
+      }
+    },
     "Unpin" : {
       "localizations" : {
         "en" : {
@@ -2034,6 +2148,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Usa el teclado de Copyd"
+          }
+        }
+      }
+    },
+    "your Mac" : {
+      "comment" : "The device a clip arrived from, inside \"New clip from %@\"",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "your Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tu Mac"
           }
         }
       }

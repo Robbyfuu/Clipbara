@@ -72,6 +72,8 @@ targets:
       - path: CopydKeyboard/KeyboardView.swift
       # DEBUG-only -CopydWidgetPreview harness renders the widget views inside the app.
       - path: CopydWidget/RecentClipsViews.swift
+      # DEBUG-only -CopydLiveActivityPreview harness renders the Live Activity views inside the app.
+      - path: CopydWidget/LatestClipLiveActivity.swift
       # DEBUG-only -CopydSharePreview harness renders the share sheet inside the app.
       - path: CopydShare/ShareView.swift
     resources:
@@ -233,6 +235,8 @@ targets:
       - path: Shared/Utilities/LatestClip.swift
       - path: Shared/Utilities/SaveText.swift
       - path: Shared/Utilities/Inbox.swift
+      - path: Shared/Utilities/ArrivalNotice.swift
+      - path: Shared/Utilities/LatestClipActivity.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests

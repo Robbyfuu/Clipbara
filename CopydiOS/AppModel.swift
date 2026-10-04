@@ -1,13 +1,15 @@
+import ActivityKit
 import SwiftUI
 import SwiftData
 import UIKit
+import UserNotifications
 import WidgetKit
 import OSLog
 
 /// Owns the shared store and the sync engine for the iOS app.
 @MainActor @Observable
 final class AppModel {
-    private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "AppModel")
+    private nonisolated static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "AppModel")
     /// The one instance. The scene delegate, which SwiftUI does not reach, hands it quick actions.
     static let shared = AppModel()
 
@@ -21,6 +23,13 @@ final class AppModel {
     var pendingRoute: QuickRoute?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var isDraining = false
+    /// The last Live Activity change. Each waits for the one before, so an older state never lands last.
+    @ObservationIgnored private var activityTask: Task<Void, Never>?
+    @ObservationIgnored private var loggedActivitySize = false
+
+    /// Settings toggles, both off by default.
+    static let liveActivityKey = "liveActivityEnabled"
+    static let arrivalNotificationsKey = "arrivalNotificationsEnabled"
 
     private init() {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
@@ -48,6 +57,7 @@ final class AppModel {
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         sync = CloudSyncEngine(container: container) { Self.reloadWidgets() }
+        sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
         Self.writeSampleInboxIfRequested()
@@ -57,6 +67,68 @@ final class AppModel {
         #if DEBUG
         applyDebugRoute()
         #endif
+        // Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the
+        // sync engine's applied remote changes, foreground or a background push wake.
+        _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateLiveActivity() }
+        }
+    }
+
+    /// Keeps the Lock Screen activity on the newest clip. Starts one when there is none, or when iOS ended the last
+    /// after 8 hours; ends it when the setting is off or no clip is left. Only the foreground app may start an
+    /// activity: a start from the background fails, and the next return to the foreground starts it.
+    func updateLiveActivity() {
+        let enabled = UserDefaults.standard.bool(forKey: Self.liveActivityKey)
+        let state = enabled ? (try? LatestClip.newest(in: container.mainContext)).map(LatestClipActivity.ContentState.init) : nil
+        guard state != nil || !Activity<LatestClipActivity>.activities.isEmpty else { return }
+        if let state, !loggedActivitySize {
+            loggedActivitySize = true
+            Self.log.notice("Live Activity state: \(state.encodedSize, privacy: .public) bytes")
+        }
+        let previous = activityTask
+        activityTask = Task {
+            await previous?.value
+            await Self.show(state)
+        }
+    }
+
+    /// Puts `state` in Copyd's one activity, or ends every activity when it is nil. Off the main actor: an `Activity`
+    /// is not Sendable, so it never leaves this function.
+    private nonisolated static func show(_ state: LatestClipActivity.ContentState?) async {
+        let all = Activity<LatestClipActivity>.activities
+        if let state, let live = all.first(where: { $0.activityState == .active || $0.activityState == .stale }) {
+            if live.content.state != state { await live.update(ActivityContent(state: state, staleDate: nil)) }
+            return
+        }
+        // Off, no clip, or ended at 8 hours but still on screen: ended now, so a restart never shows two.
+        for activity in all { await activity.end(nil, dismissalPolicy: .immediate) }
+        if !all.isEmpty { log.notice("Live Activity ended (\(all.count, privacy: .public))") }
+        guard let state else { return }
+        do {
+            _ = try Activity.request(attributes: LatestClipActivity(), content: ActivityContent(state: state, staleDate: nil),
+                                     pushType: nil)
+            log.notice("Live Activity started")
+        } catch {
+            log.error("Live Activity not started: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// One notification for the clips a fetch brought, while Copyd is not on screen. Only the sync engine calls this,
+    /// with remote inserts: local captures and Universal Clipboard never reach it.
+    private func announceArrivals(_ ids: [UUID]) {
+        guard UserDefaults.standard.bool(forKey: Self.arrivalNotificationsKey),
+              UIApplication.shared.applicationState != .active else { return }
+        let fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) },
+                                                   sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        guard let clips = try? container.mainContext.fetch(fetch), !clips.isEmpty else { return }
+        let notice = ArrivalNotice.content(
+            previews: clips.map { ArrivalNotice.preview(type: $0.contentType, text: $0.textContent) },
+            device: String(localized: "your Mac"))
+        let content = UNMutableNotificationContent()
+        content.title = notice.title
+        content.body = notice.body
+        content.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
     /// Imports what the Share extension left in the inbox. Runs at launch and on every return to the foreground.
