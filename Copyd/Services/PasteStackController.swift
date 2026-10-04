@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// ⌘V is seen by a listen-only session event tap, which needs Input Monitoring and can't hold or
 /// change the key. So the clip the next ⌘V takes (the head) is put on the pasteboard ahead of
-/// time: after the first copy, after each FIFO copy, and when a ⌘V finishes. Copyd posts no
+/// time: after the first copy, after each FIFO copy, and when a ⌘V finishes. Paste Stack posts no
 /// keystrokes. The tap lives from `start()` to `stop()`; the stack ends when the last clip is
 /// pasted, from the shortcut or the menu, or when a clip is picked in Copyd's own UI.
 @MainActor
@@ -198,21 +198,24 @@ final class PasteStackController {
     // MARK: - HUD
 
     private func showHUD() {
-        let size = NSSize(width: 560, height: 56)
+        let panel = hud ?? Self.makeHUDPanel(PasteStackHUD(controller: self))
+        Self.showAtTop(panel, size: NSSize(width: 560, height: 56))
+        hud = panel
+    }
+
+    /// Orders a HUD panel in at the top center of the screen with the pointer.
+    static func showAtTop(_ panel: NSPanel, size: NSSize) {
         guard let screen = PanelController.screen(containing: NSEvent.mouseLocation, in: NSScreen.screens)
             ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
         let frame = NSRect(x: visible.midX - size.width / 2, y: visible.maxY - size.height,
                            width: size.width, height: size.height)
-
-        let panel = hud ?? makeHUDPanel()
         panel.setFrame(frame, display: true)
         panel.orderFrontRegardless()
-        hud = panel
     }
 
     /// Never takes focus and lets clicks through to whatever is underneath.
-    private func makeHUDPanel() -> NSPanel {
+    static func makeHUDPanel(_ rootView: some View) -> NSPanel {
         let panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: true)
         panel.level = .statusBar
@@ -223,8 +226,8 @@ final class PasteStackController {
         panel.ignoresMouseEvents = true
         // Copyd is rarely the active app; the HUD must stay up while the user works elsewhere.
         panel.hidesOnDeactivate = false
-        let host = NSHostingView(rootView: PasteStackHUD(controller: self))
-        // Keep the panel's fixed frame so the pill stays centered as the count changes width.
+        let host = NSHostingView(rootView: rootView)
+        // Keep the panel's fixed frame so the pill stays centered as its text changes width.
         host.sizingOptions = []
         panel.contentView = host
         return panel
@@ -236,7 +239,8 @@ final class PasteStackController {
 private func pasteStackTapCallback(
     _: CGEventTapProxy, type: CGEventType, event: CGEvent, userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    if let userInfo {
+    // The ⌘V Copyd posts after a pick is never the user's: it must not pop the stack.
+    if let userInfo, !CopydSyntheticPaste.isMarked(event) {
         let controller = Unmanaged<PasteStackController>.fromOpaque(userInfo).takeUnretainedValue()
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
@@ -257,8 +261,7 @@ private struct PasteStackHUD: View {
     let controller: PasteStackController
 
     var body: some View {
-        HStack(spacing: 8) {
-            CopydMark(size: 18)
+        HUDPill {
             Text("Paste Stack · \(controller.count)")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(DesignTokens.Brand.ink)
@@ -266,6 +269,27 @@ private struct PasteStackHUD: View {
             hint
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DesignTokens.Brand.ink2)
+        }
+    }
+
+    /// Names the real stop shortcut, as the menu row does.
+    private var hint: Text {
+        if let shortcut = KeyboardShortcuts.getShortcut(for: .togglePasteStack)?.description {
+            Text("⌘V pastes next · \(shortcut) stops")
+        } else {
+            Text("⌘V pastes next")
+        }
+    }
+}
+
+/// The brand pill a HUD shows at the top of the screen: the Copyd mark, then `content`.
+struct HUDPill<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 8) {
+            CopydMark(size: 18)
+            content
         }
         .lineLimit(1)
         .padding(.leading, 10)
@@ -277,14 +301,5 @@ private struct PasteStackHUD: View {
         .fixedSize()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .combine)
-    }
-
-    /// Names the real stop shortcut, as the menu row does.
-    private var hint: Text {
-        if let shortcut = KeyboardShortcuts.getShortcut(for: .togglePasteStack)?.description {
-            Text("⌘V pastes next · \(shortcut) stops")
-        } else {
-            Text("⌘V pastes next")
-        }
     }
 }

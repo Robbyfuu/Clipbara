@@ -19,6 +19,7 @@ final class AppState {
     let pasteService = PasteService()
     let panelController = PanelController()
     let pasteStack = PasteStackController()
+    let autoPaster = AutoPaster()
     let searchState = SearchState()
 
     var selectedTab: PanelTab = .history
@@ -54,9 +55,12 @@ final class AppState {
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)
         }
-        // Picking a clip in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) ends Paste Stack.
+        // Every pick in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) comes through here, right
+        // before the clip is written. It ends Paste Stack, then pastes into the app the user was in once
+        // the write is done and the panel is gone.
         clipboardMonitor.onPick = { [weak self] in
             self?.pasteStack.stop()
+            self?.autoPaster.pasteIntoFrontApp()
         }
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()

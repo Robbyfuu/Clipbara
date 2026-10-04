@@ -348,6 +348,22 @@
         }
       }
     },
+    "Allow Copyd in Accessibility to paste directly. For now, press ⌘V." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Copyd in Accessibility to paste directly. For now, press ⌘V."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite Copyd en Accesibilidad para pegar directo. Por ahora, pulsa ⌘V."
+          }
+        }
+      }
+    },
     "Already in %@" : {
       "localizations" : {
         "es" : {
@@ -2219,6 +2235,22 @@
         }
       }
     },
+    "Needs Accessibility access. Until then, picking a clip only copies it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs Accessibility access. Until then, picking a clip only copies it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necesita acceso en Accesibilidad. Mientras tanto, elegir un clip solo lo copia."
+          }
+        }
+      }
+    },
     "New line" : {
       "localizations" : {
         "en" : {
@@ -2455,6 +2487,22 @@
         }
       }
     },
+    "Open Accessibility Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Accessibility Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Accesibilidad"
+          }
+        }
+      }
+    },
     "Open Copyd" : {
       "localizations" : {
         "es" : {
@@ -2615,6 +2663,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以纯文本粘贴"
+          }
+        }
+      }
+    },
+    "Paste directly into the app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste directly into the app"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar directamente en la app"
           }
         }
       }

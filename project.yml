@@ -202,6 +202,7 @@ targets:
       - path: Copyd/Utilities/QuickPasteShortcut.swift
       - path: Copyd/Utilities/MultiPaste.swift
       - path: Copyd/Utilities/PasteStack.swift
+      - path: Copyd/Utilities/AutoPastePolicy.swift
       - path: Copyd/SearchState.swift
       - path: Shared/Design/PinboardDot.swift
       - path: Copyd/Utilities/WheelScrollTranslation.swift

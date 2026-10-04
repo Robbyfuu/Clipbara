@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square" alt="macOS 14 or later">
 </p>
 
-Copyd keeps a history of what you copy. Press `⌘ ⇧ V` and a panel slides up at the bottom of the screen without pulling focus from the app you are in. Click a clip once and it is back on your clipboard.
+Copyd keeps a history of what you copy. Press `⌘ ⇧ V` and a panel slides up at the bottom of the screen without pulling focus from the app you are in. Click a clip once and it is pasted into that app.
 
 Copyd is a fork of [Clipbara](https://github.com/mobrava/Clipbara) by mobrava, licensed under GPL-3.0.
 
@@ -48,8 +48,7 @@ App Store build coming.
 1. Copy anything with <kbd>⌘</kbd> <kbd>C</kbd> as usual.
 2. Press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>V</kbd> to open the history panel.
 3. Type to search, or move between clips with <kbd>←</kbd> and <kbd>→</kbd>.
-4. Click a clip once, or press <kbd>Return</kbd>. The clip goes to your clipboard and the panel closes.
-5. Press <kbd>⌘</kbd> <kbd>V</kbd> in the app you were using.
+4. Click a clip once, or press <kbd>Return</kbd>. The panel closes and the clip is pasted into the app you were using.
 
 Inside the panel:
 
@@ -82,11 +81,13 @@ Add a password manager, or any other app, under **Settings > Exclusions** and no
 
 ## FAQ
 
-### Why doesn't Copyd paste into the app for me?
+### How does Copyd paste into my app, and why does it need Accessibility?
 
-Picking a clip puts it on the clipboard and closes the panel, then you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Pasting on your behalf means synthesizing keystrokes into whatever app is in front, which needs an extra system permission to control other applications. Copyd never asks for that one and never sends keystrokes.
+When you pick a clip, Copyd puts it on the clipboard, closes the panel, and presses <kbd>⌘</kbd> <kbd>V</kbd> for you in the app you were using. Sending that keystroke to another app needs the Accessibility permission. Copyd asks for it once, the first time you pick a clip. Until you allow Copyd in **System Settings > Privacy & Security > Accessibility**, the clip still goes to your clipboard and you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Copyd only sends that one <kbd>⌘</kbd> <kbd>V</kbd>, right after a pick.
 
-The one permission Copyd does ask for is Input Monitoring, and only the first time you start Paste Stack. Paste Stack watches for <kbd>⌘</kbd> <kbd>V</kbd> so it can put the next clip on the clipboard, and it stops watching when the stack ends. Nothing else in Copyd needs it.
+To keep pasting by hand, turn off **Settings > General > Paste directly into the app**.
+
+Input Monitoring is a separate permission. Copyd asks for it only the first time you start Paste Stack. Paste Stack watches for <kbd>⌘</kbd> <kbd>V</kbd> so it can put the next clip on the clipboard, and it stops watching when the stack ends. Nothing else in Copyd needs it.
 
 ### The shortcut does not open the panel
 

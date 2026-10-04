@@ -177,6 +177,7 @@ struct MenuBarItemRow: View {
             }
             appState.clipboardMonitor.skipNextChange()
             appState.pasteService.paste(item: item)
+            appState.autoPaster.returnFocusFromMenuBar()
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: item.contentType.systemImage)
