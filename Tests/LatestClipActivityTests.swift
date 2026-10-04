@@ -53,6 +53,35 @@ final class LatestClipActivityTests: XCTestCase {
         XCTAssertNil(state.thumbnail, "only images carry a thumbnail")
     }
 
+    /// The cap counts Unicode scalars, which bound the encoded bytes; a Character can hold any number of combining marks.
+    func testPreviewCapCountsUnicodeScalars() {
+        let marks = String(repeating: "e\u{301}\u{302}\u{303}\u{304}", count: 100)  // 100 Characters, 500 scalars
+        let state = State(item(.plainText, marks))
+        XCTAssertEqual(state.preview.unicodeScalars.count, State.previewLimit)
+        XCTAssertEqual(Array(state.preview.unicodeScalars), Array(marks.unicodeScalars.prefix(State.previewLimit)))
+    }
+
+    /// The link check runs on every save; a long text skips it and reads as text.
+    func testLongTextSkipsTheLinkCheck() {
+        let base = "https://copyd.app/"
+        let short = base + String(repeating: "a", count: State.linkCheckLimit - 1 - base.count)
+        XCTAssertEqual(State(item(.plainText, short)).kind, .link, "2,047 characters")
+        XCTAssertEqual(State(item(.plainText, short + "a")).kind, .text, "2,048 characters")
+    }
+
+    /// Every save asks for the state; it is rebuilt only when the newest clip or its copy time changed.
+    func testStateIsReusedForTheSameClipAndTime() {
+        let clip = item(.plainText, "first")
+        let first = State.make(for: clip, reusing: nil)
+        clip.textContent = "edited"
+        XCTAssertEqual(State.make(for: clip, reusing: first).preview, "first", "same id and time: reused")
+        clip.copiedAt = clip.copiedAt.addingTimeInterval(1)
+        XCTAssertEqual(State.make(for: clip, reusing: first).preview, "edited", "copied again: rebuilt")
+        let other = item(.plainText, "other")
+        other.copiedAt = first.copiedAt
+        XCTAssertEqual(State.make(for: other, reusing: first).preview, "other", "another clip: rebuilt")
+    }
+
     func testImageGetsATinyThumbnail() throws {
         let state = State(item(.image, nil, thumbnail: try png(size: 320, noise: false)))
         let thumb = try XCTUnwrap(state.thumbnail)

@@ -68,13 +68,16 @@ struct SettingsView: View {
 
                 sectionLabel("Lock Screen & alerts")
                 VStack(alignment: .leading, spacing: 0) {
-                    if activitiesAllowed {
-                        toggleRow("Show latest clip on Lock Screen", symbol: "lock.rectangle", isOn: $liveActivityEnabled)
-                    } else {
-                        permissionRow("Show latest clip on Lock Screen", symbol: "lock.rectangle", status: .missing,
-                                      hint: "Turn on Live Activities for Copyd in Settings.", fix: "Open Settings")
+                    // Live Activities are an iPhone feature; an iPad would only ever show the hint.
+                    if UIDevice.current.userInterfaceIdiom == .phone {
+                        if activitiesAllowed {
+                            toggleRow("Show latest clip on Lock Screen", symbol: "lock.rectangle", isOn: $liveActivityEnabled)
+                        } else {
+                            permissionRow("Show latest clip on Lock Screen", symbol: "lock.rectangle", status: .missing,
+                                          hint: "Turn on Live Activities for Copyd in Settings.", fix: "Open Settings")
+                        }
+                        Divider().overlay(DesignTokens.Brand.line)
                     }
-                    Divider().overlay(DesignTokens.Brand.line)
                     if notificationsDenied {
                         permissionRow("Notify me when a clip arrives", symbol: "bell", status: .missing,
                                       hint: "Allow notifications for Copyd in Settings.", fix: "Open Settings")
@@ -179,10 +182,12 @@ struct SettingsView: View {
         .onChange(of: scenePhase, initial: true) { _, phase in
             guard phase == .active else { return }
             activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
-            if notificationsDenied {
+            // Notifications can be turned off for Copyd in Settings while the toggle is on, or allowed again after a
+            // denial: the card shows the Settings row while denied, and the toggle, as it was left, once allowed.
+            if arrivalNotificationsEnabled || notificationsDenied {
                 Task {
                     let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
-                    if status != .denied { notificationsDenied = false }  // allowed in Settings: the toggle is back
+                    notificationsDenied = status == .denied
                 }
             }
             fullAccessSeenAt = SharedDefaults.store?.object(forKey: SharedDefaults.keyboardFullAccessSeenAtKey) as? Date

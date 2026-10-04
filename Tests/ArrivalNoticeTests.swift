@@ -15,6 +15,15 @@ final class ArrivalNoticeTests: XCTestCase {
         XCTAssertEqual(notice.body, "newest", "the body shows the newest clip")
     }
 
+    /// The test bundle carries the iPhone's catalog. Its `es.lproj` picks Spanish whatever this Mac's language is;
+    /// a `Locale` argument would not, since lookups follow the preferred languages.
+    func testSpanishTitles() throws {
+        let path = try XCTUnwrap(Bundle(for: Self.self).path(forResource: "es", ofType: "lproj"))
+        let es = try XCTUnwrap(Bundle(path: path))
+        XCTAssertEqual(ArrivalNotice.content(previews: ["hola"], device: "tu Mac", bundle: es).title, "Clip nuevo de tu Mac")
+        XCTAssertEqual(ArrivalNotice.content(previews: ["a", "b", "c"], device: "tu Mac", bundle: es).title, "3 clips nuevos")
+    }
+
     func testEmptyPreviewUsesTypeName() {
         XCTAssertEqual(ArrivalNotice.preview(type: .image, text: nil), "Image")
         XCTAssertEqual(ArrivalNotice.preview(type: .plainText, text: " \n\t "), "Text")

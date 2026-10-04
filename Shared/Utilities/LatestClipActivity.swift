@@ -9,9 +9,19 @@ struct LatestClipActivity {
     struct ContentState: Codable, Hashable, Sendable {
         enum Kind: String, Codable, Sendable { case text, link, image, color }
 
+        /// In Unicode scalars, which bound the encoded bytes (4 each at most); a Character has no such bound.
         static let previewLimit = 120
         /// ActivityKit drops an update whose encoded state passes 4 KB; this leaves room for its own overhead.
         static let byteBudget = 3_072
+        /// Text this long or longer reads as text without the link check, which runs on every save.
+        static let linkCheckLimit = 2_048
+
+        /// `last` when it already shows this clip at this copy time, else a new state. Every save in the app asks,
+        /// and building one runs the link check and a JPEG encode.
+        static func make(for item: ClipboardItem, reusing last: Self?) -> Self {
+            if let last, last.clipID == item.id, last.copiedAt == item.copiedAt { return last }
+            return Self(item)
+        }
 
         var clipID: UUID
         var kind: Kind
@@ -29,9 +39,11 @@ struct LatestClipActivity {
             case .image: .image
             case .color: .color
             case .url: .link
-            default: LinkParts.bareLink(text) == nil ? .text : .link
+            // `prefix(n).count < n` walks at most n characters, where `count` would walk the whole clip.
+            default: text.prefix(Self.linkCheckLimit).count < Self.linkCheckLimit && LinkParts.bareLink(text) != nil ? .link : .text
             }
-            preview = String(ArrivalNotice.preview(type: type, text: text).prefix(Self.previewLimit))
+            let line = ArrivalNotice.preview(type: type, text: text).unicodeScalars
+            preview = String(String.UnicodeScalarView(line.prefix(Self.previewLimit)))
             source = item.sourceAppName
             copiedAt = item.copiedAt
             thumbnail = kind == .image ? item.thumbnailData.flatMap { Thumbnail.jpeg(from: $0, maxPixels: 64, quality: 0.6) } : nil

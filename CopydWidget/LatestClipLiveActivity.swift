@@ -86,7 +86,7 @@ struct LatestClipCompact: View {
             Image(systemName: "photo").foregroundStyle(DesignTokens.Brand.butter)
                 .accessibilityLabel("Image")
         case .color:
-            Circle().fill(Color(hex: state.preview) ?? .gray).frame(width: 16, height: 16)
+            Circle().fill(Color(hex: state.preview) ?? DesignTokens.Brand.chip).frame(width: 16, height: 16)
                 .accessibilityLabel(state.preview)
         case .text, .link:
             Text(state.summary).font(.system(size: 13, weight: .semibold)).lineLimit(1)
@@ -132,11 +132,13 @@ private struct LatestClipVisual: View {
             }
             .frame(width: size, height: size)
             .clipShape(.rect(cornerRadius: 10))
+            .privacySensitive()
             .accessibilityHidden(true)
         case .color:
-            RoundedRectangle(cornerRadius: 10).fill(Color(hex: state.preview) ?? .gray)
+            RoundedRectangle(cornerRadius: 10).fill(Color(hex: state.preview) ?? DesignTokens.Brand.chip)
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(DesignTokens.Brand.line, lineWidth: 1))
                 .frame(width: size, height: size)
+                .privacySensitive()
                 .accessibilityHidden(true)
         case .text, .link:
             EmptyView()

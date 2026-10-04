@@ -26,6 +26,8 @@ final class AppModel {
     /// The last Live Activity change. Each waits for the one before, so an older state never lands last.
     @ObservationIgnored private var activityTask: Task<Void, Never>?
     @ObservationIgnored private var loggedActivitySize = false
+    /// The last state built, reused while the newest clip and its copy time stay the same.
+    @ObservationIgnored private var lastActivityState: LatestClipActivity.ContentState?
 
     /// Settings toggles, both off by default.
     static let liveActivityKey = "liveActivityEnabled"
@@ -79,7 +81,10 @@ final class AppModel {
     /// activity: a start from the background fails, and the next return to the foreground starts it.
     func updateLiveActivity() {
         let enabled = UserDefaults.standard.bool(forKey: Self.liveActivityKey)
-        let state = enabled ? (try? LatestClip.newest(in: container.mainContext)).map(LatestClipActivity.ContentState.init) : nil
+        let state = enabled ? (try? LatestClip.newest(in: container.mainContext)).map {
+            LatestClipActivity.ContentState.make(for: $0, reusing: lastActivityState)
+        } : nil
+        lastActivityState = state
         guard state != nil || !Activity<LatestClipActivity>.activities.isEmpty else { return }
         if let state, !loggedActivitySize {
             loggedActivitySize = true
@@ -103,7 +108,8 @@ final class AppModel {
         // Off, no clip, or ended at 8 hours but still on screen: ended now, so a restart never shows two.
         for activity in all { await activity.end(nil, dismissalPolicy: .immediate) }
         if !all.isEmpty { log.notice("Live Activity ended (\(all.count, privacy: .public))") }
-        guard let state else { return }
+        // Live Activities turned off for Copyd in Settings: skip, the Settings card says so.
+        guard let state, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         do {
             _ = try Activity.request(attributes: LatestClipActivity(), content: ActivityContent(state: state, staleDate: nil),
                                      pushType: nil)

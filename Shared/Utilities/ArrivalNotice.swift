@@ -5,10 +5,11 @@ enum ArrivalNotice {
     static let bodyLimit = 80
 
     /// `previews` newest first, one per clip. One clip names the device; more give the count and the newest preview.
-    static func content(previews: [String], device: String) -> (title: String, body: String) {
+    /// `bundle` holds the catalog; tests pass one language's `.lproj`.
+    static func content(previews: [String], device: String, bundle: Bundle = .main) -> (title: String, body: String) {
         let title = previews.count == 1
-            ? String(localized: "New clip from \(device)")
-            : String(localized: "\(previews.count) new clips")
+            ? String(localized: "New clip from \(device)", bundle: bundle)
+            : String(localized: "\(previews.count) new clips", bundle: bundle)
         let newest = previews.first ?? ""
         return (title, newest.count > bodyLimit ? newest.prefix(bodyLimit) + "\u{2026}" : newest)
     }
