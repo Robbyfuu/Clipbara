@@ -47,4 +47,10 @@ extension ClipboardItem {
         }
         return NSWorkspace.shared.icon(for: .data)
     }
+
+    /// A `.files` clip's total size, from its stored manifest so the bundle is never read. "Files" without one.
+    var filesSizeText: String {
+        guard let files = fileManifest else { return String(localized: "Files") }
+        return ByteCountFormatter.string(fromByteCount: Int64(files.reduce(0) { $0 + $1.size }), countStyle: .file)
+    }
 }

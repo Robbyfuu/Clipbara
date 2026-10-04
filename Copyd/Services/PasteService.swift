@@ -8,10 +8,16 @@ struct PasteService {
     private static let tempDir = NSTemporaryDirectory() + "Copyd/"
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Paste")
 
+    nonisolated private static let filesRoot = URL.applicationSupportDirectory
+        .appendingPathComponent("Copyd/Files", isDirectory: true)
+
     /// Where a file clip's files are written to be pasted: `Application Support/Copyd/Files/<clip-id>/`.
     nonisolated static func filesDirectory(for id: UUID) -> URL {
-        URL.applicationSupportDirectory.appendingPathComponent("Copyd/Files/\(id.uuidString)", isDirectory: true)
+        filesRoot.appendingPathComponent(id.uuidString, isDirectory: true)
     }
+
+    /// The URLs each file clip's files were last written to, so a Paste Stack re-stage never reads the bundle again.
+    private static var writtenFiles: [UUID: [URL]] = [:]
 
     /// Removes a file clip's folder when the clip is deleted, whatever deletes it: the panel, the history limit or sync.
     /// Runs on the main context's saves, as `LocalChangeTracker` does.
@@ -21,8 +27,22 @@ struct PasteService {
         _ = NotificationCenter.default.addObserver(forName: ModelContext.willSave, object: context, queue: nil) { _ in
             MainActor.assumeIsolated {
                 for case let clip as ClipboardItem in context.deletedModelsArray where clip.contentTypeRaw == ContentType.files.rawValue {
+                    writtenFiles[clip.id] = nil
                     try? FileManager.default.removeItem(at: filesDirectory(for: clip.id))
                 }
+            }
+        }
+    }
+
+    /// Removes the `Files/<id>/` folders of clips that no longer exist, such as ones deleted by a build without the
+    /// observer above. Runs in the background once the store is open.
+    nonisolated static func removeOrphanFiles(in container: ModelContainer) {
+        Task.detached(priority: .utility) {
+            FileBundle.removeOrphanFolders(in: filesRoot) {
+                let files = ContentType.files.rawValue
+                let clips = try ModelContext(container).fetch(FetchDescriptor<ClipboardItem>(
+                    predicate: #Predicate { $0.contentTypeRaw == files }))
+                return Set(clips.map(\.id))
             }
         }
     }
@@ -108,9 +128,11 @@ struct PasteService {
             }
 
         case .files:
-            // Written on the first paste and reused after that, so Paste Stack staging stays cheap.
+            // Written on the first paste and reused while the files are there: Paste Stack staging reads no rawData.
             do {
-                let urls = try FileBundle.write(item.rawData, to: Self.filesDirectory(for: item.id))
+                let urls = try FileBundle.reusable(Self.writtenFiles[item.id])
+                    ?? FileBundle.write(item.rawData, to: Self.filesDirectory(for: item.id))
+                Self.writtenFiles[item.id] = urls
                 pasteboard.writeObjects(urls.map { $0 as NSURL })
             } catch {
                 Self.log.error("Files of \(item.id, privacy: .public) not written: \(error.localizedDescription, privacy: .public)")

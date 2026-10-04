@@ -42,6 +42,9 @@ final class SearchState {
         }
     }
 
+    /// The Filter by Type menu. One "Files" entry covers copied files and the older local file links.
+    static let filterableTypes = ContentType.allCases.filter { $0 != .fileURL }
+
     var isActive: Bool {
         !searchText.isEmpty || !selectedContentTypes.isEmpty || dateFilter != .all
     }
@@ -100,7 +103,7 @@ final class SearchState {
                 return false
             }
 
-            if !contentTypes.isEmpty, !contentTypes.contains(item.contentType) {
+            if !contentTypes.isEmpty, !contentTypes.contains(item.contentType == .fileURL ? .files : item.contentType) {
                 return false
             }
 

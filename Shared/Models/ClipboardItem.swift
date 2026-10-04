@@ -16,10 +16,16 @@ final class ClipboardItem {
     var userTitle: String?
     var isPinned: Bool
     var syncSystemFields: Data?
+    /// A `.files` clip's names and sizes (`FileBundle.manifestJSON`), so cards never read `rawData`. Nil otherwise.
+    var fileManifestData: Data?
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }
         set { contentTypeRaw = newValue.rawValue }
+    }
+
+    var fileManifest: [FileManifestEntry]? {
+        fileManifestData.flatMap { try? JSONDecoder().decode([FileManifestEntry].self, from: $0) }
     }
 
     init(

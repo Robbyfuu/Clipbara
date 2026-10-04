@@ -415,7 +415,7 @@ struct ClipboardQuickLookView: View {
         case .fileURL:
             return String(localized: "File")
         case .files:
-            return fileSizeText
+            return item.filesSizeText
         case .color:
             return item.textContent ?? String(localized: "Color")
         }

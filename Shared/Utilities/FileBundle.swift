@@ -12,13 +12,17 @@ struct FileManifestEntry: Codable, Equatable, Sendable {
 enum FileBundle {
     static let maxFileBytes = 20_971_520
     static let maxFiles = 10
-    /// The largest bundle sync accepts: `maxFiles` files at `maxFileBytes`, plus headroom for the manifest.
-    static let maxBundleBytes = maxFiles * maxFileBytes + 1_048_576
+    /// 48 MB of file data in all, so one clip fits in a CloudKit batch and under the 50 MB asset limit.
+    static let maxTotalBytes = 50_331_648
+    /// The largest bundle sync accepts: `maxTotalBytes` plus headroom for the manifest.
+    static let maxBundleBytes = maxTotalBytes + 1_048_576
+    /// A sanitized name's limit, so a " 2" suffix still fits under the 255-byte file name limit.
+    private static let maxNameBytes = 200
 
     enum DecodeError: Error { case truncated, badManifest }
 
     static func encode(_ files: [(name: String, data: Data, uti: String)]) throws -> Data {
-        let manifest = try JSONEncoder().encode(files.map { FileManifestEntry(name: $0.name, size: $0.data.count, uti: $0.uti) })
+        let manifest = try json(files.map { FileManifestEntry(name: $0.name, size: $0.data.count, uti: $0.uti) })
         var out = withUnsafeBytes(of: UInt32(manifest.count).bigEndian) { Data($0) }
         out.reserveCapacity(4 + manifest.count + files.reduce(0) { $0 + $1.data.count })
         out.append(manifest)
@@ -54,23 +58,78 @@ enum FileBundle {
         let length = Int(data.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
         let start = data.startIndex + 4
         guard length <= data.endIndex - start else { throw DecodeError.truncated }
-        guard let entries = try? JSONDecoder().decode([FileManifestEntry].self, from: data[start..<start + length]) else {
+        guard let entries = try? JSONDecoder().decode([FileManifestEntry].self, from: data[start..<start + length]),
+              entries.count <= maxFiles else {
             throw DecodeError.badManifest
         }
         return (entries, data[(start + length)...])
     }
 
+    /// The manifest as JSON, the same bytes for the same files: what a `.files` clip keeps in `fileManifestData`
+    /// and sync sends as `fileManifest`. Nil when `bundle` is not a valid bundle.
+    static func manifestJSON(_ bundle: Data) -> Data? {
+        (try? manifest(bundle)).flatMap { try? json($0) }
+    }
+
+    private static func json(_ entries: [FileManifestEntry]) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return try encoder.encode(entries)
+    }
+
     /// The last path component without control characters, so a name from another device can't leave its folder.
+    /// NFC, and at most `maxNameBytes` UTF-8 bytes, keeping the extension unless it alone takes half of them.
     /// "file" when nothing usable is left, or when that is `.` or `..`.
     static func sanitize(_ name: String) -> String {
         let clean = String(name.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
+            .precomposedStringWithCanonicalMapping
         let last = clean.split(separator: "/").last.map(String.init) ?? ""
-        return ["", ".", ".."].contains(last) ? "file" : last
+        let ext = (last as NSString).pathExtension
+        let short = ext.isEmpty || ext.utf8.count >= maxNameBytes / 2
+            ? prefix(last, bytes: maxNameBytes)
+            : prefix((last as NSString).deletingPathExtension, bytes: maxNameBytes - ext.utf8.count - 1) + "." + ext
+        return ["", ".", ".."].contains(short) ? "file" : short
     }
 
-    /// 1 to `maxFiles` files of at most `maxFileBytes` each. Anything else stays a local `.fileURL` clip.
+    /// Whole characters only, so no UTF-8 sequence is cut.
+    private static func prefix(_ s: String, bytes limit: Int) -> String {
+        var out = "", used = 0
+        for c in s {
+            used += c.utf8.count
+            if used > limit { break }
+            out.append(c)
+        }
+        return out
+    }
+
+    /// 1 to `maxFiles` files of at most `maxFileBytes` each and `maxTotalBytes` in all.
+    /// Anything else stays a local `.fileURL` clip.
     static func withinLimits(sizes: [Int]) -> Bool {
         !sizes.isEmpty && sizes.count <= maxFiles && sizes.allSatisfy { (0...maxFileBytes).contains($0) }
+            && sizes.reduce(0, +) <= maxTotalBytes
+    }
+
+    /// A file still in iCloud Drive, or an older version of one, or a file on a network volume would download or
+    /// block on read, so it stays a local `.fileURL` clip.
+    static func isLocal(downloadingStatus: URLUbiquitousItemDownloadingStatus?, volumeIsLocal: Bool?) -> Bool {
+        (downloadingStatus == nil || downloadingStatus == .current) && volumeIsLocal != false
+    }
+
+    /// `urls` from an earlier write while every file is still there, so pasting again reads nothing.
+    static func reusable(_ urls: [URL]?) -> [URL]? {
+        guard let urls, urls.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else { return nil }
+        return urls
+    }
+
+    /// Removes the `<clip-id>` folders in `root` whose id `liveIDs` doesn't return. The folders are listed first,
+    /// so a clip saved meanwhile is in `liveIDs`. A throwing `liveIDs` removes nothing; other names are left alone.
+    static func removeOrphanFolders(in root: URL, keeping liveIDs: () throws -> Set<UUID>) {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: root.path), !names.isEmpty,
+              let live = try? liveIDs() else { return }
+        for name in names {
+            guard let id = UUID(uuidString: name), !live.contains(id) else { continue }
+            try? FileManager.default.removeItem(at: root.appendingPathComponent(name, isDirectory: true))
+        }
     }
 
     /// Writes the files into `directory` under sanitized names, made unique ("a 2.txt"), and returns their URLs

@@ -12,6 +12,8 @@ struct ClipSnapshot: Equatable, Sendable {
     var contentHash: String
     var copiedAt: Date
     var isPinned: Bool
+    /// A `.files` clip's manifest JSON (`FileBundle.manifestJSON`); nil for every other clip.
+    var fileManifest: Data? = nil
 }
 
 struct PinboardSnapshot: Equatable, Sendable {
@@ -80,8 +82,7 @@ enum SyncRecordMapper {
         values["copiedAt"] = clip.copiedAt
         values["isPinned"] = Int64(clip.isPinned ? 1 : 0)
         // Names, sizes and types of a file clip, readable without opening the payload. Nil for other clips.
-        values["fileManifest"] = clip.contentType == ContentType.files.rawValue
-            ? (try? FileBundle.manifest(clip.rawData)).flatMap { try? JSONEncoder().encode($0) } : nil
+        values["fileManifest"] = clip.contentType == ContentType.files.rawValue ? FileBundle.manifestJSON(clip.rawData) : nil
 
         let text = clip.textContent.map { Data($0.utf8) }
         let largeText = (text?.count ?? 0) > inlineLimit
@@ -164,7 +165,8 @@ enum SyncRecordMapper {
             sourceAppBundleId: values["sourceAppBundleId"] as? String,
             contentHash: try required(record, "contentHash"),
             copiedAt: try required(record, "copiedAt"),
-            isPinned: pinned != 0)
+            isPinned: pinned != 0,
+            fileManifest: values["fileManifest"] as? Data)
     }
 
     static func pinboard(from record: CKRecord) throws -> PinboardSnapshot {

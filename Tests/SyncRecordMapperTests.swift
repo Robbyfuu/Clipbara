@@ -78,6 +78,7 @@ final class SyncRecordMapperTests: XCTestCase {
         ]
         var clip = makeClip(type: "files")
         clip.rawData = try FileBundle.encode(files)
+        clip.fileManifest = FileBundle.manifestJSON(clip.rawData)
         clip.textContent = "a.pdf, b.txt"
         let rec = record(for: clip)
         try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
@@ -92,7 +93,10 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertEqual(manifest.map(\.size), [SyncRecordMapper.inlineLimit, 1])
         XCTAssertEqual(manifest.map(\.uti), ["com.adobe.pdf", "public.plain-text"])
 
-        XCTAssertEqual(try SyncRecordMapper.clip(from: rec), clip)
+        // Read back, so the receiving device stores it and never opens the bundle to show the card.
+        let decoded = try SyncRecordMapper.clip(from: rec)
+        XCTAssertEqual(decoded.fileManifest, clip.fileManifest)
+        XCTAssertEqual(decoded, clip)
     }
 
     func testOnlyFileClipsCarryAManifest() throws {
@@ -100,6 +104,7 @@ final class SyncRecordMapperTests: XCTestCase {
         let rec = record(for: clip)
         try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
         XCTAssertNil(rec.encryptedValues["fileManifest"] as Data?)
+        XCTAssertNil(try SyncRecordMapper.clip(from: rec).fileManifest)
     }
 
     func testOnlyAllowedPlainKeys() throws {

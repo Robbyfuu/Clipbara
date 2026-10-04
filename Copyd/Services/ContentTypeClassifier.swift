@@ -95,16 +95,21 @@ struct ContentTypeClassifier: Sendable {
 
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Capture")
 
-    /// A `.files` clip when every URL is a regular file within `FileBundle`'s limits and readable, else nil.
-    /// The sandbox grants pasteboard file URLs; the scoped access covers URLs that carry a security scope.
+    /// A `.files` clip when every URL is a local, downloaded regular file within `FileBundle`'s limits and readable,
+    /// else nil. The sandbox grants pasteboard file URLs; the scoped access covers URLs that carry a security scope.
     private static func readFiles(_ urls: [URL]) -> ClassifiedContent? {
         let scoped = urls.filter { $0.startAccessingSecurityScopedResource() }
         defer { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
-        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .contentTypeKey]
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .contentTypeKey,
+                                         .ubiquitousItemDownloadingStatusKey, .volumeIsLocalKey]
         let values = urls.compactMap { try? $0.resourceValues(forKeys: keys) }
         let sizes = values.compactMap { $0.isRegularFile == true ? $0.fileSize : nil }
-        guard sizes.count == urls.count, FileBundle.withinLimits(sizes: sizes) else {
-            log.notice("Copied \(urls.count, privacy: .public) file(s) kept as a local file clip: folder, unreadable or over the limits")
+        // Never read a file that isn't downloaded from iCloud Drive or sits on a network volume.
+        let local = values.allSatisfy {
+            FileBundle.isLocal(downloadingStatus: $0.ubiquitousItemDownloadingStatus, volumeIsLocal: $0.volumeIsLocal)
+        }
+        guard sizes.count == urls.count, local, FileBundle.withinLimits(sizes: sizes) else {
+            log.notice("Copied \(urls.count, privacy: .public) file(s) kept as a local file clip: folder, unreadable, not local or over the limits")
             return nil
         }
         do {

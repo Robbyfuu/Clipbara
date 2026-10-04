@@ -49,6 +49,7 @@ final class AppState {
         self.modelContainer = modelContainer
         clipboardMonitor.start(modelContext: modelContext)
         PasteService.removeFilesOnDelete(in: modelContext)
+        PasteService.removeOrphanFiles(in: modelContainer)
         pasteStack.appState = self
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)

@@ -222,6 +222,34 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertNotNil(NSImage(data: thumb))
     }
 
+    // MARK: File manifests
+
+    private func fileClip(_ n: Int, names: [String]) throws -> ClipSnapshot {
+        let bundle = try FileBundle.encode(names.map { (name: $0, data: Data($0.utf8), uti: "public.plain-text") })
+        var s = clip(n, type: "files", data: bundle)
+        s.fileManifest = FileBundle.manifestJSON(bundle)
+        return s
+    }
+
+    func testIncomingFileClipStoresItsManifest() throws {
+        let s = try fileClip(1, names: ["a.txt", "bb.txt"])
+        try apply(clips: [s])
+        let m = try XCTUnwrap(try clips().first)
+        XCTAssertEqual(m.fileManifestData, s.fileManifest)
+        XCTAssertEqual(m.fileManifest?.map(\.name), ["a.txt", "bb.txt"])
+        XCTAssertEqual(m.fileManifest?.map(\.size), [5, 6])
+
+        // A changed clip from the server replaces it.
+        try apply(clips: [try fileClip(1, names: ["c.txt"])])
+        XCTAssertEqual(try clips().first?.fileManifest?.map(\.name), ["c.txt"])
+    }
+
+    func testOtherClipsHaveNoManifest() throws {
+        try apply(clips: [clip(1)])
+        XCTAssertNil(try clips().first?.fileManifestData)
+        XCTAssertNil(try clips().first?.fileManifest)
+    }
+
     // MARK: Duplicate merges
 
     func testUniversalClipboardDuplicateMerges() throws {

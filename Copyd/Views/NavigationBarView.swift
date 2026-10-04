@@ -555,7 +555,7 @@ private struct OptionsMenuButton: View {
 
         // Filter by Type submenu
         let typeMenu = NSMenu()
-        for type in ContentType.allCases {
+        for type in SearchState.filterableTypes {
             let item = NSMenuItem(title: type.displayName, action: nil, keyEquivalent: "")
             let isSelected = searchState.selectedContentTypes.contains(type)
             if isSelected {

@@ -100,6 +100,8 @@ final class ClipboardMonitor {
 
         // Images, and file clips with an image file
         item.thumbnailData = Thumbnail.png(for: content.contentType, rawData: content.rawData)
+        // Names and sizes for the card, so it never reads the bundle.
+        if content.contentType == .files { item.fileManifestData = FileBundle.manifestJSON(content.rawData) }
 
         modelContext?.insert(item)
         try? modelContext?.save()

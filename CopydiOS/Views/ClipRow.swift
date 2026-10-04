@@ -8,8 +8,6 @@ struct ClipRow: View {
     @Environment(\.modelContext) private var modelContext
     let item: ClipboardItem
     var onDelete: (() -> Void)?
-    /// A file clip's names and sizes, read once the card shows.
-    @State private var files: [FileManifestEntry]?
 
     var body: some View {
         Button { if item.contentType == .files { model.share(item) } else { model.copy(item) } } label: {
@@ -57,13 +55,15 @@ struct ClipRow: View {
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
         } else if item.contentType == .files {
+            // The stored manifest, never rawData: reading the bundle here would load up to 48 MB per row.
+            let files = item.fileManifest
             HStack(spacing: 14) {
-                fileIcon
+                fileIcon(files)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title ?? filesTitle).brandFont(16, .semibold).lineLimit(2)
+                    Text(title ?? filesTitle(files)).brandFont(16, .semibold).lineLimit(2)
                         .foregroundStyle(DesignTokens.Brand.ink)
-                    if let filesDetail {
-                        Text(verbatim: filesDetail).brandFont(12, design: .monospaced, relativeTo: .caption)
+                    if let detail = filesDetail(files) {
+                        Text(verbatim: detail).brandFont(12, design: .monospaced, relativeTo: .caption)
                             .foregroundStyle(DesignTokens.Brand.ink2)
                             .lineLimit(1).truncationMode(.middle)
                     }
@@ -71,7 +71,6 @@ struct ClipRow: View {
                 }
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
-            .task(id: item.id) { files = try? FileBundle.manifest(item.rawData) }
         } else if let parts = linkParts {
             VStack(alignment: .leading, spacing: 6) {
                 if let title {
@@ -107,21 +106,21 @@ struct ClipRow: View {
 
     private var title: String? { item.userTitle.flatMap { $0.isEmpty ? nil : $0 } }
 
-    /// One file's name, or "3 files". The joined names until the manifest is read.
-    private var filesTitle: String {
-        guard let files, files.count > 1 else { return files?.first?.name ?? item.textContent ?? "" }
+    /// One file's name, or "3 files". "Files" for a clip stored without a manifest.
+    private func filesTitle(_ files: [FileManifestEntry]?) -> String {
+        guard let files, files.count > 1 else { return files?.first?.name ?? String(localized: "Files") }
         return String(localized: "\(files.count) files", comment: "Title of a clip holding several copied files")
     }
 
-    /// The total size, after the names when there are several files.
-    private var filesDetail: String? {
+    /// The total size, after the names when there are several files. None without a manifest.
+    private func filesDetail(_ files: [FileManifestEntry]?) -> String? {
         guard let files else { return nil }
         let size = ByteCountFormatter.string(fromByteCount: Int64(files.reduce(0) { $0 + $1.size }), countStyle: .file)
         return files.count > 1 ? "\(item.textContent ?? "") \u{00b7} \(size)" : size
     }
 
     /// An image file's thumbnail, else a document symbol: one page, or a stack for several files.
-    @ViewBuilder private var fileIcon: some View {
+    @ViewBuilder private func fileIcon(_ files: [FileManifestEntry]?) -> some View {
         if let data = item.thumbnailData, let image = UIImage(data: data) {
             Image(uiImage: image).resizable().scaledToFill()
                 .frame(width: 60, height: 60)

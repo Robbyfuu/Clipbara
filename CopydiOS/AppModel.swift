@@ -24,6 +24,8 @@ final class AppModel {
 
     private init() {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
+        // Shares a quit or crash left behind. Before any share can start, so none is removed mid-way.
+        try? FileManager.default.removeItem(at: Self.shareDirectory)
         // Every save in the app refreshes the widget: Save Clipboard, Save Text, pin, unpin, delete, the seed,
         // and the sync engine's own saves. Any context, so the seed's separate context counts too.
         _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { _ in
@@ -121,20 +123,34 @@ final class AppModel {
         return true
     }
 
-    /// A file clip's tap: writes its files to a temporary folder (reused on the next share) and opens the share sheet.
+    /// Where `share` writes a file clip's files, one `<clip-id>` folder per share.
+    private static let shareDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("Share", isDirectory: true)
+
+    /// A file clip's tap: writes its files to a temporary folder, removed when the share sheet closes,
+    /// and opens the share sheet.
     func share(_ item: ClipboardItem) {
-        let bundle = item.rawData
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Share/\(item.id.uuidString)", isDirectory: true)
+        let id = item.id, container = container
+        let dir = Self.shareDirectory.appendingPathComponent(id.uuidString, isDirectory: true)
         Task {
-            // Off the main actor: a bundle can hold up to 10 files of 20 MB.
-            guard let urls = try? await Task.detached(operation: { try FileBundle.write(bundle, to: dir) }).value,
-                  !urls.isEmpty else { return flash("Couldn't share") }
+            // Off the main actor, the rawData read included: a bundle holds up to 48 MB.
+            let urls = try? await Task.detached {
+                var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+                fetch.fetchLimit = 1
+                guard let clip = try ModelContext(container).fetch(fetch).first else { return [URL]() }
+                return try FileBundle.write(clip.rawData, to: dir)
+            }.value
+            guard let urls, !urls.isEmpty else { return flash("Couldn't share") }
             let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
                 .first { $0.activationState == .foregroundActive }
             var top = scene?.keyWindow?.rootViewController
             while let presented = top?.presentedViewController { top = presented }
-            guard let top else { return }
+            guard let top else {
+                try? FileManager.default.removeItem(at: dir)
+                return
+            }
             let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+            // Done or cancelled, the activity has its copy by now.
+            sheet.completionWithItemsHandler = { _, _, _, _ in try? FileManager.default.removeItem(at: dir) }
             // iPad shows it as a popover: centered, with no arrow.
             sheet.popoverPresentationController?.sourceView = top.view
             sheet.popoverPresentationController?.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)

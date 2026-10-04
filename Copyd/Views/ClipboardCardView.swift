@@ -306,7 +306,7 @@ struct ClipboardCardView: View {
         case .fileURL:
             return String(localized: "Stays on this Mac")
         case .files:
-            return ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
+            return item.filesSizeText
         case .image:
             let size = ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
             guard let dims = imageDimensions else { return size }

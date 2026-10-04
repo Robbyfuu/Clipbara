@@ -377,7 +377,7 @@ struct PreviewView: View {
         case .fileURL:
             return item.textContent ?? String(localized: "File")
         case .files:
-            return ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
+            return item.filesSizeText
         case .color:
             return item.textContent ?? ""
         }
