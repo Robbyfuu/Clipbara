@@ -75,11 +75,11 @@ final class AutoPaster {
     }
 
     /// The menu bar list makes Copyd the active app, so ⌘V would land in Copyd. With the setting on,
-    /// hand focus back to the app the user was in, which also closes the list. Not when the list opened over Copyd
-    /// itself: `NSApp.isActive` is always true here, so its value from when the list opened stands in for it.
+    /// hand focus back to the app the user was in, which also closes the list. Not when the list opened over a Copyd
+    /// window: `NSApp.isActive` is always true here, so its value from when the list opened stands in for it.
     func returnFocusFromMenuBar() {
-        guard isEnabled, !AutoPastePolicy.copydInFront(isActive: activeAtOpen, titledWindows: Self.titledWindows,
-                                                         titledAtOpen: titledAtOpen),
+        guard isEnabled, !AutoPastePolicy.menuBarOverCopyd(activeAtOpen: activeAtOpen, titledWindows: Self.titledWindows,
+                                                             titledAtOpen: titledAtOpen),
               let previousApp, !previousApp.isTerminated else { return }
         _ = previousApp.activate(options: [])
     }

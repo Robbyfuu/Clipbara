@@ -47,6 +47,14 @@ enum AutoPastePolicy {
     static func copydInFront<Window: Hashable>(isActive: Bool, titledWindows: Set<Window>, titledAtOpen: Set<Window>) -> Bool {
         isActive || !titledWindows.isSubset(of: titledAtOpen)
     }
+
+    /// The menu bar list activates Copyd itself, so it stays in Copyd only when it opened over a Copyd window the
+    /// user was in: Copyd already active, with a titled window up. Without one, the list's own activation (which may
+    /// land before the list reports opening) never counts, and focus goes back to the app the user was in.
+    static func menuBarOverCopyd<Window: Hashable>(activeAtOpen: Bool, titledWindows: Set<Window>,
+                                                   titledAtOpen: Set<Window>) -> Bool {
+        copydInFront(isActive: activeAtOpen && !titledAtOpen.isEmpty, titledWindows: titledWindows, titledAtOpen: titledAtOpen)
+    }
 }
 
 /// Tags the ⌘V that Copyd posts, so Paste Stack's tap never takes it for the user's own.

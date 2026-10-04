@@ -135,6 +135,15 @@ final class AutoPastePolicyTests: XCTestCase {
         XCTAssertFalse(inFront(titled: [], atOpen: []))
     }
 
+    func testMenuBarListStaysOnlyOverACopydWindow() {
+        let over = { (active: Bool, titled: Set<Int>, atOpen: Set<Int>) in
+            AutoPastePolicy.menuBarOverCopyd(activeAtOpen: active, titledWindows: titled, titledAtOpen: atOpen)
+        }
+        XCTAssertTrue(over(true, [7], [7]), "opened from Settings: the pick stays in Copyd")
+        XCTAssertFalse(over(false, [7], [7]), "Settings left behind Notes: focus goes back to Notes")
+        XCTAssertFalse(over(true, [], []), "no Copyd window: the list's own activation may land before it opens")
+    }
+
     func testBackgroundSettingsStillRestoresFocusAndPastes() {
         let copydInFront = inFront(titled: [7], atOpen: [7])
         XCTAssertTrue(restores(target: 42, frontmost: 42, copydInFront: copydInFront),
