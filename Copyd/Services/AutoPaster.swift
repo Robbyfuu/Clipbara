@@ -56,12 +56,16 @@ final class AutoPaster {
             // (the menu bar path hands focus back asynchronously). Max 500 ms, otherwise no paste.
             try? await Task.sleep(for: .milliseconds(50))
             waited = 0
-            while !AutoPastePolicy.focusReady(frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
-                                              previous: self?.previousApp?.processIdentifier),
-                  waited < 500, !Task.isCancelled {
+            // The panel hands focus back by activating Copyd for an instant and then the app: wait until
+            // Copyd is inactive again and the app is in front, then give its window a beat to take key.
+            while NSApp.isActive || !AutoPastePolicy.focusReady(
+                      frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                      previous: self?.previousApp?.processIdentifier),
+                  waited < 800, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(20))
                 waited += 20
             }
+            try? await Task.sleep(for: .milliseconds(80))
             guard !Task.isCancelled,
                   AutoPastePolicy.focusReady(frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
                                              previous: self?.previousApp?.processIdentifier)
@@ -128,10 +132,13 @@ final class AutoPaster {
             guard let event = CGEvent(keyboardEventSource: source,
                                       virtualKey: CGKeyCode(PasteStack.pasteKeyCode),
                                       keyDown: keyDown) else { return }
-            event.flags = .maskCommand
+            // Left-⌘ device bit (0x08) too: Electron and Java apps ignore a ⌘ that carries only the
+            // device-independent mask. Session tap, as other sandboxed clipboard apps post.
+            event.flags = CGEventFlags(rawValue: CGEventFlags.maskCommand.rawValue | 0x08)
             event.setIntegerValueField(.eventSourceUserData, value: CopydSyntheticPaste.marker)
-            event.post(tap: .cghidEventTap)
+            event.post(tap: .cgSessionEventTap)
         }
+        Self.log.notice("posted ⌘V to \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?", privacy: .public)")
     }
 
     /// The panel is already closed, so the hint shows at the top of the screen, like Paste Stack's HUD.

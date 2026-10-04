@@ -211,14 +211,23 @@ final class PanelController {
     private func giveFocusBack() {
         let app = focusReturnApp
         focusReturnApp = nil
+        // Copyd's own titled windows (Settings, the paywall) keep focus; the panel itself may still be
+        // key for a moment after `orderOut`, so it doesn't count.
+        let titledCopydWindow = NSApp.windows.contains {
+            $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel)
+        }
         guard let app, !app.isTerminated,
               AutoPastePolicy.restoresFocus(
                 target: app.processIdentifier,
                 frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
                 own: ProcessInfo.processInfo.processIdentifier,
-                copydInFront: NSApp.isActive || NSApp.keyWindow != nil
+                copydInFront: NSApp.isActive || titledCopydWindow
               ) else { return }
-        _ = app.activate()
+        // The app never stopped being active (the panel is non-activating), so `activate()` alone is a
+        // no-op and its window stays without key focus. Become active for an instant, then hand
+        // activation back: a real activation change restores its key window and caret.
+        NSApp.activate(ignoringOtherApps: true)
+        _ = app.activate(options: [])
     }
 
     // MARK: - Click Monitor (dismiss on outside click)
