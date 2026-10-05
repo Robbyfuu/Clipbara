@@ -202,10 +202,11 @@ extension ClipboardItem {
     /// Saves `text` as the clip's content: plain text, or a link when it is one (the capture rule), with a new
     /// `contentHash`. The sync tracker queues that as a save of the same record: an update, never a new clip.
     ///
-    /// An edit that turns out to be a secret never uploads. A clip iCloud never had is flagged in place. A synced one
-    /// can't be: flagging it would also stop its delete, leaving the old text on the server for good. It is deleted
-    /// instead (the tracker sends the delete), and the secret goes in a new local clip, copied now, that takes its title,
-    /// pin and pinboard places; entries get new ids, since the server drops the old ones with the clip.
+    /// An edit that turns out to be a secret never uploads, and the clip is never flagged in place: that would also stop
+    /// its delete, leaving the old text on the server for good. The server may hold it even with no system fields here
+    /// (sync turned off and on again, or an upload in flight). So the clip is deleted (the tracker sends the delete; one
+    /// the server never had comes back `unknownItem`), and the secret goes in a new local clip, copied now, that takes
+    /// its title, pin and pinboard places; entries get new ids, since the server drops the old ones with the clip.
     ///
     /// Returns false, changing nothing, for a clip that isn't editable, empty text or the same content.
     @discardableResult
@@ -213,8 +214,7 @@ extension ClipboardItem {
                   protects: Bool = SecretDetector.isProtecting) -> Bool {
         guard isEditable, let edit = ClipCapture.text(text),
               edit.contentHash != contentHash || edit.contentType != contentType else { return false }
-        let isSecret = SecretDetector.flags(text, type: edit.contentType, protects: protects)
-        if isSecret, syncSystemFields != nil {
+        if SecretDetector.flags(text, type: edit.contentType, protects: protects) {
             let copy = ClipboardItem(contentType: edit.contentType, rawData: edit.rawData, textContent: edit.textContent,
                                      sourceAppName: sourceAppName, sourceAppBundleId: sourceAppBundleId,
                                      contentHash: edit.contentHash)
@@ -238,8 +238,6 @@ extension ClipboardItem {
             rawData = edit.rawData
             textContent = edit.textContent
             contentHash = edit.contentHash
-            // Never back to false: a secret isn't editable.
-            if isSecret { isSensitive = true }
         }
         try? context.save()
         return true

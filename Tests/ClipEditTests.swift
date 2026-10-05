@@ -97,17 +97,23 @@ final class ClipEditTests: XCTestCase {
 
     // MARK: Edits that turn out to be secrets
 
-    func testUnsyncedClipThatBecomesASecretIsFlaggedInPlace() throws {
+    /// Replaced like a synced clip: with sync turned off and back on, the system fields are cleared while the server
+    /// record still exists, and an upload may be in flight. A delete the server never had comes back `unknownItem`.
+    func testNeverSyncedClipThatBecomesASecretIsReplacedToo() throws {
         let context = try tracked()
         let clip = try saved(text("note"), in: context)
+        let original = clip.id
         changes = []
 
-        XCTAssertTrue(clip.saveEdit(FakeSecret.stripe, in: context, protects: true))
+        XCTAssertTrue(clip.saveEdit(FakeSecret.stripe, in: context, now: t0, protects: true))
         let clips = try context.fetch(FetchDescriptor<ClipboardItem>())
-        XCTAssertEqual(clips.map(\.id), [clip.id])
-        XCTAssertTrue(clip.isSensitive, "flagged before the save")
-        XCTAssertEqual(clip.textContent, FakeSecret.stripe)
-        XCTAssertEqual(changes, [], "never uploads")
+        XCTAssertEqual(clips.count, 1)
+        let secret = try XCTUnwrap(clips.first)
+        XCTAssertNotEqual(secret.id, original, "a new clip")
+        XCTAssertTrue(secret.isSensitive)
+        XCTAssertEqual(secret.textContent, FakeSecret.stripe)
+        XCTAssertEqual(secret.copiedAt, t0)
+        XCTAssertEqual(changes, [delete(original)], "the old text leaves iCloud; the secret never uploads")
     }
 
     /// Flagging a synced clip would also stop its delete, and leave the old text on the server for good.
