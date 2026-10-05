@@ -1,4 +1,8 @@
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import CloudKit
 import OSLog
 import SwiftData
@@ -11,7 +15,13 @@ import SwiftData
     static let enabledDefaultsKey = "iCloudSyncEnabled"
     static let containerID = "iCloud.com.robbyfuu.copyd"
 
-    private(set) var status: Status = .off
+    private(set) var status: Status = .off {
+        didSet {
+            #if os(iOS)
+            if case .upToDate(let date) = status { SharedDefaults.store?.set(date, forKey: SharedDefaults.lastSyncAtKey) }
+            #endif
+        }
+    }
 
     private let container: ModelContainer
     private let onRemoteChanges: @MainActor () -> Void
@@ -247,10 +257,17 @@ import SwiftData
             queueEverything(on: engine)
             status = .syncing
         case .signOut, .switchAccounts:
+            #if os(iOS)
+            // The phone is a mirror with no sync toggle: drop the old account's history (macOS keeps it)
+            // and start over, which cannot mix accounts because nothing local is left.
+            save(suppressing: RemoteApplier.deleteAll(in: modelContext))
+            restartEmpty()
+            #else
             // Never mix two accounts' data: sync stays off until the user enables it again.
             stop(clearState: true)
             UserDefaults.standard.set(false, forKey: Self.enabledDefaultsKey)
             status = .accountChanged
+            #endif
         @unknown default:
             Self.log.notice("Unhandled account change: \(String(describing: change), privacy: .public)")
         }
@@ -265,15 +282,32 @@ import SwiftData
                 clearAllSystemFields()
                 queueEverything(on: engine)
             case .deleted, .purged:
+                #if os(iOS)
+                Self.log.notice("Zone removed from iCloud: clearing the mirror and starting over")
+                // Wipe before restarting, or the restart's queueEverything re-uploads what the user deleted.
+                save(suppressing: RemoteApplier.deleteAll(in: modelContext))
+                restartEmpty()
+                #else
                 Self.log.notice("Zone removed from iCloud: turning sync off")
                 stop(clearState: true)
                 UserDefaults.standard.set(false, forKey: Self.enabledDefaultsKey)
+                #endif
                 return
             @unknown default:
                 Self.log.notice("Unhandled zone deletion reason: \(String(describing: d.reason), privacy: .public)")
             }
         }
     }
+
+    #if os(iOS)
+    /// iOS has no sync toggle, so turning sync off would be permanent. Call only once the local mirror is empty.
+    /// The stopped engine's late events and batch requests fail the `syncEngine === engine` checks.
+    private func restartEmpty() {
+        stop(clearState: true)  // drops the tracker, so no observer forwards saves to the next engine
+        SharedDefaults.store?.removeObject(forKey: SharedDefaults.lastSyncAtKey)
+        Task { @MainActor [weak self] in self?.start() }
+    }
+    #endif
 
     private func applyFetched(_ e: CKSyncEngine.Event.FetchedRecordZoneChanges, engine: CKSyncEngine) {
         // A local deletion still waiting to upload wins: never re-insert what the user deleted.
@@ -474,21 +508,33 @@ import SwiftData
         tracker = LocalChangeTracker(context: modelContext) { [weak self] changes in
             self?.engine?.state.add(pendingRecordZoneChanges: changes)
         }
+        #if os(macOS)
         NSApplication.shared.registerForRemoteNotifications()
-        if saved == nil { queueEverything(on: engine) }
+        #else
+        UIApplication.shared.registerForRemoteNotifications()
+        #endif
+        if saved == nil {
+            queueEverything(on: engine)
+        } else {
+            // A save that failed with an unexpected error is dropped from pending for good; the missing system fields give it away.
+            do {
+                let ids = try RemoteApplier.uploadableIDs(in: modelContext, onlyUnconfirmed: true)
+                if !ids.isEmpty {
+                    engine.state.add(pendingRecordZoneChanges: ids.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) })
+                    Self.log.notice("Re-queued \(ids.count, privacy: .public) unconfirmed records")
+                }
+            } catch {
+                Self.log.error("Could not list unconfirmed records: \(error.syncLogDescription, privacy: .public)")
+            }
+        }
     }
 
     /// First enable, sign-in and encryptedDataReset: the zone, every eligible clip, every pinboard, every entry of an eligible clip.
     private func queueEverything(on engine: CKSyncEngine) {
         var ids: [UUID] = []
         do {
-            // Type only: rawData is external storage. Oversized clips (and their entries) are dropped when the batch is built.
-            let clips = try modelContext.fetch(FetchDescriptor<ClipboardItem>())
-                .filter { $0.contentTypeRaw != "fileURL" }.map(\.id)
-            let boards = try modelContext.fetch(FetchDescriptor<Pinboard>()).map(\.id)
-            let entries = try modelContext.fetch(FetchDescriptor<PinboardEntry>())
-                .filter { $0.clipboardItem?.contentTypeRaw != "fileURL" }.map(\.id)
-            ids = clips + boards + entries
+            // Oversized clips (and their entries) are dropped when the batch is built.
+            ids = try RemoteApplier.uploadableIDs(in: modelContext, onlyUnconfirmed: false)
         } catch {
             Self.log.error("Could not list records to upload: \(error.syncLogDescription, privacy: .public)")
         }

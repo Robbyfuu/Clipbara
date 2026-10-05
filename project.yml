@@ -25,6 +25,7 @@ targets:
     platform: macOS
     sources:
       - path: Copyd
+      - path: Shared
       # Local StoreKit testing only. Listed so Xcode can open it; never bundled.
       - path: StoreKit/Copyd.storekit
         buildPhase: none
@@ -60,6 +61,136 @@ targets:
         "-CopydDebugOriginalAppVersion 1.4": false
         "-CopydDebugTrialShiftDays 8": false
 
+  CopydiOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydiOS
+      - path: Shared
+      # DEBUG-only -CopydKeyboardPreview harness renders the keyboard view inside the app.
+      - path: CopydKeyboard/KeyboardView.swift
+      # DEBUG-only -CopydWidgetPreview harness renders the widget views inside the app.
+      - path: CopydWidget/RecentClipsViews.swift
+      # DEBUG-only -CopydSharePreview harness renders the share sheet inside the app.
+      - path: CopydShare/ShareView.swift
+    resources:
+      # Localizable, InfoPlist (quick action titles) and AppShortcuts (Siri phrases) string catalogs.
+      - CopydiOS/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd
+        PRODUCT_NAME: Copyd
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydiOS/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: CopydKeyboard
+        embed: true
+        codeSign: true
+      - target: CopydWidget
+        embed: true
+        codeSign: true
+      - target: CopydShare
+        embed: true
+        codeSign: true
+    entitlements:
+      path: CopydiOS/CopydiOS.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.robbyfuu.copyd]
+        com.apple.developer.icloud-services: [CloudKit]
+        aps-environment: development
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
+  CopydKeyboard:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydKeyboard
+      - path: Shared
+        excludes:
+          # The keyboard never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
+          - Sync/CloudSyncEngine.swift
+    resources:
+      - CopydKeyboard/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.keyboard
+        PRODUCT_NAME: CopydKeyboard
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydKeyboard/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        APPLICATION_EXTENSION_API_ONLY: YES
+    entitlements:
+      path: CopydKeyboard/CopydKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
+  CopydWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydWidget
+      - path: Shared
+        excludes:
+          # The widget never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
+          - Sync/CloudSyncEngine.swift
+    resources:
+      - CopydWidget/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.widget
+        PRODUCT_NAME: CopydWidget
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        APPLICATION_EXTENSION_API_ONLY: YES
+    entitlements:
+      path: CopydWidget/CopydWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
+  # Share to Copyd. Writes to the App Group inbox only; the app imports it into the store.
+  CopydShare:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CopydShare
+      - path: Shared
+        excludes:
+          # The extension never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
+          - Sync/CloudSyncEngine.swift
+    resources:
+      - CopydShare/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.share
+        PRODUCT_NAME: CopydShare
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: TQC76W2BKK
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete
+        INFOPLIST_FILE: CopydShare/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        APPLICATION_EXTENSION_API_ONLY: YES
+    entitlements:
+      path: CopydShare/CopydShare.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.robbyfuu.copyd]
+
   # Unhosted unit tests: no app launch, clipboard monitor, or user store access.
   CopydTests:
     type: bundle.unit-test
@@ -69,19 +200,32 @@ targets:
       - path: Copyd/Utilities/PanelGeometry.swift
       - path: Copyd/Utilities/PanelTabShortcut.swift
       - path: Copyd/Utilities/QuickPasteShortcut.swift
-      - path: Copyd/Utilities/PinboardDot.swift
+      - path: Shared/Design/PinboardDot.swift
       - path: Copyd/Utilities/WheelScrollTranslation.swift
       - path: Copyd/Utilities/ReviewPromptPolicy.swift
       - path: Copyd/Utilities/AccessPolicy.swift
-      - path: Copyd/Utilities/Thumbnail.swift
-      - path: Copyd/Sync/AssetCrypto.swift
-      - path: Copyd/Sync/SyncRecordMapper.swift
-      - path: Copyd/Sync/DuplicateRule.swift
-      - path: Copyd/Sync/SyncBatchPlanner.swift
-      - path: Copyd/Models
-      - path: Copyd/Sync/ModelSnapshots.swift
-      - path: Copyd/Sync/LocalChangeTracker.swift
-      - path: Copyd/Sync/RemoteApplier.swift
+      - path: Shared/Utilities/Thumbnail.swift
+      - path: Shared/Utilities/PasteboardImage.swift
+      - path: Shared/Sync/AssetCrypto.swift
+      - path: Shared/Sync/SyncRecordMapper.swift
+      - path: Shared/Sync/DuplicateRule.swift
+      - path: Shared/Sync/SyncBatchPlanner.swift
+      - path: Shared/Models
+      - path: Shared/Sync/ModelSnapshots.swift
+      - path: Shared/Sync/LocalChangeTracker.swift
+      - path: Shared/Sync/RemoteApplier.swift
+      - path: Shared/Utilities/SharedDefaults.swift
+      - path: Shared/Utilities/SharedStore.swift
+      - path: Shared/Utilities/KeyboardFeed.swift
+      - path: Shared/Utilities/PasteAction.swift
+      - path: Shared/Utilities/RelativeSyncTime.swift
+      - path: Shared/Utilities/ClipAge.swift
+      - path: Shared/Utilities/LinkParts.swift
+      - path: Shared/Utilities/QuickRoute.swift
+      - path: Shared/Utilities/ClipCapture.swift
+      - path: Shared/Utilities/LatestClip.swift
+      - path: Shared/Utilities/SaveText.swift
+      - path: Shared/Utilities/Inbox.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests
