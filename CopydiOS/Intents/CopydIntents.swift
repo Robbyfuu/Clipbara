@@ -41,7 +41,8 @@ struct CopyLatestClipIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         let model = AppModel.shared
-        guard let item = try LatestClip.newest(in: model.container.mainContext), model.copy(item) else {
+        // A secret copies as a tap would; only displays leave it out.
+        guard let item = try LatestClip.newest(in: model.container.mainContext, includingSecrets: true), model.copy(item) else {
             throw NoClipError()
         }
         return .result(value: item.contentType == .image ? "Image" : item.textContent ?? "")

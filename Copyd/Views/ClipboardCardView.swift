@@ -186,6 +186,7 @@ struct ClipboardCardView: View {
     }
 
     private var accessibilitySummary: String {
+        if let mask = item.secretMask { return mask }
         switch item.contentType {
         case .image:
             return imageDimensions.map { String(localized: "image \(Int($0.width)) × \(Int($0.height))") } ?? String(localized: "image")
@@ -233,6 +234,12 @@ struct ClipboardCardView: View {
         HStack(alignment: .center, spacing: 6) {
             Image(systemName: item.contentType.systemImage)
                 .foregroundStyle(DesignTokens.typeTint(for: item.contentType, itemColor: item.textContent))
+            if item.isSensitive {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(DesignTokens.Brand.butterInk)
+                    .help("Secret, kept on this device")
+                    .accessibilityLabel("Secret, kept on this device")
+            }
             if isSuggested {
                 Text("Suggested")
                     .font(.system(size: 10, weight: .bold))
@@ -341,6 +348,16 @@ struct ClipboardCardView: View {
 
     @ViewBuilder
     private var cardContent: some View {
+        // A secret shows its masked label, whatever its type.
+        if item.isSensitive {
+            TextCardContent(item: item, searchText: searchText)
+        } else {
+            typedContent
+        }
+    }
+
+    @ViewBuilder
+    private var typedContent: some View {
         switch item.contentType {
         case .plainText, .richText, .html:
             TextCardContent(item: item, searchText: searchText)

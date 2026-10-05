@@ -102,6 +102,7 @@ enum Inbox {
                                          thumbnailData: thumbnail, sourceAppName: item.source ?? "Share",
                                          contentHash: clip.contentHash)
             clipItem.copiedAt = copiedAt
+            clipItem.isSensitive = SecretDetector.flags(clip.textContent, type: clip.contentType)
             context.insert(clipItem)
             imported.append((json, item.payloadFile))
         }

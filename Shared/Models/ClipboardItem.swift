@@ -21,6 +21,9 @@ final class ClipboardItem {
     /// The Mac captured this copy from Universal Clipboard: it was made on another device, usually this user's iPhone.
     /// The iPhone never announces it. Additive with a default, so existing stores migrate lightweight.
     var fromUniversalClipboard: Bool = false
+    /// The capture matched `SecretDetector`. Local only: never synced, masked in every view, deleted by `SecretSweeper`.
+    /// Additive with a default, so existing stores migrate lightweight.
+    var isSensitive: Bool = false
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }

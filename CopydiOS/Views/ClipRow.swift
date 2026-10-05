@@ -71,6 +71,13 @@ struct ClipRow: View {
                 }
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
+        } else if let mask = item.secretMask {
+            // A secret shows its masked label, whatever its type. A tap still copies the secret itself.
+            VStack(alignment: .leading, spacing: 8) {
+                mainLine(title ?? mask)
+                meta
+            }
+            .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         } else if let parts = linkParts {
             VStack(alignment: .leading, spacing: 6) {
                 if let title {
@@ -144,13 +151,18 @@ struct ClipRow: View {
         }
     }
 
-    /// "Source · age" on the left; "Pinned" on the right when pinned.
+    /// "Source · age" on the left; a lock for a secret, and "Pinned" when pinned, on the right.
     private var meta: some View {
         HStack(spacing: 8) {
             Text("\(item.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: item.copiedAt, now: Date()))")
                 .foregroundStyle(DesignTokens.Brand.ink2)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if item.isSensitive {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(DesignTokens.Brand.butterInk)
+                    .accessibilityLabel("Secret, kept on this device")
+            }
             if item.isPinned {
                 HStack(spacing: 4) {
                     Image(systemName: "pin.fill").accessibilityHidden(true)

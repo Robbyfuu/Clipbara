@@ -1,0 +1,116 @@
+import Foundation
+
+/// What a detected secret is. Its label leads the masked preview.
+enum SecretKind: Equatable, Sendable {
+    case apiKey, token, privateKey, card
+
+    /// `bundle` holds the catalog; tests pass one language's `.lproj`.
+    func label(bundle: Bundle = .main) -> String {
+        switch self {
+        case .apiKey: String(localized: "API key", bundle: bundle, comment: "Label of a masked secret clip")
+        case .token: String(localized: "Token", bundle: bundle, comment: "Label of a masked secret clip")
+        case .privateKey: String(localized: "Private key", bundle: bundle, comment: "Label of a masked secret clip")
+        case .card: String(localized: "Card", bundle: bundle, comment: "Label of a masked secret clip: a card number")
+        }
+    }
+}
+
+/// Recognizes well-known secret formats in a copy. Pure. No entropy guessing: it would match too much everyday text.
+/// A key must be the whole copy, alone, quoted, as an `.env` line (`NAME=key`) or as a header value (`Bearer key`).
+enum SecretDetector {
+    /// "Protect secrets" in Settings, on by default.
+    static let protectDefaultsKey = "protectSecrets"
+    /// ponytail: longer copies are never checked; a private key is a few KB, a key or a card far less.
+    private static let maxLength = 100_000
+
+    /// The optional `export NAME=`, quote and `Bearer ` before a key, and the quote after it.
+    private static let lead = #"^(?:export\s+)?(?:[A-Za-z_][A-Za-z0-9_.-]*\s*[=:]\s*)?["']?(?:Bearer\s+)?"#
+    private static let tail = #"["']?$"#
+
+    /// Anthropic before OpenAI: both start with `sk-`. Google keys are 39 characters, OpenAI's at least 32, with a
+    /// digit and an uppercase letter, so a hyphenated name like `sk-learn-…` is not one.
+    private static let keys: [(SecretKind, NSRegularExpression)] = ([
+        (.apiKey, #"AKIA[0-9A-Z]{16}"#),
+        (.token, #"(?:ghp|gho)_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}"#),
+        (.apiKey, #"(?:sk|rk)_live_[A-Za-z0-9]{16,}"#),
+        (.token, #"xox[abprs]-[A-Za-z0-9-]{10,}"#),
+        (.apiKey, #"sk-ant-[A-Za-z0-9_-]{20,}"#),
+        (.apiKey, #"sk-(?=[A-Za-z0-9_-]*[0-9])(?=[A-Za-z0-9_-]*[A-Z])[A-Za-z0-9_-]{29,}"#),
+        (.apiKey, #"AIza[0-9A-Za-z_-]{35}"#),
+        (.token, #"eyJ[A-Za-z0-9_-]{4,}\.eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*"#),
+    ] as [(SecretKind, String)]).map { ($0.0, regex(lead + "(?:" + $0.1 + ")" + tail)) }
+
+    private static let privateKey = regex(#"^-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----"#)
+
+    /// 13–19 digits starting 2–6 (every card network; no card starts with 1, which keeps millisecond timestamps
+    /// out). Separators follow a card's own grouping, 4-4-4-… or Amex's 4-6-5, never an order number's 3-7-7.
+    private static let card = regex(
+        #"^[2-6][0-9]{12,18}$|^[2-6][0-9]{3}([ -])[0-9]{4}\1[0-9]{4}(?:\1[0-9]{1,4}){1,2}$|^3[0-9]{3}([ -])[0-9]{6}\2[0-9]{4,5}$"#)
+
+    private static func regex(_ pattern: String) -> NSRegularExpression {
+        // Fixed patterns, checked by the tests: a typo fails every run, never a user's.
+        try! NSRegularExpression(pattern: pattern)
+    }
+
+    static func kind(of text: String) -> SecretKind? {
+        guard text.utf8.count <= maxLength else { return nil }
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if matches(privateKey, text) { return .privateKey }
+        if matches(card, text) {
+            let digits = text.filter { $0 != " " && $0 != "-" }
+            if (13...19).contains(digits.count), passesLuhn(digits) { return .card }
+        }
+        return keys.first { matches($0.1, text) }?.0
+    }
+
+    /// The masked preview: the label and the last 4 letters or digits, "API key •••• 3f9a". A private key's come from
+    /// its body, before the `-----END` line.
+    static func mask(_ text: String, kind: SecretKind, bundle: Bundle = .main) -> String {
+        let body = kind == .privateKey ? text.components(separatedBy: "-----END").first ?? text : text
+        let last = String(body.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }.suffix(4))
+        return "\(kind.label(bundle: bundle)) •••• \(last)"
+    }
+
+    /// `digits` holds ASCII digits only.
+    static func passesLuhn(_ digits: String) -> Bool {
+        var sum = 0
+        for (i, char) in digits.reversed().enumerated() {
+            guard let d = char.wholeNumberValue else { return false }
+            sum += i % 2 == 0 ? d : (d * 2 > 9 ? d * 2 - 9 : d * 2)
+        }
+        return sum % 10 == 0
+    }
+
+    private static func matches(_ regex: NSRegularExpression, _ text: String) -> Bool {
+        regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    }
+}
+
+extension SecretDetector {
+    /// iOS keeps the secret settings in the App Group, so the keyboard reads them too.
+    static var settings: UserDefaults {
+        #if os(iOS)
+        SharedDefaults.store ?? .standard
+        #else
+        .standard
+        #endif
+    }
+
+    static var isProtecting: Bool { settings.object(forKey: protectDefaultsKey) as? Bool ?? true }
+
+    /// What a capture stores in `isSensitive`: a copy whose text is a secret, while "Protect secrets" is on.
+    /// A files clip's text is its file names, never the copy.
+    static func flags(_ text: String?, type: ContentType, protects: Bool = isProtecting) -> Bool {
+        guard protects, let text, ![.image, .files, .fileURL].contains(type) else { return false }
+        return kind(of: text) != nil
+    }
+}
+
+extension ClipboardItem {
+    /// What cards, rows and search show for a secret: "API key •••• 3f9a". Nil for any other clip.
+    var secretMask: String? {
+        guard isSensitive else { return nil }
+        let text = textContent ?? ""
+        return SecretDetector.mask(text, kind: SecretDetector.kind(of: text) ?? .token)
+    }
+}

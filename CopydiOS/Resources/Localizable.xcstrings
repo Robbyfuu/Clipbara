@@ -390,6 +390,23 @@
         }
       }
     },
+    "API key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de API"
+          }
+        }
+      }
+    },
     "Back Tap in 3 steps" : {
       "localizations" : {
         "en" : {
@@ -418,6 +435,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancelar"
+          }
+        }
+      }
+    },
+    "Card" : {
+      "comment" : "Label of a masked secret clip: a card number",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarjeta"
           }
         }
       }
@@ -748,6 +782,22 @@
         }
       }
     },
+    "Delete secrets after" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete secrets after"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar secretos después de"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "en" : {
@@ -959,6 +1009,22 @@
         }
       }
     },
+    "Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las claves, los tokens y los números de tarjeta que copies se quedan en este dispositivo, se muestran ocultos y se borran después del tiempo que elijas."
+          }
+        }
+      }
+    },
     "Link" : {
       "localizations" : {
         "en" : {
@@ -1003,6 +1069,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pantalla bloqueada y avisos"
+          }
+        }
+      }
+    },
+    "Never" : {
+      "comment" : "Delete secrets after: never",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca"
           }
         }
       }
@@ -1493,6 +1576,39 @@
         }
       }
     },
+    "Private key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave privada"
+          }
+        }
+      }
+    },
+    "Protect secrets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protect secrets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteger secretos"
+          }
+        }
+      }
+    },
     "Quick setup" : {
       "localizations" : {
         "en" : {
@@ -1699,6 +1815,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Buscar clips"
+          }
+        }
+      }
+    },
+    "Secret, kept on this device" : {
+      "comment" : "Lock badge on a secret clip, read by VoiceOver and shown on hover",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secret, kept on this device"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secreto, solo en este dispositivo"
+          }
+        }
+      }
+    },
+    "Secrets" : {
+      "comment" : "Settings section about copied keys, tokens and card numbers",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secrets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secretos"
           }
         }
       }
@@ -1972,6 +2122,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Para no ver la pregunta de pegar: Configuración → Apps → Copyd → Pegar desde otras apps → Permitir"
+          }
+        }
+      }
+    },
+    "Token" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
           }
         }
       }

@@ -71,15 +71,16 @@ enum TransferService {
 
     // MARK: - Export
 
+    /// Secrets stay out: a backup imported on another Mac would sync them from there.
     static func exportDocument(context: ModelContext) throws -> Data {
-        let items = try context.fetch(FetchDescriptor<ClipboardItem>())
+        let items = try context.fetch(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.isSensitive == false }))
         let boards = try context.fetch(FetchDescriptor<Pinboard>())
         let exclusions = try context.fetch(FetchDescriptor<ExcludedApp>())
 
         var entryRecords: [TransferDocument.Entry] = []
         for board in boards {
             for entry in board.entries {
-                guard let item = entry.clipboardItem else { continue }
+                guard let item = entry.clipboardItem, !item.isSensitive else { continue }
                 entryRecords.append(TransferDocument.Entry(
                     pinboardID: board.id,
                     itemID: item.id,

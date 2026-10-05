@@ -85,6 +85,7 @@ final class AppState {
             }
         }
         setupHotkey()
+        sweepSecrets()
 
         let engine = CloudSyncEngine(container: modelContainer) { [weak self] in
             self?.clipboardMonitor.refreshLatestItems()
@@ -256,6 +257,18 @@ final class AppState {
     }
 
     var clearHistoryRequested = false
+
+    /// Deletes expired secrets now and every `SecretSweeper.interval` while Copyd runs.
+    private func sweepSecrets() {
+        guard let context = modelContainer?.mainContext else { return }
+        SecretSweeper.sweep(in: context)
+        Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let context = self?.modelContainer?.mainContext else { return }
+                SecretSweeper.sweep(in: context)
+            }
+        }
+    }
 
     private func setupHotkey() {
         KeyboardShortcuts.onKeyDown(for: .toggleHistoryPanel) { [weak self] in

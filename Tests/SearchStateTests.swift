@@ -71,4 +71,18 @@ final class SearchStateTests: XCTestCase {
         _ = state.multiSelection.toggle(1, focus: 0, in: (0..<5).map { _ in UUID() })
         XCTAssertFalse(state.mayReorderSuggestions(initialIndex: 0), "multi-select")
     }
+
+    /// Search reads a secret's masked label, never the secret itself.
+    func testSearchMatchesASecretsMaskNotItsText() {
+        let secret = clip(.plainText)
+        secret.textContent = FakeSecret.stripe
+        secret.isSensitive = true
+        let state = SearchState()
+        state.debouncedSearchText = "sk_live"
+        XCTAssertEqual(state.filteredItems(from: [secret]).map(\.id), [])
+        state.debouncedSearchText = "API key"
+        XCTAssertEqual(state.filteredItems(from: [secret]).map(\.id), [secret.id])
+        state.debouncedSearchText = "p7dc"
+        XCTAssertEqual(state.filteredItems(from: [secret]).map(\.id), [secret.id], "the last four show, so they match")
+    }
 }

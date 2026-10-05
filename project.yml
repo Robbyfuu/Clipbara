@@ -217,6 +217,7 @@ targets:
       - path: Copyd/Utilities/AccessPolicy.swift
       - path: Copyd/Utilities/LaunchGuard.swift
       - path: Copyd/Services/ContentTypeClassifier.swift
+      - path: Copyd/Services/TransferService.swift
       - path: Shared/Utilities/Thumbnail.swift
       - path: Shared/Utilities/FileBundle.swift
       - path: Shared/Utilities/PasteboardImage.swift
@@ -243,6 +244,8 @@ targets:
       - path: Shared/Utilities/Inbox.swift
       - path: Shared/Utilities/ArrivalNotice.swift
       - path: Shared/Utilities/LatestClipActivity.swift
+      - path: Shared/Utilities/SecretDetector.swift
+      - path: Shared/Utilities/SecretSweeper.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

@@ -48,4 +48,10 @@ final class SaveTextTests: XCTestCase {
         XCTAssertEqual(SaveText.save(text: "", in: context, now: now), .empty)
         XCTAssertEqual(try items().count, 0)
     }
+
+    func testSecretIsSavedAsSensitive() throws {
+        XCTAssertEqual(SaveText.save(text: FakeSecret.stripe, in: context, now: now), .saved)
+        XCTAssertEqual(SaveText.save(text: "plain", in: context, now: now), .saved)
+        XCTAssertEqual(Set(try items().filter(\.isSensitive).map(\.textContent)), [FakeSecret.stripe])
+    }
 }

@@ -110,7 +110,7 @@ final class FileBundleTests: XCTestCase {
         XCTAssertLessThanOrEqual(FileBundle.maxBundleBytes, 52_428_800)
         // The largest bundle within the limits is still one sync may upload.
         XCTAssertTrue(SyncRecordMapper.isEligible(contentType: ContentType.files.rawValue,
-                                                  byteCount: FileBundle.maxTotalBytes + 4_096))
+                                                  byteCount: FileBundle.maxTotalBytes + 4_096, isSensitive: false))
     }
 
     private func assertThrows(_ expected: FileBundle.DecodeError, _ data: Data, _ message: String,

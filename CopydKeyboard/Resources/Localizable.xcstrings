@@ -101,6 +101,40 @@
         }
       }
     },
+    "API key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de API"
+          }
+        }
+      }
+    },
+    "Card" : {
+      "comment" : "Label of a masked secret clip: a card number",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarjeta"
+          }
+        }
+      }
+    },
     "Clipboard" : {
       "localizations" : {
         "en" : {
@@ -429,6 +463,23 @@
         }
       }
     },
+    "Private key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave privada"
+          }
+        }
+      }
+    },
     "Recent" : {
       "localizations" : {
         "en" : {
@@ -507,6 +558,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Texto"
+          }
+        }
+      }
+    },
+    "Token" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
           }
         }
       }

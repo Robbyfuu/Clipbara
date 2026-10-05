@@ -53,9 +53,11 @@ enum SyncRecordMapper {
     }
 
     /// `fileURL` clips hold a local path and never sync. A `files` bundle may hold up to `FileBundle.maxFiles`
-    /// files of `FileBundle.maxFileBytes` each, so it gets its own cap.
-    static func isEligible(contentType: String, byteCount: Int) -> Bool {
-        switch contentType {
+    /// files of `FileBundle.maxFileBytes` each, so it gets its own cap. A secret (`isSensitive`) never syncs: the
+    /// batch builder asks here last, so nothing queued by any path uploads one.
+    static func isEligible(contentType: String, byteCount: Int, isSensitive: Bool) -> Bool {
+        if isSensitive { return false }
+        return switch contentType {
         case ContentType.fileURL.rawValue: false
         case ContentType.files.rawValue: byteCount <= FileBundle.maxBundleBytes
         default: byteCount <= maxClipBytes

@@ -66,6 +66,11 @@ final class AppModel {
         #endif
         // After the engine starts, so its tracker sees the inserts and uploads them.
         drainInbox()
+        sweepSecrets()
+        // Timers fire only while the app runs; the return to the foreground sweeps too.
+        Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.sweepSecrets() }
+        }
         #if DEBUG
         applyDebugRoute()
         #endif
@@ -119,13 +124,19 @@ final class AppModel {
         }
     }
 
+    /// Deletes secrets past "Delete secrets after". The save's observers refresh the widget and the Live Activity.
+    func sweepSecrets() {
+        SecretSweeper.sweep(in: container.mainContext)
+    }
+
     /// One notification for the clips a fetch brought, while Copyd is not on screen. Only the sync engine calls this,
     /// with remote inserts: local captures never reach it, nor the iPhone's own copies that the Mac captured from
     /// Universal Clipboard and synced back (`RemoteApplier.Outcome.arrivals` leaves them out).
     private func announceArrivals(_ ids: [UUID]) {
         guard UserDefaults.standard.bool(forKey: Self.arrivalNotificationsKey),
               UIApplication.shared.applicationState != .active else { return }
-        let fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) },
+        // A remote clip is never a secret (the flag never syncs); the check keeps that true if it ever changes.
+        let fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) && $0.isSensitive == false },
                                                    sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         guard let clips = try? container.mainContext.fetch(fetch), !clips.isEmpty else { return }
         let notice = ArrivalNotice.content(
@@ -284,13 +295,16 @@ final class AppModel {
         flash("Saved from clipboard")
     }
 
-    /// Inserts and saves an iPhone copy. The save's observer reloads the widget; the sync tracker uploads it.
+    /// Inserts and saves an iPhone copy. The save's observer reloads the widget; the sync tracker uploads it,
+    /// unless it is a secret, which stays on this iPhone.
     private func insert(_ clip: CapturedClip) {
         let context = container.mainContext
         let thumbnail = clip.contentType == .image ? Thumbnail.png(from: clip.rawData) : nil
-        context.insert(ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
-                                     thumbnailData: thumbnail, sourceAppName: UIDevice.current.model,
-                                     contentHash: clip.contentHash))
+        let item = ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
+                                 thumbnailData: thumbnail, sourceAppName: UIDevice.current.model,
+                                 contentHash: clip.contentHash)
+        item.isSensitive = SecretDetector.flags(clip.textContent, type: clip.contentType)
+        context.insert(item)
         try? context.save()
     }
 

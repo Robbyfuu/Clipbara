@@ -122,6 +122,8 @@ final class ClipboardMonitor {
         item.fromUniversalClipboard = content.fromUniversalClipboard
         item.thumbnailData = thumbnail
         item.fileManifestData = manifest
+        // A key, token or card: kept on this Mac, masked, and deleted by SecretSweeper.
+        item.isSensitive = SecretDetector.flags(content.textContent, type: content.contentType)
 
         modelContext?.insert(item)
         try? modelContext?.save()

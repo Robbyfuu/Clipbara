@@ -145,4 +145,23 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(boards.map(\.id), [first.id, second.id])
         XCTAssertEqual(boards.first?.colorIndex, PinboardDot.index(for: first.id))
     }
+
+    /// The keyboard and the widget (which reads this feed) never show a secret, in any mode.
+    func testSecretsStayOutOfTheFeed() throws {
+        let b = board("Keys", order: 0)
+        let secret = add(FakeSecret.stripe, dt: 10, pinned: true)
+        secret.isSensitive = true
+        pin(secret, to: b, order: 0); pin(add("t", dt: 0, pinned: true), to: b, order: 1)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.preview), ["t"])
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinned).map(\.preview), ["t"])
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinboard(b.id)).map(\.preview), ["t"])
+    }
+
+    /// The keyboard's own capture of a secret shows masked; tapping it still inserts the real text.
+    func testClipboardCardMasksASecret() throws {
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: true)
+        XCTAssertEqual(card.preview, "API key •••• p7dc")
+        let open = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: false)
+        XCTAssertEqual(open.preview, FakeSecret.stripe, "Protect secrets is off")
+    }
 }

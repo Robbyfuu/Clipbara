@@ -149,8 +149,9 @@ final class SearchState {
 }
 
 private extension ClipboardItem {
+    /// A secret matches by its masked label only, never by the secret itself.
     func matchesSearchQuery(_ query: String) -> Bool {
-        textContent?.localizedCaseInsensitiveContains(query) == true ||
+        (secretMask ?? textContent)?.localizedCaseInsensitiveContains(query) == true ||
         sourceAppName?.localizedCaseInsensitiveContains(query) == true ||
         userTitle?.localizedCaseInsensitiveContains(query) == true
     }

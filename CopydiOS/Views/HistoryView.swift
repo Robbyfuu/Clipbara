@@ -35,7 +35,7 @@ struct HistoryView: View {
             case .images: if item.contentType != .image { return false }
             }
             return search.isEmpty
-                || (item.textContent?.localizedCaseInsensitiveContains(search) ?? false)
+                || ((item.secretMask ?? item.textContent)?.localizedCaseInsensitiveContains(search) ?? false)
                 || (item.userTitle?.localizedCaseInsensitiveContains(search) ?? false)
         }
     }

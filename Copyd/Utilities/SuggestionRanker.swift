@@ -44,16 +44,16 @@ enum SuggestionRanker {
 }
 
 extension SuggestionRanker {
-    /// What suggestions pick from: the last 200 clips plus pinned clips, each once, never a file. Suggestions are
-    /// text-like picks and the model must never see a file; pinned file clips still show in the usual row.
+    /// What suggestions pick from: the last 200 clips plus pinned clips, each once, never a file or a secret.
+    /// Suggestions are text-like picks and the model must never see a file or a secret; both still show in the usual row.
     static func candidateClips(in context: ModelContext) -> [ClipboardItem] {
         let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
         var recent = FetchDescriptor<ClipboardItem>(
-            predicate: #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw },
+            predicate: #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isSensitive == false },
             sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         recent.fetchLimit = 200
         var pinned = FetchDescriptor<ClipboardItem>(predicate: #Predicate {
-            $0.isPinned == true && $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw
+            $0.isPinned == true && $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isSensitive == false
         })
         // Only what ranking and the prompt read; the rest (rawData, thumbnails) loads if something else reads it.
         recent.propertiesToFetch = [\.id, \.copiedAt, \.isPinned, \.contentTypeRaw, \.textContent]

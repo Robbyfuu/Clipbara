@@ -63,13 +63,13 @@ final class SyncRecordMapperTests: XCTestCase {
     }
 
     func testEligibility() {
-        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "fileURL", byteCount: 1))
-        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_520))
-        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_521))
+        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "fileURL", byteCount: 1, isSensitive: false))
+        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_520, isSensitive: false))
+        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_521, isSensitive: false))
         // A file bundle holds up to 10 files of 20 MB each, plus its manifest.
-        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: 30_000_000))
-        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes))
-        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes + 1))
+        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: 30_000_000, isSensitive: false))
+        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes, isSensitive: false))
+        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes + 1, isSensitive: false))
     }
 
     func testFileClipRoundTripCarriesManifest() throws {

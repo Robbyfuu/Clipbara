@@ -11,6 +11,10 @@ struct SettingsView: View {
     @State private var fullAccessSeenAt: Date?
     @AppStorage(AppModel.liveActivityKey) private var liveActivityEnabled = false
     @AppStorage(AppModel.arrivalNotificationsKey) private var arrivalNotificationsEnabled = false
+    /// In the App Group, so the keyboard masks a secret it captures too.
+    @AppStorage(SecretDetector.protectDefaultsKey, store: SharedDefaults.store) private var protectSecrets = true
+    @AppStorage(SecretSweeper.deleteAfterDefaultsKey, store: SharedDefaults.store)
+    private var deleteSecretsAfter = SecretSweeper.defaultMinutes
     /// Live Activities can be turned off for Copyd in Settings; re-read on every return to the app.
     @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var notificationsDenied = false
@@ -89,6 +93,39 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
                 .padding(.bottom, 24)
+
+                sectionLabel("Secrets")
+                VStack(alignment: .leading, spacing: 0) {
+                    toggleRow("Protect secrets", symbol: "lock", isOn: $protectSecrets)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    HStack(spacing: 12) {
+                        Image(systemName: "timer")
+                            .foregroundStyle(DesignTokens.Brand.ink2)
+                            .frame(width: 22)
+                            .accessibilityHidden(true)
+                        Text("Delete secrets after").brandFont(16, .semibold)
+                        Spacer(minLength: 8)
+                        Picker("Delete secrets after", selection: $deleteSecretsAfter) {
+                            ForEach(SecretSweeper.choices, id: \.self) { minutes in
+                                if minutes > 0 { Text("\(minutes) min").tag(minutes) } else { Text("Never").tag(minutes) }
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .tint(DesignTokens.Brand.ink)
+                    }
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 44)
+                }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .brandCard()
+                Text("Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose.")
+                    .brandFont(13, relativeTo: .footnote)
+                    .foregroundStyle(DesignTokens.Brand.ink2)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
 
                 sectionLabel("iCloud")
                 HStack(alignment: .firstTextBaseline, spacing: 12) {

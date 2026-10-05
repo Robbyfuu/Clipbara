@@ -99,6 +99,7 @@ struct CopydiOSApp: App {
                 guard phase == .active else { return }
                 model.drainInbox()
                 model.captureNewCopy()
+                model.sweepSecrets()
                 model.sync.fetchIfStale()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()
@@ -261,7 +262,7 @@ private struct LiveActivityPreviewHarness: View {
         let clips = (try? ModelContext(container).fetch(FetchDescriptor<ClipboardItem>(
             sortBy: [SortDescriptor(\.copiedAt, order: .reverse)]))) ?? []
         var seen: Set<LatestClipActivity.ContentState.Kind> = []
-        states = clips.filter { $0.contentType != .files && $0.contentType != .fileURL }
+        states = clips.filter { $0.contentType != .files && $0.contentType != .fileURL && !$0.isSensitive }
             .map(LatestClipActivity.ContentState.init)
             .filter { seen.insert($0.kind).inserted }
     }

@@ -204,7 +204,7 @@ import SwiftData
                 guard sizedClips < Self.batchRecords, sizedBytes < Self.batchBytes else { clipsHeldBack = true; continue }
                 let bytes = clip.rawData.count
                 // Per type: a file bundle may be bigger than any other clip.
-                guard SyncRecordMapper.isEligible(contentType: clip.contentTypeRaw, byteCount: bytes) else { dead.append(change); continue }
+                guard SyncRecordMapper.isEligible(contentType: clip.contentTypeRaw, byteCount: bytes, isSensitive: clip.isSensitive) else { dead.append(change); continue }
                 let byteCount = bytes + (clip.textContent?.utf8.count ?? 0)
                 sizedClips += 1
                 sizedBytes += byteCount

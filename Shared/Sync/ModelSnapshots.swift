@@ -30,7 +30,7 @@ extension ClipboardItem {
     }
 
     var isSyncEligible: Bool {
-        SyncRecordMapper.isEligible(contentType: contentTypeRaw, byteCount: rawData.count)
+        SyncRecordMapper.isEligible(contentType: contentTypeRaw, byteCount: rawData.count, isSensitive: isSensitive)
     }
 }
 

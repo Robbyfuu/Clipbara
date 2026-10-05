@@ -74,15 +74,19 @@ struct RemoteApplier {
     }
 
     /// Records that should be in iCloud. `onlyUnconfirmed` keeps those the server never accepted (`syncSystemFields == nil`).
-    /// File clips never sync, and neither do entries pointing at them.
+    /// File clips and secrets never sync, and neither do entries pointing at them.
     static func uploadableIDs(in context: ModelContext, onlyUnconfirmed: Bool) throws -> [UUID] {
         // Type only: rawData is external storage and is never read here.
         let clips = try context.fetch(FetchDescriptor<ClipboardItem>())
-            .filter { $0.contentTypeRaw != "fileURL" && (!onlyUnconfirmed || $0.syncSystemFields == nil) }.map(\.id)
+            .filter { $0.contentTypeRaw != "fileURL" && !$0.isSensitive && (!onlyUnconfirmed || $0.syncSystemFields == nil) }
+            .map(\.id)
         let boards = try context.fetch(FetchDescriptor<Pinboard>())
             .filter { !onlyUnconfirmed || $0.syncSystemFields == nil }.map(\.id)
         let entries = try context.fetch(FetchDescriptor<PinboardEntry>())
-            .filter { $0.clipboardItem?.contentTypeRaw != "fileURL" && (!onlyUnconfirmed || $0.syncSystemFields == nil) }.map(\.id)
+            .filter {
+                $0.clipboardItem?.contentTypeRaw != "fileURL" && $0.clipboardItem?.isSensitive != true
+                    && (!onlyUnconfirmed || $0.syncSystemFields == nil)
+            }.map(\.id)
         return clips + boards + entries
     }
 
@@ -183,11 +187,13 @@ struct RemoteApplier {
 
     // MARK: Duplicates (spec section 10)
 
+    /// A secret never merges: either side of the merge would queue a save or a delete of its id. It stays on this
+    /// device, and the remote copy (from a device that did not protect it) stays as it is.
     private func mergeDuplicates(of id: UUID, _ out: inout Outcome) throws {
-        guard let incoming = try clip(id), !out.deletes.contains(id) else { return }
+        guard let incoming = try clip(id), !incoming.isSensitive, !out.deletes.contains(id) else { return }
         let hash = incoming.contentHash
         let others = try context.fetch(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))
-        for other in others where other.id != id && !out.deletes.contains(other.id) {
+        for other in others where other.id != id && !other.isSensitive && !out.deletes.contains(other.id) {
             if out.deletes.contains(id) { break }
             guard let merge = DuplicateRule.merge(incoming.snapshot, other.snapshot) else { continue }
             // A relayed copy was never announced, so merging with one does not make the other a known copy.

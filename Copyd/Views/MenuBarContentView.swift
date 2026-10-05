@@ -213,6 +213,7 @@ struct MenuBarItemRow: View {
     }
 
     private var displayText: String {
+        if let mask = item.secretMask { return mask }
         switch item.contentType {
         case .plainText, .richText, .html, .url:
             return item.textContent ?? "..."
