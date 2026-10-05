@@ -98,6 +98,22 @@ Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPh
   - ⌘F focuses search.
 
   Quick-paste numbering is derived from the scroll offset (`QuickPasteShortcut.firstVisibleIndex`, using the left-edge rule). Do not use `.scrollPosition`: it misses programmatic `scrollTo`.
+- **Card tools:**
+  - ⇧⌥Return opens Paste as…
+  - ⌥Return pastes the text recognized in an image.
+  - ⌘E opens Edit.
+
+  These shortcuts live in `CardShortcut`. With 2 or more cards selected, every tool except Edit beeps.
+
+## Clip tools (spec: `docs/superpowers/specs/2026-10-04-clip-tools-design.md`)
+
+- **Secrets (`isSensitive`) are local-only.** The hard gate is `SyncRecordMapper.isEligible(..., isSensitive:)` when the batch is built, so never add an upload path that skips it.
+  - Never flag an existing clip in place. An edit that turns a clip into a secret deletes it and inserts a new local clip (`ClipEdit`).
+  - The sweep skips pinned clips and clips on a pinboard, and stops while "Protect secrets" is off.
+- **OCR fields (`ocrText`, `ocrDone`) are local-only and never mapped.**
+  - Vision runs on a utility GCD queue. `ImageTextRecognizer` is excluded from the keyboard, widget and share targets.
+  - A failed read leaves `ocrDone == false`, so the next fill retries it.
+- **Transforms (`TextTransform`)** decide applicability from the first 4 KB (`menuProbeLimit`) and apply to the full text. Clips with `isSensitive` never get Paste as.
 
 ## Project rules
 
