@@ -59,15 +59,19 @@ enum SecretDetector {
         try! NSRegularExpression(pattern: pattern)
     }
 
-    static func kind(of text: String) -> SecretKind? {
+    static func kind(of text: String) -> SecretKind? { match(of: text)?.kind }
+
+    /// The secret in a copy, and the text its mask shows the end of: the copy itself, or in a `.env` copy, the key's line.
+    static func match(of text: String) -> (kind: SecretKind, value: String)? {
         guard text.utf8.count <= maxLength else { return nil }
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if matches(privateKey, text) { return .privateKey }
+        if matches(privateKey, text) { return (.privateKey, text) }
         if matches(card, text) {
             let digits = text.filter { $0 != " " && $0 != "-" }
-            if passesLuhn(digits), hasCardLength(digits) { return .card }
+            if passesLuhn(digits), hasCardLength(digits) { return (.card, text) }
         }
-        return keyKind(text) ?? envKind(text)
+        if let kind = keyKind(text) { return (kind, text) }
+        return envMatch(text)
     }
 
     private static func keyKind(_ text: String) -> SecretKind? {
@@ -75,11 +79,11 @@ enum SecretDetector {
     }
 
     /// A `.env` file copied whole: every line that is not blank or a `#` comment is `NAME=value`. The first key decides.
-    private static func envKind(_ text: String) -> SecretKind? {
+    private static func envMatch(_ text: String) -> (kind: SecretKind, value: String)? {
         let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
         guard lines.count > 1, lines.allSatisfy({ matches(envLine, $0) }) else { return nil }
-        return lines.lazy.compactMap(keyKind).first
+        return lines.lazy.compactMap { line in keyKind(line).map { ($0, line) } }.first
     }
 
     /// The lengths each network issues, by prefix. An IMEI (15 digits from 35) or an EAN-13 barcode passes Luhn too.
@@ -94,6 +98,13 @@ enum SecretDetector {
         case 3500...3599, 6000...6999: return (16...19).contains(count)  // JCB, Discover, UnionPay
         default: return false
         }
+    }
+
+    /// A flagged copy's masked preview, from its match. One that no longer matches (detection changed since it was
+    /// flagged) shows as a token.
+    static func mask(_ text: String) -> String {
+        let match = match(of: text)
+        return mask(match?.value ?? text, kind: match?.kind ?? .token)
     }
 
     /// The masked preview: the label and the last 4 letters or digits, "API key •••• 3f9a". A private key's come from
@@ -143,7 +154,6 @@ extension ClipboardItem {
     /// What cards, rows and search show for a secret: "API key •••• 3f9a". Nil for any other clip.
     var secretMask: String? {
         guard isSensitive else { return nil }
-        let text = textContent ?? ""
-        return SecretDetector.mask(text, kind: SecretDetector.kind(of: text) ?? .token)
+        return SecretDetector.mask(textContent ?? "")
     }
 }

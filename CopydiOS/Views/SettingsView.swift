@@ -120,7 +120,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
-                Text("Secrets are deleted after this time unless pinned.")
+                Text("Detected secrets stay on this device, show masked, and are deleted after this time unless pinned.")
                     .brandFont(13, relativeTo: .footnote)
                     .foregroundStyle(DesignTokens.Brand.ink2)
                     .padding(.horizontal, 4)

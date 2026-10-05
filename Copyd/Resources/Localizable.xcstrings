@@ -1284,6 +1284,23 @@
         }
       }
     },
+    "Detected secrets stay on this device, show masked, and are deleted after this time unless pinned." : {
+      "comment" : "Settings footnote under Delete secrets after: secrets stay local, show masked, and pinned ones are kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detected secrets stay on this device, show masked, and are deleted after this time unless pinned."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los secretos detectados se quedan en este equipo, se muestran ocultos y se borran después de este tiempo salvo que estén fijados."
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "es" : {
@@ -3605,23 +3622,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Secretos"
-          }
-        }
-      }
-    },
-    "Secrets are deleted after this time unless pinned." : {
-      "comment" : "Settings footnote under Delete secrets after: pinned secrets are kept",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Secrets are deleted after this time unless pinned."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los secretos se borran después de este tiempo salvo que estén fijados."
           }
         }
       }

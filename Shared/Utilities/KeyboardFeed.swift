@@ -66,7 +66,7 @@ enum KeyboardFeed {
     static func clipboardCard(_ clip: CapturedClip, now: Date, protects: Bool = SecretDetector.isProtecting) -> KeyboardClip {
         let type = clip.contentType
         let secret = SecretDetector.flags(clip.textContent, type: type, protects: protects)
-            ? clip.textContent.map { SecretDetector.mask($0, kind: SecretDetector.kind(of: $0) ?? .token) } : nil
+            ? clip.textContent.map { SecretDetector.mask($0) } : nil
         return KeyboardClip(
             id: UUID(), contentType: type, preview: secret ?? preview(type, clip.textContent),
             // ImageIO, so the full image is never decoded in the keyboard.

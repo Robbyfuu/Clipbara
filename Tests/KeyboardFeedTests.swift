@@ -165,6 +165,12 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(open.preview, FakeSecret.stripe, "Protect secrets is off")
     }
 
+    func testClipboardCardMasksTheKeyInAnEnvCopy() throws {
+        let env = "STRIPE_SECRET_KEY=" + FakeSecret.stripe + "\nPORT=3000"
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(env)), now: t0, protects: true)
+        XCTAssertEqual(card.preview, "API key •••• p7dc")
+    }
+
     // MARK: Insert as…
 
     /// Worked out for the one long-pressed card, from the text the controller fetches for it.

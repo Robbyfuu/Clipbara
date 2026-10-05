@@ -111,7 +111,7 @@ struct GeneralSettingsTab: View {
             } header: {
                 Text("Secrets")
             } footer: {
-                Text("Secrets are deleted after this time unless pinned.")
+                Text("Detected secrets stay on this device, show masked, and are deleted after this time unless pinned.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }

@@ -210,6 +210,14 @@ final class SecretDetectorTests: XCTestCase {
         XCTAssertEqual(SecretDetector.mask(FakeSecret.pem, kind: .privateKey), "Private key •••• f3Qx")
     }
 
+    /// A `.env` copy shows the end of the key's line, not of the file.
+    func testEnvMaskShowsTheMatchedKey() {
+        let env = "STRIPE_SECRET_KEY=" + FakeSecret.stripe + "\nNODE_ENV=production\nPORT=3000\n"
+        let item = ClipboardItem(contentType: .plainText, rawData: Data(env.utf8), textContent: env, contentHash: "h")
+        item.isSensitive = true
+        XCTAssertEqual(item.secretMask, "API key •••• p7dc")
+    }
+
     /// The test bundle carries the iPhone's catalog; its `es.lproj` picks Spanish whatever this Mac's language is.
     func testSpanishLabels() throws {
         let path = try XCTUnwrap(Bundle(for: Self.self).path(forResource: "es", ofType: "lproj"))
@@ -218,6 +226,15 @@ final class SecretDetectorTests: XCTestCase {
         XCTAssertEqual(SecretDetector.mask(FakeSecret.jwt, kind: .token, bundle: es), "Token •••• sR8U")
         XCTAssertEqual(SecretDetector.mask(FakeSecret.pem, kind: .privateKey, bundle: es), "Clave privada •••• f3Qx")
         XCTAssertEqual(SecretDetector.mask("4242 4242 4242 4242", kind: .card, bundle: es), "Tarjeta •••• 4242")
+    }
+
+    /// Settings' footnote under "Delete secrets after", on the Mac and the iPhone.
+    func testSecretsFootnoteSaysTheyStayOnThisDevice() throws {
+        let path = try XCTUnwrap(Bundle(for: Self.self).path(forResource: "es", ofType: "lproj"))
+        let es = try XCTUnwrap(Bundle(path: path))
+        let key = "Detected secrets stay on this device, show masked, and are deleted after this time unless pinned."
+        XCTAssertEqual(String(localized: String.LocalizationValue(key), bundle: es),
+                       "Los secretos detectados se quedan en este equipo, se muestran ocultos y se borran después de este tiempo salvo que estén fijados.")
     }
 
     // MARK: Capture rule
