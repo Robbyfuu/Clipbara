@@ -110,9 +110,9 @@ final class QuickPasteShortcutTests: XCTestCase {
         }
     }
 
-    func testOptionReturnCopiesText() {
-        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: .option), .copyText)
-        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.option, .capsLock]), .copyText)
+    func testOptionReturnPastesText() {
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: .option), .pasteText)
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.option, .capsLock]), .pasteText)
         XCTAssertNil(CardShortcut.match(keyCode: 76, characters: "\u{3}", modifiers: .option), "keypad Enter is not Return")
     }
 

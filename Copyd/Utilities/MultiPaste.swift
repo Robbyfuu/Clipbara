@@ -37,6 +37,12 @@ enum MultiPaste {
         return (texts.joined(separator: separator.string), items.count - texts.count)
     }
 
+    /// The clips a plain-text paste of `items` counts as picked, for suggestions: those whose own text it holds.
+    /// Images and files never count, not even when the text read in an image is what went in ("Paste text").
+    static func pickedIDs(_ items: [ClipboardItem]) -> [UUID] {
+        items.filter { text(of: $0) != nil }.map(\.id)
+    }
+
     /// The text a clip contributes to a join, or nil when it is skipped.
     static func text(of item: ClipboardItem) -> String? {
         switch item.contentType {

@@ -185,10 +185,11 @@ final class AppState {
 
     /// Shared paste path for panel and pinboard cards.
     /// - Parameter asPlainText: `nil` resolves from the setting combined with the Shift modifier.
-    /// - Parameter text: A "Paste as…" result, written as plain text in place of the clip. Still a pick of the clip:
-    ///   direct paste, the paste history and the focus hand-back all run as usual.
+    /// - Parameter text: Plain text written in place of the clip: a "Paste as…" result, or an image's "Paste text".
+    ///   Direct paste and the focus hand-back run as usual; the paste history counts the clip only when the text is
+    ///   its own (`MultiPaste.pickedIDs`), so an image's text never counts as a pick of the image.
     func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil) {
-        clipboardMonitor.skipNextChange(picking: [item.id])
+        clipboardMonitor.skipNextChange(picking: text == nil ? [item.id] : MultiPaste.pickedIDs([item]))
         if let text {
             ReviewPrompter.recordPaste()
             pasteService.pastePlainText(text)
@@ -204,9 +205,10 @@ final class AppState {
         paste(item, text: text)
     }
 
-    /// "Copy text" and ⌥Return: the text read in an image, as plain text, through the same pick as "Paste as…", so
-    /// the monitor skips it (no new clip) and direct paste applies. Beeps when the clip has no recognized text.
-    func copyText(_ item: ClipboardItem) {
+    /// "Paste text" and ⌥Return: the text read in an image, as plain text, through the pick funnel, so the monitor
+    /// skips it (no new clip), Paste Stack stops and direct paste applies. No paste is recorded against the image.
+    /// Beeps when the clip has no recognized text.
+    func pasteText(_ item: ClipboardItem) {
         guard let text = item.recognizedText else { return NSSound.beep() }
         paste(item, text: text)
     }
@@ -247,7 +249,7 @@ final class AppState {
         }
         ReviewPrompter.recordPaste()
         // One event per joined clip: images and files left out of the text don't count.
-        clipboardMonitor.skipNextChange(picking: items.filter { MultiPaste.text(of: $0) != nil }.map(\.id))
+        clipboardMonitor.skipNextChange(picking: MultiPaste.pickedIDs(items))
         pasteService.pastePlainText(joined.text)
         hidePanel()
     }

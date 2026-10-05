@@ -430,7 +430,7 @@ final class PanelController {
                     return true
                 }
 
-                // ⇧⌥Return opens the selected card's "Paste as…" menu, ⌘E edits it and ⌥Return copies an image's
+                // ⇧⌥Return opens the selected card's "Paste as…" menu, ⌘E edits it and ⌥Return pastes an image's
                 // text, also while searching.
                 if let tool = CardShortcut.match(keyCode: keyCode, characters: characters, modifiers: event.modifierFlags) {
                     return self.useCardTool(tool)
@@ -583,7 +583,7 @@ final class PanelController {
         switch tool {
         case .edit: appState.edit(item)
         case .pasteAs: showPasteAsMenu(for: item)
-        case .copyText: appState.copyText(item)
+        case .pasteText: appState.pasteText(item)
         }
         return true
     }

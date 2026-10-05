@@ -82,7 +82,7 @@ struct ClipboardCardView: View {
         }
         PasteAsMenu(item: item)
         if item.recognizedText != nil {
-            Button("Copy text") { appState.copyText(item) }
+            Button("Paste text") { appState.pasteText(item) }
         }
         if item.isEditable {
             Button("Edit…") { appState.edit(item) }
@@ -412,7 +412,7 @@ struct ClipboardCardView: View {
     }
 }
 
-/// "Aa" on an image whose text was read: search finds it by that text, and "Copy text" copies it.
+/// "Aa" on an image whose text was read: search finds it by that text, and "Paste text" pastes it.
 private struct TextFoundBadge: View {
     var body: some View {
         Text(verbatim: "Aa")

@@ -57,6 +57,31 @@ final class MultiPasteTests: XCTestCase {
         XCTAssertNil(MultiPaste.join([], separator: .newline))
     }
 
+    // MARK: - Picks
+
+    /// Ruling C6: "Paste text" pastes the text read in an image. That text is not the image, so no paste is recorded
+    /// against it for suggestions, as images left out of a joined paste don't count.
+    func testPastingAnImagesTextRecordsNoPickOfTheImage() throws {
+        let store = try ModelContainer(
+            for: ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self, PasteEvent.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let events = store.mainContext
+        let image = ClipboardItem(contentType: .image, rawData: Data([1]), contentHash: "i")
+        image.ocrText = "Copyd OCR test"
+        events.insert(image)
+        PasteEvent.record(MultiPaste.pickedIDs([image]), app: "com.apple.Safari", in: events)
+        let id = image.id
+        XCTAssertEqual(try events.fetchCount(FetchDescriptor<PasteEvent>(predicate: #Predicate { $0.clipID == id })), 0)
+    }
+
+    /// A text paste counts the clips whose own text it holds: "Paste as…" on a text clip, the text clips of a join.
+    func testTextPasteCountsOnlyClipsWhoseTextItHolds() {
+        let text = clip(.plainText, "a"), link = clip(.url, "https://copyd.app"), image = clip(.image, nil)
+        let files = clip(.files, "b.pdf"), empty = clip(.plainText, "")
+        image.ocrText = "words"
+        XCTAssertEqual(MultiPaste.pickedIDs([text, image, link, files, empty]), [text.id, link.id])
+    }
+
     func testSeparatorIsRemembered() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "MultiPasteTests"))
         defaults.removePersistentDomain(forName: "MultiPasteTests")

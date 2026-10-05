@@ -809,23 +809,6 @@
         }
       }
     },
-    "Copy text" : {
-      "comment" : "Image clip menu: copies the text recognized in the image",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy text"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copiar texto"
-          }
-        }
-      }
-    },
     "Copyd" : {
       "shouldTranslate" : false
     },
@@ -3025,6 +3008,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paste Stack · %lld"
+          }
+        }
+      }
+    },
+    "Paste text" : {
+      "comment" : "Image clip menu and ⌥Return: pastes the text recognized in the image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar texto"
           }
         }
       }
