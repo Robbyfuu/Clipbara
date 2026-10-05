@@ -62,25 +62,56 @@ final class SensitiveSyncTests: XCTestCase {
                        "nor does its pinboard entry")
     }
 
-    /// The sweep deletes what never uploaded, so it must not send a delete for the clip or its pinboard entry.
+    /// The sweep deletes what never uploaded, so it must not send a delete for the clip.
     func testSweepSendsNoCloudKitDelete() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let old = secret(at: now.addingTimeInterval(-301))
         let fresh = secret(at: now.addingTimeInterval(-10))
         let plain = ClipboardItem(contentType: .plainText, rawData: Data("hi".utf8), textContent: "hi", contentHash: "hi")
         plain.copiedAt = now.addingTimeInterval(-3_600)
-        let board = Pinboard(name: "Keys")
         [old, fresh, plain].forEach(context.insert)
-        context.insert(board)
-        context.insert(PinboardEntry(clipboardItem: old, pinboard: board))
         try context.save()
         changes = []
 
         XCTAssertEqual(SecretSweeper.sweep(in: context, now: now, after: 300), 1)
         XCTAssertFalse(context.hasChanges, "saved")
         XCTAssertEqual(Set(try context.fetch(FetchDescriptor<ClipboardItem>()).map(\.id)), [fresh.id, plain.id])
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<PinboardEntry>()), 0, "its pinboard entry goes too")
         XCTAssertFalse(changes.contains { if case .deleteRecord = $0 { true } else { false } }, "\(changes)")
+    }
+
+    /// Ruling C2: a pinned secret, or one on a pinboard, is kept past "Delete secrets after", local and masked.
+    func testSweepKeepsPinnedSecrets() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let pinned = secret(at: now.addingTimeInterval(-3_600))
+        pinned.isPinned = true
+        let onBoard = secret(at: now.addingTimeInterval(-3_600))
+        let loose = secret(at: now.addingTimeInterval(-3_600))
+        let board = Pinboard(name: "Keys")
+        [pinned, onBoard, loose].forEach(context.insert)
+        context.insert(board)
+        context.insert(PinboardEntry(clipboardItem: onBoard, pinboard: board))
+        try context.save()
+        changes = []
+
+        XCTAssertEqual(SecretSweeper.sweep(in: context, now: now, after: 300), 1)
+        XCTAssertEqual(Set(try context.fetch(FetchDescriptor<ClipboardItem>()).map(\.id)), [pinned.id, onBoard.id])
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<PinboardEntry>()), 1)
+        XCTAssertFalse(pinned.isSyncEligible, "kept, still never uploads")
+        XCTAssertFalse(changes.contains { if case .deleteRecord = $0 { true } else { false } }, "\(changes)")
+    }
+
+    /// What Quick Look and Return check before they touch a clip the sweep may have deleted under them.
+    func testSweptClipReadsAsGone() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let old = secret(at: now.addingTimeInterval(-301))
+        let fresh = secret(at: now.addingTimeInterval(-10))
+        [old, fresh].forEach(context.insert)
+        try context.save()
+        XCTAssertFalse(old.isGone)
+
+        SecretSweeper.sweep(in: context, now: now, after: 300)
+        XCTAssertTrue(old.isGone)
+        XCTAssertFalse(fresh.isGone)
     }
 
     func testDeletingASecretByHandSendsNoDelete() throws {

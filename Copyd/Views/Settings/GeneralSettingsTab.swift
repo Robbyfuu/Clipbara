@@ -111,7 +111,7 @@ struct GeneralSettingsTab: View {
             } header: {
                 Text("Secrets")
             } footer: {
-                Text("Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose.")
+                Text("Secrets are deleted after this time unless pinned.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }

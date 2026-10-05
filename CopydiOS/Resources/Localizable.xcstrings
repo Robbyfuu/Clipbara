@@ -1094,22 +1094,6 @@
         }
       }
     },
-    "Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Las claves, los tokens y los números de tarjeta que copies se quedan en este dispositivo, se muestran ocultos y se borran después del tiempo que elijas."
-          }
-        }
-      }
-    },
     "Link" : {
       "localizations" : {
         "en" : {
@@ -1985,6 +1969,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Secretos"
+          }
+        }
+      }
+    },
+    "Secrets are deleted after this time unless pinned." : {
+      "comment" : "Settings footnote under Delete secrets after: pinned secrets are kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secrets are deleted after this time unless pinned."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los secretos se borran después de este tiempo salvo que estén fijados."
           }
         }
       }

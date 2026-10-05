@@ -30,6 +30,10 @@ final class ClipboardItem {
         set { contentTypeRaw = newValue.rawValue }
     }
 
+    /// Deleted, by the secret sweep, a remote delete or the user, while a view or key handler still holds it.
+    /// Reading its attributes then traps.
+    var isGone: Bool { isDeleted || modelContext == nil }
+
     var fileManifest: [FileManifestEntry]? {
         fileManifestData.flatMap { try? JSONDecoder().decode([FileManifestEntry].self, from: $0) }
     }

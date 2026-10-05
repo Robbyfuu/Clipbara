@@ -68,9 +68,10 @@ final class AppModel {
         drainInbox()
         sweepSecrets()
         // Timers fire only while the app runs; the return to the foreground sweeps too.
-        Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
+        let sweepTimer = Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sweepSecrets() }
         }
+        sweepTimer.tolerance = SecretSweeper.tolerance
         #if DEBUG
         applyDebugRoute()
         #endif

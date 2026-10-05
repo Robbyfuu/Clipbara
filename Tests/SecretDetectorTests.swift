@@ -25,6 +25,7 @@ final class SecretDetectorTests: XCTestCase {
 
     func testAWSAccessKey() {
         XCTAssertEqual(kind(FakeSecret.aws), .apiKey)
+        XCTAssertEqual(kind("AS" + "IA" + "IOSFODNN7EXAMPLE"), .apiKey, "a temporary STS key")
         XCTAssertNil(kind("AKIA" + "IOSFODNN7EXAMPL"), "15 characters after AKIA")
         XCTAssertNil(kind("akia" + "iosfodnn7example"), "lowercase")
     }
@@ -33,6 +34,10 @@ final class SecretDetectorTests: XCTestCase {
         XCTAssertEqual(kind(FakeSecret.github), .token)
         XCTAssertEqual(kind(FakeSecret.githubOAuth), .token)
         XCTAssertEqual(kind(FakeSecret.githubPAT), .token)
+        for letter in ["u", "s", "r"] {
+            XCTAssertEqual(kind("gh" + letter + "_" + String(repeating: "aB3d", count: 9)), .token, "gh\(letter)_")
+        }
+        XCTAssertNil(kind("gh" + "x_" + String(repeating: "aB3d", count: 9)), "x is not a GitHub token type")
         XCTAssertNil(kind("gh" + "p_" + "short123"))
         XCTAssertNil(kind("github" + "_pat_" + "abc"))
     }
@@ -83,6 +88,10 @@ final class SecretDetectorTests: XCTestCase {
         XCTAssertEqual(kind("-----BEGIN " + "OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n"), .privateKey)
         XCTAssertEqual(kind("-----BEGIN " + "PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEI\n"), .privateKey)
         XCTAssertEqual(kind("-----BEGIN " + "ENCRYPTED PRIVATE KEY-----\nMIIFHDBOBgkqhkiG9w0B\n"), .privateKey)
+        XCTAssertEqual(kind("Deploy key for staging:\n" + FakeSecret.pem), .privateKey, "a label line before the key")
+        XCTAssertEqual(kind("-----BEGIN " + "PGP PRIVATE KEY BLOCK-----\n\nlQOYBGU5n3kBCAC7\n=Xq2T\n"
+                            + "-----END PGP PRIVATE KEY BLOCK-----"), .privateKey)
+        XCTAssertNil(kind("-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQENBGU5n3kBCAC7\n-----END PGP PUBLIC KEY BLOCK-----"))
         XCTAssertNil(kind("-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEF\n-----END PUBLIC KEY-----"))
         XCTAssertNil(kind("-----BEGIN CERTIFICATE-----\nMIIDdzCCAl+gAwIBAgIE\n-----END CERTIFICATE-----"))
     }
@@ -97,9 +106,32 @@ final class SecretDetectorTests: XCTestCase {
         XCTAssertEqual(kind("Authorization: Bearer " + FakeSecret.jwt), .token)
     }
 
+    /// A key copied out of code, a config file or a shell: syntax around it, but no prose.
+    func testKeyWithCodeSyntax() {
+        XCTAssertEqual(kind("\"k\": \"" + FakeSecret.stripe + "\","), .apiKey, "a JSON member")
+        XCTAssertEqual(kind("const K = \"" + FakeSecret.stripe + "\";"), .apiKey)
+        XCTAssertEqual(kind("let token = '" + FakeSecret.github + "'"), .token)
+        XCTAssertEqual(kind("var key = \"" + FakeSecret.openAI + "\""), .apiKey)
+        XCTAssertEqual(kind(FakeSecret.aws + ";"), .apiKey, "a trailing semicolon")
+        XCTAssertEqual(kind("curl -H \"Authorization: Bearer " + FakeSecret.jwt + "\""), .token)
+    }
+
+    /// A `.env` file copied whole: every line that is not blank or a `#` comment is `NAME=value`, and one holds a key.
+    func testEnvBlock() {
+        let env = "# Payments\nNODE_ENV=production\nSTRIPE_SECRET_KEY=" + FakeSecret.stripe + "\n\nexport PORT=3000\n"
+        XCTAssertEqual(kind(env), .apiKey)
+        XCTAssertEqual(kind("GITHUB_TOKEN=" + FakeSecret.github + "\nOPENAI_API_KEY=" + FakeSecret.openAI), .token,
+                       "the first key decides")
+        XCTAssertNil(kind("NODE_ENV=production\nPORT=3000"), "no line holds a key")
+        XCTAssertNil(kind("Staging keys:\nSTRIPE_SECRET_KEY=" + FakeSecret.stripe), "a prose line")
+    }
+
     /// A key inside prose is left alone: masking and deleting a whole note over one key would lose the note.
     func testKeyInsideProseIsNotFlagged() {
         XCTAssertNil(kind("Here is the key for staging: " + FakeSecret.stripe + " (rotate it Monday)"))
+        XCTAssertNil(kind("Set const K = \"" + FakeSecret.stripe + "\"; then restart the server"))
+        XCTAssertNil(kind("Run curl -H \"Authorization: Bearer " + FakeSecret.jwt + "\" against staging"))
+        XCTAssertNil(kind("The token " + FakeSecret.github + ";"))
     }
 
     // MARK: Cards
@@ -113,9 +145,18 @@ final class SecretDetectorTests: XCTestCase {
 
     func testCardNumbers() {
         for card in ["4242 4242 4242 4242", "4111-1111-1111-1111", "4111111111111111", "5555555555554444",
-                     "3782 822463 10005", "6011 0000 0000 0004", "4222222222222"] {
+                     "3782 822463 10005", "6011 0000 0000 0004", "4012888888881881",
+                     "2223003122003222",  // Mastercard 2-series
+                     "30569309025904",  // Diners, 14 digits
+                     "3530111333300000",  // JCB
+                     "4111111111111111110"] {  // Visa, 19 digits
             XCTAssertEqual(kind(card), .card, card)
         }
+        // Each passes Luhn, at a length its network never issues.
+        XCTAssertNil(kind("4222222222222"), "13-digit Visa")
+        XCTAssertNil(kind("411111111111116"), "15-digit Visa")
+        XCTAssertNil(kind("3400000000000000"), "16-digit Amex")
+        XCTAssertNil(kind("2000000000000006"), "20 is no network's prefix")
         XCTAssertNil(kind("4242 4242 4242 4241"), "fails Luhn")
         XCTAssertNil(kind("4242-4242 4242 4242"), "mixed separators")
         XCTAssertNil(kind("424242424242"), "12 digits")
@@ -140,6 +181,8 @@ final class SecretDetectorTests: XCTestCase {
             "Order #4501234563",
             "1696411234564",  // a timestamp in milliseconds, passes Luhn
             "1234567812345670",  // passes Luhn, but no card starts with 1
+            "356938035643809",  // an iPhone IMEI, passes Luhn
+            "4006381000093",  // an EAN-13 barcode, passes Luhn
             "+56 9 1234 5678",
             "12.345.678-5",
             "1Z999AA10123456784",
@@ -196,17 +239,26 @@ final class SecretSweeperTests: XCTestCase {
 
     func testExpiresOnlySecretsPastTheirTime() {
         let clips = [
-            (id: id(1), copiedAt: now.addingTimeInterval(-360), isSensitive: true),
-            (id: id(2), copiedAt: now.addingTimeInterval(-240), isSensitive: true),
-            (id: id(3), copiedAt: now.addingTimeInterval(-3_600), isSensitive: false),
-            (id: id(4), copiedAt: now.addingTimeInterval(-300), isSensitive: true),
-            (id: id(5), copiedAt: now.addingTimeInterval(60), isSensitive: true),  // another device's clock
+            (id: id(1), copiedAt: now.addingTimeInterval(-360), isSensitive: true, isKept: false),
+            (id: id(2), copiedAt: now.addingTimeInterval(-240), isSensitive: true, isKept: false),
+            (id: id(3), copiedAt: now.addingTimeInterval(-3_600), isSensitive: false, isKept: false),
+            (id: id(4), copiedAt: now.addingTimeInterval(-300), isSensitive: true, isKept: false),
+            (id: id(5), copiedAt: now.addingTimeInterval(60), isSensitive: true, isKept: false),  // another device's clock
         ]
         XCTAssertEqual(SecretSweeper.expired(clips: clips, now: now, after: 300), [id(1), id(4)])
     }
 
+    /// A pinned secret, or one on a pinboard, is kept: it stays local and masked, and is never deleted.
+    func testKeptSecretsNeverExpire() {
+        let clips = [
+            (id: id(1), copiedAt: now.addingTimeInterval(-86_400), isSensitive: true, isKept: true),
+            (id: id(2), copiedAt: now.addingTimeInterval(-86_400), isSensitive: true, isKept: false),
+        ]
+        XCTAssertEqual(SecretSweeper.expired(clips: clips, now: now, after: 300), [id(2)])
+    }
+
     func testNeverKeepsEverySecret() {
-        let clips = [(id: id(1), copiedAt: now.addingTimeInterval(-86_400), isSensitive: true)]
+        let clips = [(id: id(1), copiedAt: now.addingTimeInterval(-86_400), isSensitive: true, isKept: false)]
         XCTAssertEqual(SecretSweeper.expired(clips: clips, now: now, after: nil), [])
     }
 

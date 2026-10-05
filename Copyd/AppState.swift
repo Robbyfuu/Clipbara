@@ -284,12 +284,13 @@ final class AppState {
     private func sweepSecrets() {
         guard let context = modelContainer?.mainContext else { return }
         SecretSweeper.sweep(in: context)
-        Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let context = self?.modelContainer?.mainContext else { return }
                 SecretSweeper.sweep(in: context)
             }
         }
+        timer.tolerance = SecretSweeper.tolerance
     }
 
     private func setupHotkey() {

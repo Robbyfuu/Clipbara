@@ -16,22 +16,25 @@ enum SecretKind: Equatable, Sendable {
 }
 
 /// Recognizes well-known secret formats in a copy. Pure. No entropy guessing: it would match too much everyday text.
-/// A key must be the whole copy, alone, quoted, as an `.env` line (`NAME=key`) or as a header value (`Bearer key`).
+/// A key must be the whole copy: alone, quoted, as an assignment (`NAME=key`, `const K = "key";`, `"k": "key",`), as a
+/// header value (`Bearer key`, `curl -H "…"`), or one line of a copied `.env` file. A private key may follow a label.
 enum SecretDetector {
     /// "Protect secrets" in Settings, on by default.
     static let protectDefaultsKey = "protectSecrets"
     /// ponytail: longer copies are never checked; a private key is a few KB, a key or a card far less.
     private static let maxLength = 100_000
 
-    /// The optional `export NAME=`, quote and `Bearer ` before a key, and the quote after it.
-    private static let lead = #"^(?:export\s+)?(?:[A-Za-z_][A-Za-z0-9_.-]*\s*[=:]\s*)?["']?(?:Bearer\s+)?"#
-    private static let tail = #"["']?$"#
+    /// Before a key, the optional `export`, `const`, `let`, `var` or `curl -H`, a name, quoted or not, then `=` or
+    /// `:`, a quote and `Bearer `. After it, a quote and a `,` or `;`.
+    private static let lead =
+        #"^(?:(?:export|const|let|var)\s+|curl\s+(?:-H|--header)\s+)?(?:["']?[A-Za-z_][A-Za-z0-9_.-]*["']?\s*[=:]\s*)?["']?(?:Bearer\s+)?"#
+    private static let tail = #"["']?[,;]?$"#
 
     /// Anthropic before OpenAI: both start with `sk-`. Google keys are 39 characters, OpenAI's at least 32, with a
     /// digit and an uppercase letter, so a hyphenated name like `sk-learn-…` is not one.
     private static let keys: [(SecretKind, NSRegularExpression)] = ([
-        (.apiKey, #"AKIA[0-9A-Z]{16}"#),
-        (.token, #"(?:ghp|gho)_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}"#),
+        (.apiKey, #"(?:AKIA|ASIA)[0-9A-Z]{16}"#),
+        (.token, #"gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}"#),
         (.apiKey, #"(?:sk|rk)_live_[A-Za-z0-9]{16,}"#),
         (.token, #"xox[abprs]-[A-Za-z0-9-]{10,}"#),
         (.apiKey, #"sk-ant-[A-Za-z0-9_-]{20,}"#),
@@ -40,7 +43,11 @@ enum SecretDetector {
         (.token, #"eyJ[A-Za-z0-9_-]{4,}\.eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*"#),
     ] as [(SecretKind, String)]).map { ($0.0, regex(lead + "(?:" + $0.1 + ")" + tail)) }
 
-    private static let privateKey = regex(#"^-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----"#)
+    /// Anywhere in the copy: the header alone is unambiguous, and a label line often comes before it.
+    private static let privateKey = regex(#"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----"#)
+
+    /// One line of a `.env` file.
+    private static let envLine = regex(#"^(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*=.*$"#)
 
     /// 13–19 digits starting 2–6 (every card network; no card starts with 1, which keeps millisecond timestamps
     /// out). Separators follow a card's own grouping, 4-4-4-… or Amex's 4-6-5, never an order number's 3-7-7.
@@ -58,9 +65,35 @@ enum SecretDetector {
         if matches(privateKey, text) { return .privateKey }
         if matches(card, text) {
             let digits = text.filter { $0 != " " && $0 != "-" }
-            if (13...19).contains(digits.count), passesLuhn(digits) { return .card }
+            if passesLuhn(digits), hasCardLength(digits) { return .card }
         }
-        return keys.first { matches($0.1, text) }?.0
+        return keyKind(text) ?? envKind(text)
+    }
+
+    private static func keyKind(_ text: String) -> SecretKind? {
+        keys.first { matches($0.1, text) }?.0
+    }
+
+    /// A `.env` file copied whole: every line that is not blank or a `#` comment is `NAME=value`. The first key decides.
+    private static func envKind(_ text: String) -> SecretKind? {
+        let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+        guard lines.count > 1, lines.allSatisfy({ matches(envLine, $0) }) else { return nil }
+        return lines.lazy.compactMap(keyKind).first
+    }
+
+    /// The lengths each network issues, by prefix. An IMEI (15 digits from 35) or an EAN-13 barcode passes Luhn too.
+    private static func hasCardLength(_ digits: String) -> Bool {
+        guard let first4 = Int(digits.prefix(4)) else { return false }
+        let count = digits.count
+        switch first4 {
+        case 3400...3499, 3700...3799: return count == 15  // American Express
+        case 3000...3059, 3600...3699, 3800...3999: return (14...19).contains(count)  // Diners Club
+        case 4000...4999: return count == 16 || count == 19  // Visa
+        case 5100...5599, 2221...2720: return count == 16  // Mastercard
+        case 3500...3599, 6000...6999: return (16...19).contains(count)  // JCB, Discover, UnionPay
+        default: return false
+        }
     }
 
     /// The masked preview: the label and the last 4 letters or digits, "API key •••• 3f9a". A private key's come from

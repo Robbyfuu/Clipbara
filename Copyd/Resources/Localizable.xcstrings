@@ -2227,22 +2227,6 @@
         }
       }
     },
-    "Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keys, tokens and card numbers you copy stay on this device, show masked, and are deleted after the time you choose."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Las claves, los tokens y los números de tarjeta que copies se quedan en este dispositivo, se muestran ocultos y se borran después del tiempo que elijas."
-          }
-        }
-      }
-    },
     "Last copied first" : {
       "localizations" : {
         "en" : {
@@ -3625,6 +3609,23 @@
         }
       }
     },
+    "Secrets are deleted after this time unless pinned." : {
+      "comment" : "Settings footnote under Delete secrets after: pinned secrets are kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secrets are deleted after this time unless pinned."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los secretos se borran después de este tiempo salvo que estén fijados."
+          }
+        }
+      }
+    },
     "Select App to Exclude" : {
       "localizations" : {
         "es" : {
@@ -3725,6 +3726,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快捷键"
+          }
+        }
+      }
+    },
+    "Show" : {
+      "comment" : "Quick Look button that reveals a masked secret",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar"
           }
         }
       }

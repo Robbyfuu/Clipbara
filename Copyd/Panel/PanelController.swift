@@ -15,6 +15,8 @@ final class PanelController {
     private var quickLookPanel: ClipboardQuickLookPanel?
     private var quickLookItem: ClipboardItem?
     private var quickLookZoom: ImageZoomController?
+    /// Closes Quick Look when a save deletes its clip: the secret sweep, a remote delete.
+    @ObservationIgnored private var quickLookSaveObserver: NSObjectProtocol?
     private(set) var isVisible: Bool = false
     private var clickMonitor: Any?
     private var mouseMonitor: Any?
@@ -538,6 +540,10 @@ final class PanelController {
 
         case 36: // Return - paste
             if let item = quickLookItem {
+                guard !item.isGone else {
+                    hideQuickLook()
+                    return true
+                }
                 appState.clipboardMonitor.skipNextChange(picking: [item.id])
                 appState.pasteService.paste(item: item)
                 appState.hidePanel()
@@ -551,7 +557,7 @@ final class PanelController {
             }
 
             guard let idx = appState.searchState.selectedIndex,
-                  idx < items.count else { return false }
+                  idx < items.count, !items[idx].isGone else { return false }
             let item = items[idx]
             appState.clipboardMonitor.skipNextChange(picking: [item.id])
             appState.pasteService.paste(item: item)
@@ -570,7 +576,8 @@ final class PanelController {
         guard let appState else { return false }
         let items = appState.currentFilteredItems
         guard let item = quickLookItem
-                ?? appState.searchState.selectedIndex.flatMap({ items.indices.contains($0) ? items[$0] : nil })
+                ?? appState.searchState.selectedIndex.flatMap({ items.indices.contains($0) ? items[$0] : nil }),
+              !item.isGone
         else { return false }
         switch tool {
         case .edit: appState.edit(item)
@@ -605,6 +612,7 @@ final class PanelController {
 
     private func showQuickLook(item: ClipboardItem) {
         guard let appState else { return }
+        guard !item.isGone else { return hideQuickLook() }
 
         appState.selectForPreview(nil)
         quickLookItem = item
@@ -633,7 +641,7 @@ final class PanelController {
                     self?.hideQuickLook()
                 },
                 onPaste: { [weak self, weak appState] in
-                    guard let self, let appState else { return }
+                    guard let self, let appState, !item.isGone else { return }
                     appState.clipboardMonitor.skipNextChange(picking: [item.id])
                     appState.pasteService.paste(item: item)
                     self.hidePanel()
@@ -644,6 +652,15 @@ final class PanelController {
 
         panel.orderFrontRegardless()
         panel.makeKey()
+
+        quickLookSaveObserver = quickLookSaveObserver ?? NotificationCenter.default.addObserver(
+            forName: ModelContext.didSave, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.quickLookItem?.isGone == true else { return }
+                self.hideQuickLook()
+            }
+        }
     }
 
     private func updateQuickLook(for item: ClipboardItem) {

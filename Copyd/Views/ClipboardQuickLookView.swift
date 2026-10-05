@@ -13,6 +13,8 @@ struct ClipboardQuickLookView: View {
     @State private var imageMetadata: (width: Int, height: Int)?
     @State private var cachedCharCount: Int = 0
     @State private var cachedIsCodeLike: Bool = false
+    /// A secret shows its mask until Show. Every item change, ←/→ included, hides it again.
+    @State private var isRevealed = false
 
     init(
         item: ClipboardItem,
@@ -32,6 +34,15 @@ struct ClipboardQuickLookView: View {
     }
 
     var body: some View {
+        // The sweep or a remote delete can remove the clip while it shows; PanelController then closes Quick Look.
+        if item.isGone {
+            EmptyView()
+        } else {
+            quickLook
+        }
+    }
+
+    private var quickLook: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
                 Color.black.opacity(colorScheme == .dark ? 0.26 : 0.16)
@@ -44,6 +55,7 @@ struct ClipboardQuickLookView: View {
             }
         }
         .task(id: item.id) {
+            isRevealed = false
             if item.contentType == .image {
                 let image = cachedImage ?? NSImage(data: item.rawData)
                 cachedImage = image
@@ -236,18 +248,37 @@ struct ClipboardQuickLookView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch item.contentType {
-        case .plainText, .richText, .html, .unknown:
-            textContent
-        case .image:
-            imageContent
-        case .url:
-            urlContent
-        case .fileURL, .files:
-            fileContent
-        case .color:
-            colorContent
+        if let mask = item.secretMask, !isRevealed {
+            maskedContent(mask)
+        } else {
+            switch item.contentType {
+            case .plainText, .richText, .html, .unknown:
+                textContent
+            case .image:
+                imageContent
+            case .url:
+                urlContent
+            case .fileURL, .files:
+                fileContent
+            case .color:
+                colorContent
+            }
         }
+    }
+
+    private func maskedContent(_ mask: String) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(mask)
+                .font(.system(size: 18, weight: .semibold, design: .monospaced))
+            Button("Show") { isRevealed = true }
+                .controlSize(.large)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(contentBackground)
     }
 
     private var textContent: some View {
