@@ -26,6 +26,8 @@ final class PanelController {
     private(set) var focusReturnApp: NSRunningApplication?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
+    /// Over the selected card, set by the card itself: where ⇧⌥Return opens the "Paste as…" menu.
+    @ObservationIgnored weak var cardMenuAnchor: CardMenuAnchorView?
 
     private let baseHeight = PanelGeometry.height
 
@@ -392,6 +394,7 @@ final class PanelController {
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let keyCode = event.keyCode
+            let characters = event.charactersIgnoringModifiers
             let eventWindowNumber = event.windowNumber
             let shift = event.modifierFlags.intersection([.command, .option, .control, .shift]) == .shift
             let handled: Bool = MainActor.assumeIsolated { [weak self] in
@@ -423,6 +426,11 @@ final class PanelController {
                    let panel = self.panel, !self.isTextInputFocused(in: panel) {
                     self.appState?.pasteSuggestion(number: number)
                     return true
+                }
+
+                // ⇧⌥Return opens the selected card's "Paste as…" menu and ⌘E edits it, also while searching.
+                if let tool = CardShortcut.match(keyCode: keyCode, characters: characters, modifiers: event.modifierFlags) {
+                    return self.useCardTool(tool)
                 }
 
                 // Handle tab shortcuts before the search-field pass-through.
@@ -555,6 +563,44 @@ final class PanelController {
         }
     }
 
+    // MARK: - Card tools (⇧⌥Return, ⌘E)
+
+    /// Acts on the clip in Quick Look, else the selected card. Not handled, so the key goes on, with no card.
+    private func useCardTool(_ tool: CardShortcut) -> Bool {
+        guard let appState else { return false }
+        let items = appState.currentFilteredItems
+        guard let item = quickLookItem
+                ?? appState.searchState.selectedIndex.flatMap({ items.indices.contains($0) ? items[$0] : nil })
+        else { return false }
+        switch tool {
+        case .edit: appState.edit(item)
+        case .pasteAs: showPasteAsMenu(for: item)
+        }
+        return true
+    }
+
+    /// The card menu's "Paste as…" list as a menu of its own, at the card's top left corner. Keyboard driven like any
+    /// menu: arrows, Return, Escape. Each item goes through the same pick as the card menu.
+    private func showPasteAsMenu(for item: ClipboardItem) {
+        guard let appState else { return }
+        let transforms = TextTransform.applicable(to: item.textContent ?? "", type: item.contentType)
+        guard !transforms.isEmpty else { return NSSound.beep() }
+        let menu = NSMenu()
+        menu.addItem(.sectionHeader(title: String(localized: "Paste as…")))
+        for transform in transforms {
+            menu.addItem(ClosureMenuItem(transform.label()) { [weak appState] in appState?.paste(item, as: transform) })
+        }
+        // After the key monitor returns: the menu runs its own tracking loop.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if self.quickLookItem == nil, let anchor = self.cardMenuAnchor, anchor.clipID == item.id, anchor.window != nil {
+                menu.popUp(positioning: nil, at: NSPoint(x: 8, y: anchor.bounds.height - 8), in: anchor)
+            } else if let view = (self.quickLookPanel ?? self.panel)?.contentView {
+                menu.popUp(positioning: nil, at: NSPoint(x: view.bounds.midX, y: view.bounds.midY), in: view)
+            }
+        }
+    }
+
     // MARK: - Clipboard Quick Look
 
     private func showQuickLook(item: ClipboardItem) {
@@ -670,4 +716,19 @@ final class PanelController {
         frame.origin.y = y
         return frame
     }
+}
+
+/// A menu item that runs a closure.
+private final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(run), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func run() { handler() }
 }

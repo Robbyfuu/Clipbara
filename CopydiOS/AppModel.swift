@@ -196,14 +196,15 @@ final class AppModel {
 
     /// Copies the clip to the pasteboard and flashes the "Copied" toast.
     /// Returns false, with no toast, when there was nothing to write.
+    /// - Parameter transformed: A "Copy as…" result, copied in place of the clip's own content.
     @discardableResult
-    func copy(_ item: ClipboardItem) -> Bool {
+    func copy(_ item: ClipboardItem, text transformed: String? = nil) -> Bool {
         switch item.contentType {
-        case .image:
+        case .image where transformed == nil:
             guard let image = PasteboardImage.payload(from: item.rawData, maxPixels: 4096) else { return false }
             UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
         default:
-            guard let text = item.textContent, !text.isEmpty else { return false }
+            guard let text = transformed ?? item.textContent, !text.isEmpty else { return false }
             UIPasteboard.general.string = text
         }
         // Covers a row tap, the widget's `copy` route and Copy Latest Clip: all of them copy through here.

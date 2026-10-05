@@ -164,4 +164,28 @@ final class KeyboardFeedTests: XCTestCase {
         let open = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: false)
         XCTAssertEqual(open.preview, FakeSecret.stripe, "Protect secrets is off")
     }
+
+    // MARK: Insert as…
+
+    func testCardsCarryTheirTransforms() throws {
+        add("[1, 2]", dt: 2)
+        add("png", type: .image, dt: 1)
+        add("12345", dt: 0)
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        XCTAssertEqual(clips.map(\.transforms), [[.prettyJSON, .compactJSON], [], []],
+                       "worked out from the whole text; none for images or text no transform changes")
+    }
+
+    /// Longer clips are copied, never inserted, so there is nothing to insert them as.
+    func testNoTransformsAboveTheInsertLimit() throws {
+        add(String(repeating: "a", count: PasteAction.insertByteLimit + 1))
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).first?.transforms, [])
+        add(String(repeating: "a", count: PasteAction.insertByteLimit), dt: 1)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).first?.transforms, [.upper, .title])
+    }
+
+    func testClipboardCardCarriesTheRealTextsTransforms() throws {
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: true)
+        XCTAssertEqual(card.transforms, [.upper, .lower, .title], "a masked secret still pastes as its real text")
+    }
 }

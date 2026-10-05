@@ -627,6 +627,23 @@
         }
       }
     },
+    "Clean link" : {
+      "comment" : "Paste or copy as: tracking parameters removed from links",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean link"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limpiar link"
+          }
+        }
+      }
+    },
     "Clear All History" : {
       "localizations" : {
         "es" : {
@@ -771,6 +788,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Coma"
+          }
+        }
+      }
+    },
+    "Compact JSON" : {
+      "comment" : "Paste or copy as: JSON on one line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON compacto"
           }
         }
       }
@@ -1312,6 +1346,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "把常用的剪贴内容拖到钉板上，就不会过期。"
+          }
+        }
+      }
+    },
+    "Edit clip" : {
+      "comment" : "Title of the window that edits a clip's text",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit clip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar clip"
+          }
+        }
+      }
+    },
+    "Edit…" : {
+      "comment" : "Card menu: opens the Edit clip window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar…"
           }
         }
       }
@@ -2289,6 +2357,23 @@
         }
       }
     },
+    "lowercase" : {
+      "comment" : "Paste or copy as: no capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lowercase"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minúsculas"
+          }
+        }
+      }
+    },
     "macOS may need Copyd to restart after you allow a permission." : {
       "localizations" : {
         "es" : {
@@ -2845,6 +2930,23 @@
         }
       }
     },
+    "Paste as…" : {
+      "comment" : "Card menu: submenu of text transforms applied while pasting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste as…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar como…"
+          }
+        }
+      }
+    },
     "Paste directly into the app" : {
       "localizations" : {
         "en" : {
@@ -3035,6 +3137,23 @@
         }
       }
     },
+    "Plain text" : {
+      "comment" : "Paste or copy as: no formatting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto sin formato"
+          }
+        }
+      }
+    },
     "Press a key…" : {
       "localizations" : {
         "es" : {
@@ -3097,6 +3216,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在面板中选中卡片后按下。"
+          }
+        }
+      }
+    },
+    "Pretty JSON" : {
+      "comment" : "Paste or copy as: indented JSON",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretty JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON legible"
           }
         }
       }
@@ -4125,6 +4261,23 @@
         }
       }
     },
+    "Title Case" : {
+      "comment" : "Paste or copy as: each word capitalized",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title Case"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo Título"
+          }
+        }
+      }
+    },
     "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Input Monitoring, then start Paste Stack again." : {
       "localizations" : {
         "en" : {
@@ -4224,6 +4377,23 @@
         }
       }
     },
+    "Trim whitespace" : {
+      "comment" : "Paste or copy as: spaces removed at both ends of each line, and blank lines at the ends",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trim whitespace"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar espacios sobrantes"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "localizations" : {
         "es" : {
@@ -4286,6 +4456,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请尝试其他搜索词或筛选条件"
+          }
+        }
+      }
+    },
+    "UPPERCASE" : {
+      "comment" : "Paste or copy as: all capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UPPERCASE"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MAYÚSCULAS"
           }
         }
       }

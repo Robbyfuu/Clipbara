@@ -177,10 +177,32 @@ final class AppState {
 
     /// Shared paste path for panel and pinboard cards.
     /// - Parameter asPlainText: `nil` resolves from the setting combined with the Shift modifier.
-    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil) {
+    /// - Parameter text: A "Paste as…" result, written as plain text in place of the clip. Still a pick of the clip:
+    ///   direct paste, the paste history and the focus hand-back all run as usual.
+    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil) {
         clipboardMonitor.skipNextChange(picking: [item.id])
-        pasteService.paste(item: item, asPlainText: asPlainText)
+        if let text {
+            ReviewPrompter.recordPaste()
+            pasteService.pastePlainText(text)
+        } else {
+            pasteService.paste(item: item, asPlainText: asPlainText)
+        }
         hidePanel()
+    }
+
+    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Beeps if the transform no longer applies.
+    func paste(_ item: ClipboardItem, as transform: TextTransform) {
+        guard let text = item.textContent.flatMap(transform.apply(to:)) else { return NSSound.beep() }
+        paste(item, text: text)
+    }
+
+    /// ⌘E and "Edit…". Hides the panel, as Settings from the sync chip does, then opens the Edit clip window over it,
+    /// which activates Copyd. Closing that window hands focus back to the app the panel opened over.
+    func edit(_ item: ClipboardItem) {
+        guard item.isEditable, let context = modelContainer?.mainContext else { return NSSound.beep() }
+        let app = panelController.focusReturnApp
+        hidePanel()
+        EditClipWindowController.shared.show(item, in: context, returnTo: app)
     }
 
     /// ⌘-click: adds or removes a card from the multi-selection.

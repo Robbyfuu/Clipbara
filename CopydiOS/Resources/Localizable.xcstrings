@@ -488,6 +488,23 @@
         }
       }
     },
+    "Clean link" : {
+      "comment" : "Paste or copy as: tracking parameters removed from links",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean link"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limpiar link"
+          }
+        }
+      }
+    },
     "Clear search" : {
       "localizations" : {
         "en" : {
@@ -568,6 +585,23 @@
         }
       }
     },
+    "Compact JSON" : {
+      "comment" : "Paste or copy as: JSON on one line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON compacto"
+          }
+        }
+      }
+    },
     "Copied" : {
       "localizations" : {
         "en" : {
@@ -586,6 +620,23 @@
     },
     "copy" : {
       "shouldTranslate" : false
+    },
+    "Copy as…" : {
+      "comment" : "Clip long-press menu: submenu of text transforms applied while copying",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy as…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar como…"
+          }
+        }
+      }
     },
     "Copy Last Clip" : {
       "localizations" : {
@@ -810,6 +861,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Listo"
+          }
+        }
+      }
+    },
+    "Edit" : {
+      "comment" : "Clip long-press menu: opens the Edit clip sheet",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar"
+          }
+        }
+      }
+    },
+    "Edit clip" : {
+      "comment" : "Title of the sheet that edits a clip's text",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit clip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar clip"
           }
         }
       }
@@ -1069,6 +1154,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pantalla bloqueada y avisos"
+          }
+        }
+      }
+    },
+    "lowercase" : {
+      "comment" : "Paste or copy as: no capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lowercase"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minúsculas"
           }
         }
       }
@@ -1572,6 +1674,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fijado"
+          }
+        }
+      }
+    },
+    "Plain text" : {
+      "comment" : "Paste or copy as: no formatting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto sin formato"
+          }
+        }
+      }
+    },
+    "Pretty JSON" : {
+      "comment" : "Paste or copy as: indented JSON",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretty JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON legible"
           }
         }
       }
@@ -2110,6 +2246,23 @@
         }
       }
     },
+    "Title Case" : {
+      "comment" : "Paste or copy as: each word capitalized",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title Case"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo Título"
+          }
+        }
+      }
+    },
     "To skip the paste prompt: Settings → Apps → Copyd → Paste from Other Apps → Allow" : {
       "localizations" : {
         "en" : {
@@ -2139,6 +2292,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Token"
+          }
+        }
+      }
+    },
+    "Trim whitespace" : {
+      "comment" : "Paste or copy as: spaces removed at both ends of each line, and blank lines at the ends",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trim whitespace"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar espacios sobrantes"
           }
         }
       }
@@ -2299,6 +2469,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Actualizado ahora"
+          }
+        }
+      }
+    },
+    "UPPERCASE" : {
+      "comment" : "Paste or copy as: all capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UPPERCASE"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MAYÚSCULAS"
           }
         }
       }

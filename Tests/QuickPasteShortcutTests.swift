@@ -94,4 +94,29 @@ final class QuickPasteShortcutTests: XCTestCase {
         XCTAssertEqual(f(2846), 14)
         XCTAssertEqual(f(-40), 0)
     }
+
+    // MARK: Card tools
+
+    func testShiftOptionReturnOpensPasteAs() {
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.shift, .option]), .pasteAs)
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.shift, .option, .capsLock]), .pasteAs)
+    }
+
+    func testOtherReturnChordsAreNotPasteAs() {
+        // ⌥Return is kept for "Copy text"; Return and ⇧Return paste.
+        for flags: NSEvent.ModifierFlags in [[], .option, .shift, [.shift, .option, .command], [.shift, .option, .control]] {
+            XCTAssertNil(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: flags), "\(flags)")
+        }
+    }
+
+    func testCommandEEdits() {
+        XCTAssertEqual(CardShortcut.match(keyCode: 14, characters: "e", modifiers: .command), .edit)
+        XCTAssertEqual(CardShortcut.match(keyCode: 14, characters: "E", modifiers: [.command, .capsLock]), .edit)
+        // Dvorak: E is a different key, and the key in E's place types a period.
+        XCTAssertEqual(CardShortcut.match(keyCode: 2, characters: "e", modifiers: .command), .edit)
+        XCTAssertNil(CardShortcut.match(keyCode: 14, characters: ".", modifiers: .command))
+        for flags: NSEvent.ModifierFlags in [[], .shift, [.command, .shift], [.command, .option]] {
+            XCTAssertNil(CardShortcut.match(keyCode: 14, characters: "e", modifiers: flags), "\(flags)")
+        }
+    }
 }

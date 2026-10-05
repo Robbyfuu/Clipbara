@@ -18,6 +18,8 @@ final class KeyboardModel {
     @ObservationIgnored var onModeChange: () -> Void = {}
     /// Pastes or copies the clip; returns a toast message when the clip was copied instead of inserted.
     @ObservationIgnored var onSelect: (KeyboardClip) -> String? = { _ in nil }
+    /// "Insert as…": the same, with the clip's text transformed.
+    @ObservationIgnored var onInsertAs: (KeyboardClip, TextTransform) -> String? = { _, _ in nil }
     @ObservationIgnored var onText: (String) -> Void = { _ in }
     @ObservationIgnored var onDelete: () -> Void = {}
     /// Opens Copyd's keyboard setup in the containing app (no-Full-Access state only).
@@ -41,7 +43,15 @@ final class KeyboardModel {
     @ObservationIgnored private var deleteTask: Task<Void, Never>?
 
     func select(_ clip: KeyboardClip) {
-        guard let message = onSelect(clip) else { return }
+        show(onSelect(clip))
+    }
+
+    func insert(_ clip: KeyboardClip, as transform: TextTransform) {
+        show(onInsertAs(clip, transform))
+    }
+
+    private func show(_ message: String?) {
+        guard let message else { return }
         toast = message
         toastTask?.cancel()
         toastTask = Task {
@@ -198,6 +208,15 @@ struct KeyboardView: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                 ForEach(clips) { clip in
                     Button { model.select(clip) } label: { card(clip) }.buttonStyle(.plain)
+                        .contextMenu {
+                            if !clip.transforms.isEmpty {
+                                Section("Insert as…") {
+                                    ForEach(clip.transforms, id: \.self) { transform in
+                                        Button(transform.label()) { model.insert(clip, as: transform) }
+                                    }
+                                }
+                            }
+                        }
                 }
             }
             // Room under the last row, and for its 1 pt key shadow.

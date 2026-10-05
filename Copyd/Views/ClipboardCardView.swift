@@ -39,6 +39,11 @@ struct ClipboardCardView: View {
 
     private var cardBody: some View {
         cardSurface
+        .overlay {
+            if isSelected {
+                CardMenuAnchor(clipID: item.id) { appState.panelController.cardMenuAnchor = $0 }
+            }
+        }
         .onHover { hovering in
             isHovered = hovering
         }
@@ -74,6 +79,10 @@ struct ClipboardCardView: View {
             Button("Paste as Plain Text") { appState.paste(item, asPlainText: true) }
         } else {
             Button("Paste") { onPaste(item) }
+        }
+        PasteAsMenu(item: item)
+        if item.isEditable {
+            Button("Edit…") { appState.edit(item) }
         }
         if showsManagementMenu {
             Divider()
@@ -395,6 +404,43 @@ struct ClipboardCardView: View {
         modelContext.delete(item)
         try? modelContext.save()
     }
+}
+
+/// "Paste as…", with only the transforms that change this clip. Its own view, so they are worked out again only when
+/// the clip changes, not on every hover of the card.
+private struct PasteAsMenu: View {
+    let item: ClipboardItem
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        let transforms = TextTransform.applicable(to: item.textContent ?? "", type: item.contentType)
+        if !transforms.isEmpty {
+            Menu("Paste as…") {
+                ForEach(transforms, id: \.self) { transform in
+                    Button(transform.label()) { appState.paste(item, as: transform) }
+                }
+            }
+        }
+    }
+}
+
+/// An invisible AppKit view over a selected card: where ⇧⌥Return opens its "Paste as…" menu.
+private struct CardMenuAnchor: NSViewRepresentable {
+    let clipID: UUID
+    let onUpdate: (CardMenuAnchorView) -> Void
+
+    func makeNSView(context: Context) -> CardMenuAnchorView { CardMenuAnchorView() }
+
+    func updateNSView(_ view: CardMenuAnchorView, context: Context) {
+        view.clipID = clipID
+        onUpdate(view)
+    }
+}
+
+/// Never takes a click: the card under it keeps its taps, hover and drag.
+final class CardMenuAnchorView: NSView {
+    var clipID: UUID?
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 // MARK: - Conditional Drag Modifier

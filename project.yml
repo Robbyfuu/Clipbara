@@ -246,6 +246,7 @@ targets:
       - path: Shared/Utilities/LatestClipActivity.swift
       - path: Shared/Utilities/SecretDetector.swift
       - path: Shared/Utilities/SecretSweeper.swift
+      - path: Shared/Utilities/TextTransform.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

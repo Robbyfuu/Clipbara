@@ -13,6 +13,8 @@ struct KeyboardClip: Identifiable, Equatable {
     let sourceAppName: String?
     /// The keyboard's own capture of the current pasteboard, not yet in the store. Shows "Clipboard" for its meta line.
     var isClipboard = false
+    /// "Insert as…", worked out from the whole text when the feed loads, since the card only carries a preview.
+    var transforms: [TextTransform] = []
 }
 
 /// A pinboard chip in the keyboard header.
@@ -72,7 +74,7 @@ enum KeyboardFeed {
             // ImageIO, so the full image is never decoded in the keyboard.
             thumbnail: type == .image ? Thumbnail.png(from: clip.rawData) : nil,
             isPinned: false, copiedAt: now, textByteCount: clip.textContent?.utf8.count ?? 0,
-            sourceAppName: nil, isClipboard: true)
+            sourceAppName: nil, isClipboard: true, transforms: transforms(type, clip.textContent))
     }
 
     private static func clip(_ item: ClipboardItem) -> KeyboardClip {
@@ -82,7 +84,13 @@ enum KeyboardFeed {
             id: item.id, contentType: type, preview: preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
-            sourceAppName: item.sourceAppName)
+            sourceAppName: item.sourceAppName, transforms: transforms(type, text))
+    }
+
+    /// Only for clips short enough to insert: longer ones are copied instead, and the cost stays small in the extension.
+    private static func transforms(_ type: ContentType, _ text: String?) -> [TextTransform] {
+        guard let text, text.utf8.count <= PasteAction.insertByteLimit else { return [] }
+        return TextTransform.applicable(to: text, type: type)
     }
 
     private static func preview(_ type: ContentType, _ text: String?) -> String {
