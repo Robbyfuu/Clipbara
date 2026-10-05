@@ -78,10 +78,14 @@ final class AutoPaster {
     /// hand focus back to the app the user was in, which also closes the list. Not when the list opened over a Copyd
     /// window: `NSApp.isActive` is always true here, so its value from when the list opened stands in for it.
     func returnFocusFromMenuBar() {
-        guard isEnabled, !AutoPastePolicy.menuBarOverCopyd(activeAtOpen: activeAtOpen, titledWindows: Self.titledWindows,
-                                                             titledAtOpen: titledAtOpen),
-              let previousApp, !previousApp.isTerminated else { return }
-        _ = previousApp.activate(options: [])
+        guard isEnabled, let app = menuBarTarget, !app.isTerminated else { return }
+        _ = app.activate(options: [])
+    }
+
+    /// Where a pick from the menu bar list goes: the app the user was in, or nil when the list opened over a Copyd window.
+    var menuBarTarget: NSRunningApplication? {
+        AutoPastePolicy.menuBarOverCopyd(activeAtOpen: activeAtOpen, titledWindows: Self.titledWindows,
+                                         titledAtOpen: titledAtOpen) ? nil : previousApp
     }
 
     /// Called when the panel or the menu bar list opens, before the list's own activation of Copyd lands.

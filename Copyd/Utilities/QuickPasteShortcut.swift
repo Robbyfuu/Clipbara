@@ -31,6 +31,13 @@ enum QuickPasteShortcut {
         return Match(number: number, plainText: plainText)
     }
 
+    /// ⌥1-3 pastes suggestion 1-3: 0...2. ⌥⌘ stays the tab switch (PanelTabShortcut).
+    static func suggestion(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Int? {
+        guard modifiers.intersection([.command, .option, .control, .shift]) == .option,
+              let number = NumberKey.index(keyCode: keyCode), number < 3 else { return nil }
+        return number
+    }
+
     static func itemIndex(number: Int, firstVisibleIndex: Int, itemCount: Int) -> Int? {
         guard (0..<9).contains(number) else { return nil }
         let index = firstVisibleIndex + number

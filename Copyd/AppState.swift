@@ -21,6 +21,7 @@ final class AppState {
     let pasteStack = PasteStackController()
     let autoPaster = AutoPaster()
     let searchState = SearchState()
+    let suggestionModel = SuggestionModel()
 
     var selectedTab: PanelTab = .history
     /// Published by NavigationBarView so shortcuts follow its exact display order.
@@ -36,6 +37,14 @@ final class AppState {
 
     /// Cached filtered items for keyboard navigation (updated by CardGridView)
     var currentFilteredItems: [ClipboardItem] = []
+    /// How many of `currentFilteredItems` are suggestions, at its front (updated by CardGridView).
+    var currentSuggestedCount = 0
+    /// Ranked when the panel opens, for the app it opened over.
+    private(set) var suggestedIDs: [UUID] = []
+    /// Bumped when Apple Intelligence reorders the open panel's suggestions, so the row crossfades to them.
+    private(set) var suggestionsRerankID = 0
+    /// The History row's focus right after this opening built it (set by CardGridView); nil until then.
+    @ObservationIgnored var initialSelectedIndex: Int?
     /// Debounced search text that produced `currentFilteredItems`; quick paste is ignored while it lags the field.
     var currentFilteredQuery: String = ""
 
@@ -51,22 +60,26 @@ final class AppState {
         clipboardMonitor.start(modelContext: modelContext)
         PasteService.removeFilesOnDelete(in: modelContext)
         PasteService.removeOrphanFiles(in: modelContainer)
+        PasteEvent.removeWithClips(in: modelContext)
         pasteStack.appState = self
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)
         }
         // Every pick in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) comes through here, right
         // before the clip is written. It ends Paste Stack, then pastes into the app the user was in once
-        // the write is done and the panel is gone.
-        clipboardMonitor.onPick = { [weak self] in
+        // the write is done and the panel is gone, and records which app the clips went into.
+        clipboardMonitor.onPick = { [weak self] ids in
             self?.pasteStack.stop()
             self?.autoPaster.pasteIntoFrontApp()
+            self?.recordPick(of: ids)
         }
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()
         panelController.onPanelWillHide = { [weak self] in
             self?.searchState.reset()
             self?.previewItem = nil
+            self?.suggestionModel.cancel()
+            self?.suggestionModel.prewarm()
             ReviewPrompter.panelWillHide { [weak self] in
                 self?.panelController.isVisible ?? false
             }
@@ -89,6 +102,15 @@ final class AppState {
         }
     }
 
+    /// Paste history for suggestions. Whether the pick pastes directly or only copies, the clips go into the app the
+    /// panel opened over, or for the menu bar list the app the user was in. Nothing when that app is Copyd.
+    private func recordPick(of ids: [UUID]) {
+        let app = panelController.isVisible ? panelController.focusReturnApp : autoPaster.menuBarTarget
+        guard !ids.isEmpty, let bundleID = app?.bundleIdentifier, bundleID != Bundle.main.bundleIdentifier,
+              let context = modelContainer?.mainContext else { return }
+        PasteEvent.record(ids, app: bundleID, in: context)
+    }
+
     func togglePanel() {
         guard let container = modelContainer else { return }
         // Without an active trial or unlock, offer it instead of the history.
@@ -102,7 +124,40 @@ final class AppState {
     }
 
     func markPanelPresented() {
+        initialSelectedIndex = nil
+        suggestedIDs = rankSuggestions()
         panelPresentationID += 1
+    }
+
+    /// Once per opening: the last 200 clips plus pinned clips, never a file, ranked for the app the panel opened over.
+    /// The habit's top 3 show at once; Apple Intelligence may reorder its top `SuggestionPicks.rerankCandidateLimit`
+    /// within `SuggestionModel.timeout`.
+    private func rankSuggestions() -> [UUID] {
+        guard UserDefaults.standard.object(forKey: SuggestedRow.enabledDefaultsKey) as? Bool ?? true,
+              let context = modelContainer?.mainContext else { return [] }
+        let clips = SuggestionRanker.candidateClips(in: context)
+        let candidates = clips.map { SuggestionRanker.Candidate(id: $0.id, copiedAt: $0.copiedAt, isPinned: $0.isPinned) }
+        let events = ((try? context.fetch(FetchDescriptor<PasteEvent>())) ?? [])
+            .map { SuggestionRanker.Event(clipID: $0.clipID, appBundleID: $0.appBundleID, at: $0.at) }
+        let app = panelController.focusReturnApp
+        let ranked = SuggestionRanker.rank(candidates: candidates, events: events, app: app?.bundleIdentifier,
+                                           now: .now, limit: 15)
+        let sent = SuggestionPicks.rerankInput(ranked)
+        if !sent.isEmpty, let app, let bundleID = app.bundleIdentifier, bundleID != Bundle.main.bundleIdentifier {
+            let byID = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            var pastes: [UUID: Int] = [:]
+            for event in events where event.appBundleID == bundleID { pastes[event.clipID, default: 0] += 1 }
+            let pastedHere = pastes.sorted { $0.value > $1.value }.prefix(5).compactMap { byID[$0.key] }
+            suggestionModel.rerank(sent.compactMap { byID[$0] }, pastedHere: pastedHere,
+                                   appName: app.localizedName ?? bundleID, bundleID: bundleID) { [weak self] ids in
+                // Only while the user hasn't touched the row since it opened; otherwise the habit order stays.
+                guard let self, ids != self.suggestedIDs, self.selectedTab == .history,
+                      self.searchState.mayReorderSuggestions(initialIndex: self.initialSelectedIndex) else { return }
+                self.suggestedIDs = ids
+                self.suggestionsRerankID += 1
+            }
+        }
+        return Array(ranked.prefix(3))
     }
 
     func selectForPreview(_ item: ClipboardItem?) {
@@ -122,7 +177,7 @@ final class AppState {
     /// Shared paste path for panel and pinboard cards.
     /// - Parameter asPlainText: `nil` resolves from the setting combined with the Shift modifier.
     func paste(_ item: ClipboardItem, asPlainText: Bool? = nil) {
-        clipboardMonitor.skipNextChange()
+        clipboardMonitor.skipNextChange(picking: [item.id])
         pasteService.paste(item: item, asPlainText: asPlainText)
         hidePanel()
     }
@@ -153,7 +208,8 @@ final class AppState {
             return
         }
         ReviewPrompter.recordPaste()
-        clipboardMonitor.skipNextChange()
+        // One event per joined clip: images and files left out of the text don't count.
+        clipboardMonitor.skipNextChange(picking: items.filter { MultiPaste.text(of: $0) != nil }.map(\.id))
         pasteService.pastePlainText(joined.text)
         hidePanel()
     }
@@ -169,6 +225,13 @@ final class AppState {
             itemCount: currentFilteredItems.count
         ), currentFilteredItems.indices.contains(index) else { return }
         paste(currentFilteredItems[index], asPlainText: nil)
+    }
+
+    /// ⌥1-3: paste suggestion N as shown at the front of the History row. No-op when it isn't shown.
+    func pasteSuggestion(number: Int) {
+        guard selectedTab == .history, number < currentSuggestedCount,
+              currentFilteredItems.indices.contains(number) else { return }
+        paste(currentFilteredItems[number], asPlainText: nil)
     }
 
     func hidePanel() {

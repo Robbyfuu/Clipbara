@@ -53,4 +53,26 @@ final class StoreMigrationTests: XCTestCase {
         XCTAssertTrue(clip.isPinned)
         XCTAssertFalse(clip.fromUniversalClipboard)
     }
+
+    /// Paste history is a new Mac-only entity: today's store must open in place with it, keeping every clip.
+    func testExistingStoreGainsPasteHistory() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("Test.store")
+        let id: UUID
+        do {
+            let schema = Schema([ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self])
+            let old = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none))
+            let clip = ClipboardItem(contentType: .plainText, rawData: Data("kept".utf8), textContent: "kept", contentHash: "h")
+            id = clip.id
+            old.mainContext.insert(clip)
+            try old.mainContext.save()
+        }
+        let schema = Schema([ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self, PasteEvent.self])
+        let new = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none))
+        XCTAssertEqual(try new.mainContext.fetch(FetchDescriptor<ClipboardItem>()).map(\.id), [id])
+        PasteEvent.record([id], app: "com.apple.Safari", in: new.mainContext)
+        XCTAssertEqual(try new.mainContext.fetchCount(FetchDescriptor<PasteEvent>()), 1)
+    }
 }

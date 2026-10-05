@@ -17,6 +17,8 @@ struct CopydApp: App {
             Pinboard.self,
             PinboardEntry.self,
             ExcludedApp.self,
+            // Mac only, never synced: paste history for suggestions.
+            PasteEvent.self,
         ])
 
         let storeURL = StoreManager.resolveStoreURL()

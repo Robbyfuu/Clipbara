@@ -10,6 +10,8 @@ struct ClipboardCardView: View {
     var quickPasteNumber: Int? = nil
     /// Position in the multi-selection, shown as a badge.
     var selectionNumber: Int? = nil
+    /// Shown first in the History row as a likely next paste: a "Suggested" chip replaces the type label.
+    var isSuggested: Bool = false
     var enableDrag: Bool = true
     var showsManagementMenu: Bool = true
     let onSelect: (ClipboardItem) -> Void
@@ -200,6 +202,9 @@ struct ClipboardCardView: View {
     private var accessibilityDescription: String {
         let app = item.sourceAppName ?? String(localized: "unknown app")
         var label = String(localized: "\(item.contentType.displayName), \(accessibilitySummary), from \(app)")
+        if isSuggested {
+            label = "\(String(localized: "Suggested")), \(label)"
+        }
         if let number = quickPasteNumber {
             label += String(localized: ", Command \(number + 1) to paste")
         }
@@ -228,8 +233,18 @@ struct ClipboardCardView: View {
         HStack(alignment: .center, spacing: 6) {
             Image(systemName: item.contentType.systemImage)
                 .foregroundStyle(DesignTokens.typeTint(for: item.contentType, itemColor: item.textContent))
-            Text(item.userTitle ?? item.contentType.displayName)
-                .lineLimit(1)
+            if isSuggested {
+                Text("Suggested")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(DesignTokens.Brand.onButter)
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(DesignTokens.Brand.butter, in: Capsule())
+            } else {
+                Text(item.userTitle ?? item.contentType.displayName)
+                    .lineLimit(1)
+            }
 
             Spacer(minLength: 4)
 

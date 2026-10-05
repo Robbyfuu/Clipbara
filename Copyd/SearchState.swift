@@ -49,6 +49,16 @@ final class SearchState {
         !searchText.isEmpty || !selectedContentTypes.isEmpty || dateFilter != .all
     }
 
+    /// Suggestions lead the History row while nothing narrows it. Multi-select keeps them in place: their cards are
+    /// picked like any other, and the row never reshuffles under the selection.
+    var allowsSuggestions: Bool { !isActive }
+
+    /// Apple Intelligence's order may replace the habit's only while the row is as the panel opened it: focus still at
+    /// `initialIndex` (nil until the History row has shown), nothing typed or filtered, no multi-selection.
+    func mayReorderSuggestions(initialIndex: Int?) -> Bool {
+        initialIndex != nil && selectedIndex == initialIndex && !isActive && multiSelection.ids.isEmpty
+    }
+
     func updateSearch(_ text: String) {
         searchText = text
         selectedIndex = nil

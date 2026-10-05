@@ -68,7 +68,7 @@ struct HistoryPanelView: View {
                                 }
                             },
                             onPaste: {
-                                appState.clipboardMonitor.skipNextChange()
+                                appState.clipboardMonitor.skipNextChange(picking: [previewItem.id])
                                 appState.pasteService.paste(item: previewItem)
                                 appState.hidePanel()
                             }

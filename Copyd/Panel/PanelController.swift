@@ -23,7 +23,7 @@ final class PanelController {
     private var keyMonitor: Any?
     private var flagsMonitor: Any?
     /// The app in front when the panel opened. It gets focus back when the panel hides.
-    private var focusReturnApp: NSRunningApplication?
+    private(set) var focusReturnApp: NSRunningApplication?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
 
@@ -417,6 +417,14 @@ final class PanelController {
                     return true
                 }
 
+                // ⌥1-3 pastes a suggestion, but not while typing in the search field: there ⌥-digits are
+                // characters (@ and # on a Spanish keyboard). Consumed even when no suggestion is shown.
+                if let number = QuickPasteShortcut.suggestion(keyCode: keyCode, modifiers: event.modifierFlags),
+                   let panel = self.panel, !self.isTextInputFocused(in: panel) {
+                    self.appState?.pasteSuggestion(number: number)
+                    return true
+                }
+
                 // Handle tab shortcuts before the search-field pass-through.
                 // Missing tabs are a no-op, not a shortcut for the frontmost app.
                 if let index = PanelTabShortcut.index(keyCode: keyCode, modifiers: event.modifierFlags) {
@@ -522,7 +530,7 @@ final class PanelController {
 
         case 36: // Return - paste
             if let item = quickLookItem {
-                appState.clipboardMonitor.skipNextChange()
+                appState.clipboardMonitor.skipNextChange(picking: [item.id])
                 appState.pasteService.paste(item: item)
                 appState.hidePanel()
                 return true
@@ -537,7 +545,7 @@ final class PanelController {
             guard let idx = appState.searchState.selectedIndex,
                   idx < items.count else { return false }
             let item = items[idx]
-            appState.clipboardMonitor.skipNextChange()
+            appState.clipboardMonitor.skipNextChange(picking: [item.id])
             appState.pasteService.paste(item: item)
             appState.hidePanel()
             return true
@@ -580,7 +588,7 @@ final class PanelController {
                 },
                 onPaste: { [weak self, weak appState] in
                     guard let self, let appState else { return }
-                    appState.clipboardMonitor.skipNextChange()
+                    appState.clipboardMonitor.skipNextChange(picking: [item.id])
                     appState.pasteService.paste(item: item)
                     self.hidePanel()
                 }

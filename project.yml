@@ -60,6 +60,8 @@ targets:
       commandLineArguments:
         "-CopydDebugOriginalAppVersion 1.4": false
         "-CopydDebugTrialShiftDays 8": false
+        # Logs each suggestion rerank's input size, latency and validated indices (no clip text) to Console.
+        "-CopydLogSuggestionRerank YES": false
 
   CopydiOS:
     type: application
@@ -205,6 +207,9 @@ targets:
       - path: Copyd/Utilities/MultiPaste.swift
       - path: Copyd/Utilities/PasteStack.swift
       - path: Copyd/Utilities/AutoPastePolicy.swift
+      - path: Copyd/Utilities/SuggestionRanker.swift
+      - path: Copyd/Utilities/SuggestionPicks.swift
+      - path: Copyd/Models/PasteEvent.swift
       - path: Copyd/SearchState.swift
       - path: Shared/Design/PinboardDot.swift
       - path: Copyd/Utilities/WheelScrollTranslation.swift

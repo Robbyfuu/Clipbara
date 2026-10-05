@@ -178,7 +178,7 @@ struct MenuBarItemRow: View {
                 PaywallWindowController.shared.show()
                 return
             }
-            appState.clipboardMonitor.skipNextChange()
+            appState.clipboardMonitor.skipNextChange(picking: [item.id])
             appState.pasteService.paste(item: item)
             appState.autoPaster.returnFocusFromMenuBar()
         } label: {

@@ -9,6 +9,10 @@ struct CardGridView: View {
     private var pinboards: [Pinboard]
 
     @State private var filteredItems: [ClipboardItem] = []
+    /// The first `suggestedCount` of `filteredItems` are suggestions.
+    @State private var suggestedCount = 0
+    /// Cards fading out of, then into, their places while Apple Intelligence's order swaps in.
+    @State private var fadingIDs: Set<UUID> = []
     @State private var lastOffset: CGFloat = 0
 
     var body: some View {
@@ -41,12 +45,13 @@ struct CardGridView: View {
                                         pinboards: pinboards,
                                         quickPasteNumber: (0...8).contains(n) ? n : nil,
                                         selectionNumber: selectionNumber,
+                                        isSuggested: index < suggestedCount,
                                         onSelect: { _ in
                                             appState.searchState.multiSelection.clear()
                                             appState.searchState.selectedIndex = index
                                         },
                                         onPaste: { selected in
-                                            appState.clipboardMonitor.skipNextChange()
+                                            appState.clipboardMonitor.skipNextChange(picking: [selected.id])
                                             appState.pasteService.paste(item: selected)
                                             appState.hidePanel()
                                         },
@@ -56,6 +61,18 @@ struct CardGridView: View {
                                         onCommandClick: { appState.toggleSelection(at: index) },
                                         onShiftClick: { appState.extendSelection(to: index) }
                                     )
+                                    .overlay(alignment: .trailing) {
+                                        // In the gap after the last suggestion, taking no width, so every card keeps
+                                        // the position `firstVisibleIndex` and the ⌘-numbers assume.
+                                        if index == suggestedCount - 1, index < filteredItems.count - 1 {
+                                            Capsule()
+                                                .fill(DesignTokens.Brand.line)
+                                                .frame(width: 2, height: DesignTokens.Card.height / 2)
+                                                .offset(x: (DesignTokens.Card.gridSpacing + 2) / 2)
+                                                .accessibilityHidden(true)
+                                        }
+                                    }
+                                    .opacity(fadingIDs.contains(item.id) ? 0 : 1)
                                     .id(item.id)
                                 }
                             }
@@ -92,6 +109,7 @@ struct CardGridView: View {
         .onChange(of: appState.panelPresentationID) { _, _ in
             if appState.selectedTab == .history {
                 updateFilteredItems(from: items)
+                appState.initialSelectedIndex = appState.searchState.selectedIndex
             }
         }
         .onChange(of: appState.searchState.debouncedSearchText) { _, _ in
@@ -109,6 +127,24 @@ struct CardGridView: View {
                 updateFilteredItems(from: items)
             }
         }
+        .onChange(of: appState.searchState.allowsSuggestions) { _, _ in
+            guard appState.selectedTab == .history else { return }
+            // Suggestions coming or going reorder the row.
+            updateKeepingFocus()
+        }
+        .onChange(of: appState.suggestionsRerankID) { _, _ in
+            guard appState.selectedTab == .history else { return }
+            // Only the places whose card changes fade: out at the old order, in at the new one.
+            let changed = zip(filteredItems.map(\.id), row(from: items).cards.map(\.id)).filter { $0 != $1 }
+            fadingIDs = []
+            guard !changed.isEmpty else { return updateKeepingFocus() }
+            withAnimation(.easeOut(duration: 0.1)) {
+                fadingIDs = Set(changed.flatMap { [$0, $1] })
+            } completion: {
+                updateKeepingFocus()
+                withAnimation(.easeIn(duration: 0.15)) { fadingIDs = [] }
+            }
+        }
         .onAppear {
             updateFilteredItems(from: items)
         }
@@ -122,12 +158,35 @@ struct CardGridView: View {
         if appState.firstVisibleIndex != index { appState.firstVisibleIndex = index }
     }
 
+    /// The suggestions, then the usual cards without them.
+    private func row(from sourceItems: [ClipboardItem]) -> (cards: [ClipboardItem], suggested: Int) {
+        // Ranked on open; a suggestion deleted since then is simply gone.
+        let suggested = appState.searchState.allowsSuggestions
+            ? appState.suggestedIDs.compactMap { id in sourceItems.first { $0.id == id } }
+            : []
+        return (SuggestedRow.merge(suggested: suggested, rest: appState.searchState.filteredItems(from: sourceItems)),
+                suggested.count)
+    }
+
     private func updateFilteredItems(from sourceItems: [ClipboardItem]) {
-        let updated = appState.searchState.filteredItems(from: sourceItems)
+        let (updated, suggested) = row(from: sourceItems)
         filteredItems = updated
+        suggestedCount = suggested
+        appState.currentSuggestedCount = suggested
         appState.currentFilteredItems = updated
         appState.currentFilteredQuery = appState.searchState.debouncedSearchText
         appState.searchState.ensureSelection(itemCount: updated.count)
+    }
+
+    /// Rebuilds the row with focus on the same clip, not the same place.
+    private func updateKeepingFocus() {
+        let focused = appState.searchState.selectedIndex.flatMap {
+            filteredItems.indices.contains($0) ? filteredItems[$0].id : nil
+        }
+        updateFilteredItems(from: items)
+        if let focused, let index = appState.currentFilteredItems.firstIndex(where: { $0.id == focused }) {
+            appState.searchState.selectedIndex = index
+        }
     }
 
     private func restoreSelectionAfterDeletingItem(at deletedIndex: Int) {
