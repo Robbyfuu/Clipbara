@@ -10,6 +10,7 @@ final class QuickRouteTests: XCTestCase {
         XCTAssertEqual(try route("copyd://search"), .search)
         XCTAssertEqual(try route("copyd://pinboards"), .pinboards)
         XCTAssertEqual(try route("copyd://keyboard-setup"), .keyboardSetup)
+        XCTAssertEqual(try route("copyd://history"), .history, "the arrival notice opens History")
         XCTAssertEqual(try route("copyd://Search"), .search, "the host is case-insensitive")
         XCTAssertEqual(try route("COPYD://search"), .search, "the scheme is case-insensitive")
     }

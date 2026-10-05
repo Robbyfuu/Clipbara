@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import KeyboardShortcuts
 
 struct MenuBarContentView: View {
     @Environment(\.openSettings) private var openSettings
@@ -56,6 +57,26 @@ struct MenuBarContentView: View {
                     Spacer()
                     Text(verbatim: "\u{21E7}\u{2318}V")
                         .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+
+            Button {
+                appState.pasteStack.toggle()
+            } label: {
+                HStack {
+                    if appState.pasteStack.isActive {
+                        Text("Stop Paste Stack")
+                    } else {
+                        Text("Start Paste Stack")
+                    }
+                    Spacer()
+                    if let shortcut = KeyboardShortcuts.getShortcut(for: .togglePasteStack) {
+                        Text(verbatim: shortcut.description)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
             .buttonStyle(.plain)
@@ -120,7 +141,10 @@ struct MenuBarContentView: View {
             .padding(.bottom, 4)
         }
         .frame(width: 280)
-        .onAppear { Entitlements.shared.reevaluate() }
+        .onAppear {
+            Entitlements.shared.reevaluate()
+            appState.autoPaster.noteOpened()
+        }
     }
 
     /// Hidden once the app is owned, and while a StoreKit check has failed open.
@@ -156,6 +180,7 @@ struct MenuBarItemRow: View {
             }
             appState.clipboardMonitor.skipNextChange()
             appState.pasteService.paste(item: item)
+            appState.autoPaster.returnFocusFromMenuBar()
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: item.contentType.systemImage)
@@ -195,6 +220,8 @@ struct MenuBarItemRow: View {
             return String(localized: "Image")
         case .fileURL:
             return item.textContent ?? String(localized: "File")
+        case .files:
+            return item.textContent ?? String(localized: "Files")
         case .color:
             return item.textContent ?? String(localized: "Color")
         case .unknown:

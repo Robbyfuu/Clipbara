@@ -18,7 +18,8 @@ final class SyncRecordMapperTests: XCTestCase {
             id: UUID(), contentType: type, rawData: Data((0..<bytes).map { UInt8($0 % 251) }),
             textContent: full ? "text" : nil, userTitle: full ? "title" : nil,
             sourceAppName: full ? "App" : nil, sourceAppBundleId: full ? "com.app" : nil,
-            contentHash: "hash", copiedAt: Date(timeIntervalSince1970: 1_700_000_000), isPinned: full)
+            contentHash: "hash", copiedAt: Date(timeIntervalSince1970: 1_700_000_000), isPinned: full,
+            fromUniversalClipboard: full)
     }
 
     private func record(for clip: ClipSnapshot) -> CKRecord {
@@ -65,6 +66,68 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "fileURL", byteCount: 1))
         XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_520))
         XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "image", byteCount: 20_971_521))
+        // A file bundle holds up to 10 files of 20 MB each, plus its manifest.
+        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: 30_000_000))
+        XCTAssertTrue(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes))
+        XCTAssertFalse(SyncRecordMapper.isEligible(contentType: "files", byteCount: FileBundle.maxBundleBytes + 1))
+    }
+
+    func testFileClipRoundTripCarriesManifest() throws {
+        let files: [(name: String, data: Data, uti: String)] = [
+            (name: "a.pdf", data: Data(count: SyncRecordMapper.inlineLimit), uti: "com.adobe.pdf"),
+            (name: "b.txt", data: Data("b".utf8), uti: "public.plain-text"),
+        ]
+        var clip = makeClip(type: "files")
+        clip.rawData = try FileBundle.encode(files)
+        clip.fileManifest = FileBundle.manifestJSON(clip.rawData)
+        clip.textContent = "a.pdf, b.txt"
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+
+        // The bundle goes up sealed, like a large image; the manifest rides encrypted on the record.
+        XCTAssertNotNil(rec["payload"] as CKAsset?)
+        XCTAssertNil(rec.encryptedValues["rawData"] as Data?)
+        XCTAssertTrue(plainKeys(rec).isSubset(of: ["payload", "textPayload"]))
+        let manifest = try JSONDecoder().decode([FileManifestEntry].self,
+                                                from: try XCTUnwrap(rec.encryptedValues["fileManifest"] as Data?))
+        XCTAssertEqual(manifest.map(\.name), ["a.pdf", "b.txt"])
+        XCTAssertEqual(manifest.map(\.size), [SyncRecordMapper.inlineLimit, 1])
+        XCTAssertEqual(manifest.map(\.uti), ["com.adobe.pdf", "public.plain-text"])
+
+        // Read back, so the receiving device stores it and never opens the bundle to show the card.
+        let decoded = try SyncRecordMapper.clip(from: rec)
+        XCTAssertEqual(decoded.fileManifest, clip.fileManifest)
+        XCTAssertEqual(decoded, clip)
+    }
+
+    func testOnlyFileClipsCarryAManifest() throws {
+        let clip = makeClip(type: "image")
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        XCTAssertNil(rec.encryptedValues["fileManifest"] as Data?)
+        XCTAssertNil(try SyncRecordMapper.clip(from: rec).fileManifest)
+    }
+
+    /// The Mac's mark for a copy Universal Clipboard brought from the iPhone: encrypted, 0/1 like `isPinned`.
+    func testUniversalClipboardFlagRoundTrips() throws {
+        for flag in [true, false] {
+            var clip = makeClip(full: false)
+            clip.fromUniversalClipboard = flag
+            let rec = record(for: clip)
+            try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+            XCTAssertEqual(rec.encryptedValues["fromUniversalClipboard"] as Int64?, flag ? 1 : 0)
+            XCTAssertEqual(try SyncRecordMapper.clip(from: rec).fromUniversalClipboard, flag)
+        }
+    }
+
+    /// Records saved before the field existed have none: they read as an ordinary copy.
+    func testMissingUniversalClipboardFlagReadsAsFalse() throws {
+        var clip = makeClip()
+        clip.fromUniversalClipboard = true
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        rec.encryptedValues["fromUniversalClipboard"] = nil as Int64?
+        XCTAssertFalse(try SyncRecordMapper.clip(from: rec).fromUniversalClipboard)
     }
 
     func testOnlyAllowedPlainKeys() throws {
@@ -96,7 +159,7 @@ final class SyncRecordMapperTests: XCTestCase {
 
     func testEncryptedKeysMatchSpec() throws {
         let common: Set<String> = ["contentType", "textContent", "userTitle", "sourceAppName",
-                                   "sourceAppBundleId", "contentHash", "copiedAt", "isPinned"]
+                                   "sourceAppBundleId", "contentHash", "copiedAt", "isPinned", "fromUniversalClipboard"]
         let inline = makeClip()
         let irec = record(for: inline)
         try SyncRecordMapper.populate(irec, from: inline, assetDirectory: dir)
@@ -203,5 +266,65 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertNil(rec.encryptedValues["rawData"] as Data?)
         XCTAssertNotNil(rec["payload"] as CKAsset?)
         XCTAssertEqual(try SyncRecordMapper.clip(from: rec).rawData, clip.rawData)
+    }
+
+    // MARK: - Metadata changes leave the payload on the server
+
+    /// What `CloudSyncEngine` builds a send from: the record rebuilt from its archived system fields, with no values.
+    private func cached(_ rec: CKRecord) -> (record: CKRecord, serverContentHash: String?) {
+        SyncRecordMapper.record(rec.recordType, rec.recordID, systemFields: SyncRecordMapper.archive(rec))
+    }
+
+    func testArchivedSystemFieldsKeepTheServersContentHash() throws {
+        let clip = makeClip()
+        let rec = record(for: clip)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
+        let (rebuilt, hash) = cached(rec)
+        XCTAssertEqual(rebuilt.recordID, rec.recordID)
+        XCTAssertEqual(hash, "hash")
+        XCTAssertTrue(rebuilt.changedKeys().isEmpty, "only system fields come back")
+    }
+
+    func testNoArchiveMeansANewRecordAndNoHash() {
+        let id = SyncRecordMapper.recordID(for: UUID())
+        let (rebuilt, hash) = SyncRecordMapper.record(SyncRecordMapper.clipType, id, systemFields: nil)
+        XCTAssertEqual(rebuilt.recordID, id)
+        XCTAssertNil(hash)
+        let board = CKRecord(recordType: SyncRecordMapper.pinboardType, recordID: id)
+        XCTAssertNil(cached(board).serverContentHash, "pinboards and entries carry no content")
+    }
+
+    func testMetadataChangeSendsNoPayload() throws {
+        var clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
+        clip.textContent = String(repeating: "t", count: SyncRecordMapper.inlineLimit + 1)
+        let first = record(for: clip)
+        try SyncRecordMapper.populate(first, from: clip, assetDirectory: dir)
+        try FileManager.default.removeItem(at: dir)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        clip.isPinned.toggle()
+        clip.userTitle = "renamed"
+        let (rec, serverHash) = cached(first)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir, serverContentHash: serverHash)
+
+        let sent = Set(rec.changedKeys()).union(rec.encryptedValues.changedKeys())
+        XCTAssertTrue(sent.isDisjoint(with: ["payload", "textPayload", "assetKey", "rawData", "textContent", "fileManifest"]),
+                      "untouched keys keep their server values: \(sent)")
+        XCTAssertEqual(rec.encryptedValues["isPinned"] as Int64?, clip.isPinned ? 1 : 0)
+        XCTAssertEqual(rec.encryptedValues["userTitle"] as String?, "renamed")
+        XCTAssertEqual(rec.encryptedValues["contentHash"] as String?, "hash")
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: dir.path).isEmpty, "nothing sealed")
+    }
+
+    func testChangedContentSendsThePayload() throws {
+        var clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
+        let first = record(for: clip)
+        try SyncRecordMapper.populate(first, from: clip, assetDirectory: dir)
+        clip.rawData = Data(count: SyncRecordMapper.inlineLimit + 2)
+        clip.contentHash = "other"
+        let (rec, serverHash) = cached(first)
+        try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir, serverContentHash: serverHash)
+        XCTAssertNotNil(rec["payload"] as CKAsset?)
+        XCTAssertNotNil(rec.encryptedValues["assetKey"] as Data?)
     }
 }

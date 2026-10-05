@@ -243,7 +243,7 @@ struct ClipboardQuickLookView: View {
             imageContent
         case .url:
             urlContent
-        case .fileURL:
+        case .fileURL, .files:
             fileContent
         case .color:
             colorContent
@@ -305,13 +305,7 @@ struct ClipboardQuickLookView: View {
     }
 
     private var fileContent: some View {
-        let fileIcon: NSImage = {
-            if let urlString = String(data: item.rawData, encoding: .utf8),
-               let url = URL(string: urlString) {
-                return NSWorkspace.shared.icon(forFile: url.path)
-            }
-            return NSWorkspace.shared.icon(for: .data)
-        }()
+        let fileIcon = item.fileIcon
         let fileName = item.textContent?.components(separatedBy: "/").last ?? String(localized: "File")
 
         return VStack(alignment: .leading, spacing: 16) {
@@ -420,6 +414,8 @@ struct ClipboardQuickLookView: View {
             return String(localized: "URL")
         case .fileURL:
             return String(localized: "File")
+        case .files:
+            return item.filesSizeText
         case .color:
             return item.textContent ?? String(localized: "Color")
         }

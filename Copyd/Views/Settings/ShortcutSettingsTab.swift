@@ -2,6 +2,8 @@ import SwiftUI
 import KeyboardShortcuts
 
 struct ShortcutSettingsTab: View {
+    @AppStorage(PasteStack.Order.defaultsKey) private var pasteStackOrder: PasteStack.Order = .fifo
+
     var body: some View {
         Form {
             HStack {
@@ -27,6 +29,19 @@ struct ShortcutSettingsTab: View {
                 }
                 Spacer()
                 LocalKeyRecorderView()
+            }
+            Section("Paste Stack") {
+                HStack {
+                    Text("Start or Stop")
+                    InfoHoverButton(text: "While it's on, every copy joins the stack and each \u{2318}V pastes the next clip. It stops with this shortcut, from the menu bar, when the stack runs out, or when you pick a clip in Copyd. The first time, macOS asks you to allow Input Monitoring.")
+                    Spacer()
+                    KeyboardShortcuts.Recorder(for: .togglePasteStack)
+                }
+                Picker("Order", selection: $pasteStackOrder) {
+                    Text("First copied first").tag(PasteStack.Order.fifo)
+                    Text("Last copied first").tag(PasteStack.Order.lifo)
+                }
+                .pickerStyle(.menu)
             }
             Section("Tab Navigation") {
                 LabeledContent("History", value: "⌘1")

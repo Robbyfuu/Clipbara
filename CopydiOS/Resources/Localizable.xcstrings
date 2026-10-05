@@ -40,6 +40,23 @@
         }
       }
     },
+    "%lld files" : {
+      "comment" : "Title of a clip holding several copied files",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld files"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld archivos"
+          }
+        }
+      }
+    },
     "%lld h" : {
       "localizations" : {
         "en" : {
@@ -68,6 +85,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld min"
+          }
+        }
+      }
+    },
+    "%lld new clips" : {
+      "comment" : "Arrival notification title for two or more clips",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld new clips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld clips nuevos"
           }
         }
       }
@@ -292,6 +326,54 @@
         }
       }
     },
+    "Allow notifications for Copyd in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow notifications for Copyd in Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite las notificaciones de Copyd en Configuración."
+          }
+        }
+      }
+    },
+    "Allowed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitido"
+          }
+        }
+      }
+    },
+    "Allowed · confirmed %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowed · confirmed %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitido · confirmado %@"
+          }
+        }
+      }
+    },
     "Already saved" : {
       "localizations" : {
         "en" : {
@@ -336,6 +418,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancelar"
+          }
+        }
+      }
+    },
+    "Check in Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check in Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revisa en Configuración"
           }
         }
       }
@@ -538,6 +636,22 @@
     "Copyd" : {
       "shouldTranslate" : false
     },
+    "Copyd keyboard added" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyd keyboard added"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teclado de Copyd agregado"
+          }
+        }
+      }
+    },
     "Couldn't copy" : {
       "localizations" : {
         "en" : {
@@ -602,6 +716,22 @@
         }
       }
     },
+    "Couldn't share" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't share"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo compartir"
+          }
+        }
+      }
+    },
     "Delete" : {
       "localizations" : {
         "en" : {
@@ -646,6 +776,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Archivo"
+          }
+        }
+      }
+    },
+    "Files" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivos"
+          }
+        }
+      }
+    },
+    "Full Access" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Access"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acceso total"
           }
         }
       }
@@ -829,6 +991,22 @@
         }
       }
     },
+    "Lock Screen & alerts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lock Screen & alerts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pantalla bloqueada y avisos"
+          }
+        }
+      }
+    },
     "Never synced" : {
       "localizations" : {
         "en" : {
@@ -841,6 +1019,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sin sincronizar"
+          }
+        }
+      }
+    },
+    "New clip from another device" : {
+      "comment" : "Arrival notification title for one clip that came from a Mac, an iPad or another iPhone",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New clip from another device"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuevo clip de otro equipo"
           }
         }
       }
@@ -941,6 +1136,38 @@
         }
       }
     },
+    "Not allowed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not allowed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta"
+          }
+        }
+      }
+    },
+    "Not confirmed yet — open the Copyd keyboard once" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not confirmed yet — open the Copyd keyboard once"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin confirmar: abre el teclado de Copyd una vez"
+          }
+        }
+      }
+    },
     "Not saved: private copy" : {
       "localizations" : {
         "en" : {
@@ -969,6 +1196,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No hay nada que guardar"
+          }
+        }
+      }
+    },
+    "Notify me when a clip arrives" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notify me when a clip arrives"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisarme cuando llegue un clip"
           }
         }
       }
@@ -1070,6 +1313,22 @@
         }
       }
     },
+    "Open Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Configuración"
+          }
+        }
+      }
+    },
     "Open Shortcuts" : {
       "localizations" : {
         "en" : {
@@ -1114,6 +1373,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Otro"
+          }
+        }
+      }
+    },
+    "Paste from other apps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste from other apps"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar desde otras apps"
+          }
+        }
+      }
+    },
+    "Permission.notNeeded" : {
+      "comment" : "Chip on a permission whose feature is turned off",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No usado"
+          }
+        }
+      }
+    },
+    "Permissions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permissions"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permisos"
           }
         }
       }
@@ -1394,6 +1703,22 @@
         }
       }
     },
+    "Set to Allow to skip the paste prompt." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set to Allow to skip the paste prompt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige Permitir para no ver la pregunta de pegar."
+          }
+        }
+      }
+    },
     "Settings" : {
       "localizations" : {
         "en" : {
@@ -1454,6 +1779,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Atajos y Toque posterior"
+          }
+        }
+      }
+    },
+    "Show latest clip on Lock Screen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show latest clip on Lock Screen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar el último clip en la pantalla bloqueada"
           }
         }
       }
@@ -1679,6 +2020,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Activa Toque posterior"
+          }
+        }
+      }
+    },
+    "Turn on Live Activities for Copyd in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on Live Activities for Copyd in Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa las Actividades en vivo de Copyd en Configuración."
           }
         }
       }

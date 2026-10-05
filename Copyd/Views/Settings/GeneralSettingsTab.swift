@@ -8,6 +8,9 @@ struct GeneralSettingsTab: View {
     @Environment(AppState.self) private var appState
     @AppStorage("historyLimit") private var historyLimit: Int = 500
     @AppStorage(PasteService.alwaysPlainTextDefaultsKey) private var alwaysPastePlainText: Bool = false
+    @AppStorage(AutoPaster.enabledDefaultsKey) private var autoPasteOnPick: Bool = true
+    /// Re-read whenever Copyd comes back to the front, e.g. from System Settings.
+    @State private var hasPasteAccess = CGPreflightPostEventAccess()
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
     @State private var transferMessage: String?
@@ -52,6 +55,24 @@ struct GeneralSettingsTab: View {
                 }
 
             Section("Pasting") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Paste directly into the app", isOn: $autoPasteOnPick)
+                    if autoPasteOnPick && !hasPasteAccess {
+                        HStack {
+                            Text("Needs Accessibility access. Until then, picking a clip only copies it.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Open Accessibility Settings") {
+                                appState.autoPaster.openAccessibilitySettings()
+                            }
+                        }
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    hasPasteAccess = appState.autoPaster.hasAccess
+                }
+
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 5) {

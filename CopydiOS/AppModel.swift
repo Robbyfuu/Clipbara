@@ -1,13 +1,15 @@
+import ActivityKit
 import SwiftUI
 import SwiftData
 import UIKit
+import UserNotifications
 import WidgetKit
 import OSLog
 
 /// Owns the shared store and the sync engine for the iOS app.
 @MainActor @Observable
 final class AppModel {
-    private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "AppModel")
+    private nonisolated static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "AppModel")
     /// The one instance. The scene delegate, which SwiftUI does not reach, hands it quick actions.
     static let shared = AppModel()
 
@@ -21,9 +23,20 @@ final class AppModel {
     var pendingRoute: QuickRoute?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var isDraining = false
+    /// The last Live Activity change. Each waits for the one before, so an older state never lands last.
+    @ObservationIgnored private var activityTask: Task<Void, Never>?
+    @ObservationIgnored private var loggedActivitySize = false
+    /// The last state built, reused while the newest clip and its copy time stay the same.
+    @ObservationIgnored private var lastActivityState: LatestClipActivity.ContentState?
+
+    /// Settings toggles, both off by default.
+    static let liveActivityKey = "liveActivityEnabled"
+    static let arrivalNotificationsKey = "arrivalNotificationsEnabled"
 
     private init() {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
+        // Shares a quit or crash left behind. Before any share can start, so none is removed mid-way.
+        try? FileManager.default.removeItem(at: Self.shareDirectory)
         // Every save in the app refreshes the widget: Save Clipboard, Save Text, pin, unpin, delete, the seed,
         // and the sync engine's own saves. Any context, so the seed's separate context counts too.
         _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { _ in
@@ -46,6 +59,7 @@ final class AppModel {
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         sync = CloudSyncEngine(container: container) { Self.reloadWidgets() }
+        sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
         Self.writeSampleInboxIfRequested()
@@ -55,6 +69,72 @@ final class AppModel {
         #if DEBUG
         applyDebugRoute()
         #endif
+        // Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the
+        // sync engine's applied remote changes, foreground or a background push wake.
+        _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateLiveActivity() }
+        }
+    }
+
+    /// Keeps the Lock Screen activity on the newest clip. Starts one when there is none, or when iOS ended the last
+    /// after 8 hours; ends it when the setting is off or no clip is left. Only the foreground app may start an
+    /// activity: a start from the background fails, and the next return to the foreground starts it.
+    func updateLiveActivity() {
+        let enabled = UserDefaults.standard.bool(forKey: Self.liveActivityKey)
+        let state = enabled ? (try? LatestClip.newest(in: container.mainContext)).map {
+            LatestClipActivity.ContentState.make(for: $0, reusing: lastActivityState)
+        } : nil
+        lastActivityState = state
+        guard state != nil || !Activity<LatestClipActivity>.activities.isEmpty else { return }
+        if let state, !loggedActivitySize {
+            loggedActivitySize = true
+            Self.log.notice("Live Activity state: \(state.encodedSize, privacy: .public) bytes")
+        }
+        let previous = activityTask
+        activityTask = Task {
+            await previous?.value
+            await Self.show(state)
+        }
+    }
+
+    /// Puts `state` in Copyd's one activity, or ends every activity when it is nil. Off the main actor: an `Activity`
+    /// is not Sendable, so it never leaves this function.
+    private nonisolated static func show(_ state: LatestClipActivity.ContentState?) async {
+        let all = Activity<LatestClipActivity>.activities
+        if let state, let live = all.first(where: { $0.activityState == .active || $0.activityState == .stale }) {
+            if live.content.state != state { await live.update(ActivityContent(state: state, staleDate: nil)) }
+            return
+        }
+        // Off, no clip, or ended at 8 hours but still on screen: ended now, so a restart never shows two.
+        for activity in all { await activity.end(nil, dismissalPolicy: .immediate) }
+        if !all.isEmpty { log.notice("Live Activity ended (\(all.count, privacy: .public))") }
+        // Live Activities turned off for Copyd in Settings: skip, the Settings card says so.
+        guard let state, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        do {
+            _ = try Activity.request(attributes: LatestClipActivity(), content: ActivityContent(state: state, staleDate: nil),
+                                     pushType: nil)
+            log.notice("Live Activity started")
+        } catch {
+            log.error("Live Activity not started: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// One notification for the clips a fetch brought, while Copyd is not on screen. Only the sync engine calls this,
+    /// with remote inserts: local captures never reach it, nor the iPhone's own copies that the Mac captured from
+    /// Universal Clipboard and synced back (`RemoteApplier.Outcome.arrivals` leaves them out).
+    private func announceArrivals(_ ids: [UUID]) {
+        guard UserDefaults.standard.bool(forKey: Self.arrivalNotificationsKey),
+              UIApplication.shared.applicationState != .active else { return }
+        let fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) },
+                                                   sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        guard let clips = try? container.mainContext.fetch(fetch), !clips.isEmpty else { return }
+        let notice = ArrivalNotice.content(
+            previews: clips.map { ArrivalNotice.preview(type: $0.contentType, text: $0.textContent) })
+        let content = UNMutableNotificationContent()
+        content.title = notice.title
+        content.body = notice.body
+        content.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
     /// Imports what the Share extension left in the inbox. Runs at launch and on every return to the foreground.
@@ -119,6 +199,42 @@ final class AppModel {
         PasteboardCapture.markHandled()
         flash("Copied")
         return true
+    }
+
+    /// Where `share` writes a file clip's files, one `<clip-id>` folder per share.
+    private static let shareDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("Share", isDirectory: true)
+
+    /// A file clip's tap: writes its files to a temporary folder, removed when the share sheet closes,
+    /// and opens the share sheet.
+    func share(_ item: ClipboardItem) {
+        let id = item.id, container = container
+        let dir = Self.shareDirectory.appendingPathComponent(id.uuidString, isDirectory: true)
+        Task {
+            // Off the main actor, the rawData read included: a bundle holds up to 48 MB.
+            let urls = try? await Task.detached {
+                var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+                fetch.fetchLimit = 1
+                guard let clip = try ModelContext(container).fetch(fetch).first else { return [URL]() }
+                return try FileBundle.write(clip.rawData, to: dir)
+            }.value
+            guard let urls, !urls.isEmpty else { return flash("Couldn't share") }
+            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+                .first { $0.activationState == .foregroundActive }
+            var top = scene?.keyWindow?.rootViewController
+            while let presented = top?.presentedViewController { top = presented }
+            guard let top else {
+                try? FileManager.default.removeItem(at: dir)
+                return
+            }
+            let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+            // Done or cancelled, the activity has its copy by now.
+            sheet.completionWithItemsHandler = { _, _, _, _ in try? FileManager.default.removeItem(at: dir) }
+            // iPad shows it as a popover: centered, with no arrow.
+            sheet.popoverPresentationController?.sourceView = top.view
+            sheet.popoverPresentationController?.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
+            sheet.popoverPresentationController?.permittedArrowDirections = []
+            top.present(sheet, animated: true)
+        }
     }
 
     /// The widget's `copyd://copy/<uuid>`: copies that clip the same way a tap does.

@@ -18,6 +18,8 @@ final class AppState {
     let clipboardMonitor = ClipboardMonitor()
     let pasteService = PasteService()
     let panelController = PanelController()
+    let pasteStack = PasteStackController()
+    let autoPaster = AutoPaster()
     let searchState = SearchState()
 
     var selectedTab: PanelTab = .history
@@ -47,6 +49,19 @@ final class AppState {
         hasStarted = true
         self.modelContainer = modelContainer
         clipboardMonitor.start(modelContext: modelContext)
+        PasteService.removeFilesOnDelete(in: modelContext)
+        PasteService.removeOrphanFiles(in: modelContainer)
+        pasteStack.appState = self
+        clipboardMonitor.onCapture = { [weak self] id in
+            self?.pasteStack.push(id)
+        }
+        // Every pick in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) comes through here, right
+        // before the clip is written. It ends Paste Stack, then pastes into the app the user was in once
+        // the write is done and the panel is gone.
+        clipboardMonitor.onPick = { [weak self] in
+            self?.pasteStack.stop()
+            self?.autoPaster.pasteIntoFrontApp()
+        }
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()
         panelController.onPanelWillHide = { [weak self] in
@@ -112,6 +127,37 @@ final class AppState {
         hidePanel()
     }
 
+    /// ⌘-click: adds or removes a card from the multi-selection.
+    func toggleSelection(at index: Int) {
+        searchState.selectedIndex = searchState.multiSelection.toggle(
+            index, focus: searchState.selectedIndex, in: currentFilteredItems.map(\.id))
+    }
+
+    /// ⇧-click and ⇧-arrows: selects the range up to `index`.
+    func extendSelection(to index: Int) {
+        searchState.selectedIndex = searchState.multiSelection.extend(
+            to: index, focus: searchState.selectedIndex, in: currentFilteredItems.map(\.id))
+    }
+
+    /// The multi-selection's cards on the current tab, in the order they were picked.
+    var multiSelectedItems: [ClipboardItem] {
+        searchState.multiSelection.items(in: currentFilteredItems)
+    }
+
+    /// Pastes the multi-selection's text joined by the saved separator, always as plain text.
+    /// Does nothing when none of it is text.
+    func pasteSelection() {
+        let items = multiSelectedItems
+        guard items.count >= 2, let joined = MultiPaste.join(items, separator: .saved()) else {
+            NSSound.beep()
+            return
+        }
+        ReviewPrompter.recordPaste()
+        clipboardMonitor.skipNextChange()
+        pasteService.pastePlainText(joined.text)
+        hidePanel()
+    }
+
     /// Command-number: paste the Nth visible card. `paste` already skips the
     /// monitor's next change and hides the panel. Live Shift decides plain text
     /// exactly as it does for Return. No-op when no card is there.
@@ -138,11 +184,11 @@ final class AppState {
     func finishClipboardDrag() {
         draggedClipboardItemID = nil
         searchState.ensureSelection(itemCount: currentFilteredItems.count)
-        panelController.restoreKeyboardNavigationFocus(activateApp: true)
+        panelController.restoreKeyboardNavigationFocus()
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(80))
-            panelController.restoreKeyboardNavigationFocus(activateApp: true)
+            panelController.restoreKeyboardNavigationFocus()
         }
     }
 
@@ -158,6 +204,11 @@ final class AppState {
             Task { @MainActor in
                 guard self?.panelController.isVisible == true else { return }
                 self?.clearHistoryRequested = true
+            }
+        }
+        KeyboardShortcuts.onKeyDown(for: .togglePasteStack) { [weak self] in
+            Task { @MainActor in
+                self?.pasteStack.toggle()
             }
         }
     }

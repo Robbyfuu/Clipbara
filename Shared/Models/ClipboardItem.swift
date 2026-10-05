@@ -16,10 +16,19 @@ final class ClipboardItem {
     var userTitle: String?
     var isPinned: Bool
     var syncSystemFields: Data?
+    /// A `.files` clip's names and sizes (`FileBundle.manifestJSON`), so cards never read `rawData`. Nil otherwise.
+    var fileManifestData: Data?
+    /// The Mac captured this copy from Universal Clipboard: it was made on another device, usually this user's iPhone.
+    /// The iPhone never announces it. Additive with a default, so existing stores migrate lightweight.
+    var fromUniversalClipboard: Bool = false
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }
         set { contentTypeRaw = newValue.rawValue }
+    }
+
+    var fileManifest: [FileManifestEntry]? {
+        fileManifestData.flatMap { try? JSONDecoder().decode([FileManifestEntry].self, from: $0) }
     }
 
     init(

@@ -123,6 +123,22 @@
         }
       }
     },
+    "Files" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivos"
+          }
+        }
+      }
+    },
     "HTML" : {
       "localizations" : {
         "en" : {

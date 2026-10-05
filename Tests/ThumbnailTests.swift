@@ -34,4 +34,15 @@ final class ThumbnailTests: XCTestCase {
     func testInvalidDataReturnsNil() {
         XCTAssertNil(Thumbnail.png(from: Data("x".utf8)))
     }
+
+    func testClipThumbnailByType() throws {
+        let image = png(width: 100, height: 80)
+        let text = (name: "a.txt", data: Data("a".utf8), uti: "public.plain-text")
+        let withImage = try FileBundle.encode([text, (name: "b.png", data: image, uti: "public.png")])
+        XCTAssertEqual(NSImage(data: try XCTUnwrap(Thumbnail.png(for: .files, rawData: withImage)))?.size,
+                       NSSize(width: 100, height: 80), "a file clip shows its first image file")
+        XCTAssertNil(Thumbnail.png(for: .files, rawData: try FileBundle.encode([text])), "no image file, no thumbnail")
+        XCTAssertNotNil(Thumbnail.png(for: .image, rawData: image))
+        XCTAssertNil(Thumbnail.png(for: .plainText, rawData: image))
+    }
 }

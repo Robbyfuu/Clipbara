@@ -9,6 +9,11 @@ struct SettingsView: View {
                     Label("General", systemImage: "gearshape")
                 }
 
+            PermissionsSettingsTab()
+                .tabItem {
+                    Label("Permissions", systemImage: "checkmark.shield")
+                }
+
             AppearanceSettingsTab()
                 .tabItem {
                     Label("Appearance", systemImage: "paintbrush")

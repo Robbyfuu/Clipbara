@@ -122,6 +122,33 @@
         }
       }
     },
+    "%lld new clips" : {
+      "comment" : "Arrival notification title for two or more clips",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld clips nuevos"
+          }
+        }
+      }
+    },
+    "%lld selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld selected"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld seleccionados"
+          }
+        }
+      }
+    },
     "1,000" : {
       "shouldTranslate" : false
     },
@@ -244,6 +271,16 @@
         }
       }
     },
+    "Accessibility" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesibilidad"
+          }
+        }
+      }
+    },
     "Actual Size (double-click image)" : {
       "localizations" : {
         "es" : {
@@ -328,6 +365,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部"
+          }
+        }
+      }
+    },
+    "Allow Copyd in Accessibility to paste directly. For now, press ⌘V." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Copyd in Accessibility to paste directly. For now, press ⌘V."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite Copyd en Accesibilidad para pegar directo. Por ahora, pulsa ⌘V."
+          }
+        }
+      }
+    },
+    "Allowed" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitido"
           }
         }
       }
@@ -658,6 +721,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点按后按下用于快速查看预览的按键"
+          }
+        }
+      }
+    },
+    "Comma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comma"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coma"
           }
         }
       }
@@ -1017,6 +1096,22 @@
         }
       }
     },
+    "Custom…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personalizado…"
+          }
+        }
+      }
+    },
     "Dark" : {
       "localizations" : {
         "es" : {
@@ -1369,6 +1464,28 @@
         }
       }
     },
+    "Files" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivos"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
+          }
+        }
+      }
+    },
     "Filter by Date" : {
       "localizations" : {
         "es" : {
@@ -1453,6 +1570,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前 8 个钉板"
+          }
+        }
+      }
+    },
+    "First copied first" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First copied first"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero lo primero copiado"
           }
         }
       }
@@ -1721,6 +1854,9 @@
         }
       }
     },
+    "iCloud" : {
+      "shouldTranslate" : false
+    },
     "Image" : {
       "localizations" : {
         "es" : {
@@ -1919,6 +2055,16 @@
         }
       }
     },
+    "Input Monitoring" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoreo de entrada"
+          }
+        }
+      }
+    },
     "It ends on %@. You can unlock Copyd anytime from the menu bar." : {
       "localizations" : {
         "es" : {
@@ -1959,6 +2105,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按键 %lld"
+          }
+        }
+      }
+    },
+    "Last copied first" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last copied first"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero lo último copiado"
+          }
+        }
+      }
+    },
+    "Lets Paste Stack see ⌘V." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite que Paste Stack detecte ⌘V."
           }
         }
       }
@@ -2051,6 +2223,16 @@
         }
       }
     },
+    "macOS may need Copyd to restart after you allow a permission." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS puede necesitar que reinicies Copyd después de dar un permiso."
+          }
+        }
+      }
+    },
     "More actions" : {
       "localizations" : {
         "es" : {
@@ -2113,6 +2295,49 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名称"
+          }
+        }
+      }
+    },
+    "Needs Accessibility access. Until then, picking a clip only copies it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs Accessibility access. Until then, picking a clip only copies it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necesita acceso en Accesibilidad. Mientras tanto, elegir un clip solo lo copia."
+          }
+        }
+      }
+    },
+    "New clip from %@" : {
+      "comment" : "Arrival notification title for one clip; the argument is \"your Mac\"",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip nuevo de %@"
+          }
+        }
+      }
+    },
+    "New line" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New line"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nueva línea"
           }
         }
       }
@@ -2249,6 +2474,16 @@
         }
       }
     },
+    "Not allowed" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta"
+          }
+        }
+      }
+    },
     "Not Now" : {
       "localizations" : {
         "es" : {
@@ -2337,6 +2572,22 @@
         }
       }
     },
+    "Open Accessibility Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Accessibility Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Accesibilidad"
+          }
+        }
+      }
+    },
     "Open Copyd" : {
       "localizations" : {
         "es" : {
@@ -2381,6 +2632,32 @@
         }
       }
     },
+    "Open Input Monitoring Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Input Monitoring Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir ajustes de Monitorización de entrada"
+          }
+        }
+      }
+    },
+    "Open Settings" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Configuración"
+          }
+        }
+      }
+    },
     "Opening your clipboard history and pasting clips from Copyd stop until you unlock. Copying is still recorded, and Settings, including backup export, stay available." : {
       "localizations" : {
         "es" : {
@@ -2399,6 +2676,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在解锁之前，将无法打开剪贴板历史记录，也无法从 Copyd 粘贴剪贴内容。复制的内容仍会被记录，设置（包括备份导出）仍可使用。"
+          }
+        }
+      }
+    },
+    "Order" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Order"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orden"
           }
         }
       }
@@ -2469,6 +2762,70 @@
         }
       }
     },
+    "Paste directly into the app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste directly into the app"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar directamente en la app"
+          }
+        }
+      }
+    },
+    "Paste Stack" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack"
+          }
+        }
+      }
+    },
+    "Paste Stack needs Input Monitoring" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack needs Input Monitoring"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack necesita Monitorización de entrada"
+          }
+        }
+      }
+    },
+    "Paste Stack · %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack · %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Stack · %lld"
+          }
+        }
+      }
+    },
     "Paste with Formatting" : {
       "localizations" : {
         "es" : {
@@ -2491,6 +2848,16 @@
         }
       }
     },
+    "Pastes a picked clip straight into your app." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pega directo en tu app el clip que eliges."
+          }
+        }
+      }
+    },
     "Pasting" : {
       "localizations" : {
         "es" : {
@@ -2509,6 +2876,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "粘贴"
+          }
+        }
+      }
+    },
+    "Permission.notNeeded" : {
+      "comment" : "Chip on a permission whose feature is turned off",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No usado"
+          }
+        }
+      }
+    },
+    "Permissions" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permisos"
           }
         }
       }
@@ -2685,6 +3080,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出 Copyd"
+          }
+        }
+      }
+    },
+    "Restart Copyd" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reiniciar Copyd"
           }
         }
       }
@@ -2978,6 +3383,22 @@
         }
       }
     },
+    "Separator" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separator"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separador"
+          }
+        }
+      }
+    },
     "Settings..." : {
       "localizations" : {
         "es" : {
@@ -3110,6 +3531,38 @@
         }
       }
     },
+    "Start or Stop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start or Stop"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar o detener"
+          }
+        }
+      }
+    },
+    "Start Paste Stack" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Paste Stack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar Paste Stack"
+          }
+        }
+      }
+    },
     "Start Using Copyd" : {
       "localizations" : {
         "es" : {
@@ -3132,6 +3585,32 @@
         }
       }
     },
+    "Stop Paste Stack" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Paste Stack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detener Paste Stack"
+          }
+        }
+      }
+    },
+    "Syncs your history with your other devices." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincroniza tu historial con tus otros equipos."
+          }
+        }
+      }
+    },
     "System" : {
       "localizations" : {
         "es" : {
@@ -3150,6 +3629,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跟随系统"
+          }
+        }
+      }
+    },
+    "Tab" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabulación"
           }
         }
       }
@@ -3216,6 +3711,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文本"
+          }
+        }
+      }
+    },
+    "Text only — %lld skipped" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text only — %lld skipped"
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Solo texto — %lld omitido"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Solo texto — %lld omitidos"
+                }
+              }
+            }
           }
         }
       }
@@ -3392,6 +3915,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只会删除钉板本身，剪贴内容仍保留在剪贴板历史记录中。"
+          }
+        }
+      }
+    },
+    "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Input Monitoring, then start Paste Stack again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Input Monitoring, then start Paste Stack again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para pegar el siguiente clip con ⌘V, Copyd tiene que ver esa tecla. Activa Copyd en Ajustes del Sistema › Privacidad y seguridad › Monitorización de entrada y vuelve a iniciar Paste Stack."
           }
         }
       }
@@ -3748,6 +4287,22 @@
         }
       }
     },
+    "Use \\n for a new line, \\t for a tab" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use \\n for a new line, \\t for a tab"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa \\n para nueva línea, \\t para tabulación"
+          }
+        }
+      }
+    },
     "Version %@ (%@)" : {
       "localizations" : {
         "es" : {
@@ -3810,6 +4365,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "试用结束后"
+          }
+        }
+      }
+    },
+    "While it's on, every copy joins the stack and each ⌘V pastes the next clip. It stops with this shortcut, from the menu bar, when the stack runs out, or when you pick a clip in Copyd. The first time, macOS asks you to allow Input Monitoring." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While it's on, every copy joins the stack and each ⌘V pastes the next clip. It stops with this shortcut, from the menu bar, when the stack runs out, or when you pick a clip in Copyd. The first time, macOS asks you to allow Input Monitoring."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mientras está activo, cada copia se suma a la pila y cada ⌘V pega el siguiente clip. Se detiene con este atajo, desde la barra de menús, cuando la pila se vacía o cuando eliges un clip en Copyd. La primera vez, macOS te pide permitir la Monitorización de entrada."
           }
         }
       }
@@ -3964,6 +4535,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的历史记录都还在"
+          }
+        }
+      }
+    },
+    "your Mac" : {
+      "comment" : "The device a clip arrived from, inside \"New clip from %@\"",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tu Mac"
           }
         }
       }
@@ -4393,6 +4975,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Actualizado hace %lld d"
+          }
+        }
+      }
+    },
+    "⌘V pastes next" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pastes next"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pega el siguiente"
+          }
+        }
+      }
+    },
+    "⌘V pastes next · %@ stops" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pastes next · %@ stops"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘V pega el siguiente · %@ detiene"
           }
         }
       }

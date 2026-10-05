@@ -41,6 +41,12 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         model.showsGlobe = needsInputModeSwitchKey
+        // Settings' permissions card reads this as proof of Full Access: never written without it, at most once a day.
+        let defaults = SharedDefaults.store
+        if hasFullAccess, PermissionStatus.shouldRecordFullAccess(
+            seenAt: defaults?.object(forKey: SharedDefaults.keyboardFullAccessSeenAtKey) as? Date, now: Date()) {
+            defaults?.set(Date(), forKey: SharedDefaults.keyboardFullAccessSeenAtKey)
+        }
         captureClipboard()
         reload()
     }

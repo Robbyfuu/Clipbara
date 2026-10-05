@@ -1,8 +1,19 @@
+import ActivityKit
 import SwiftUI
+import UserNotifications
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    /// Re-read each time the app comes to the front, e.g. back from Settings.
+    @State private var keyboardStatus = PermissionStatus.unconfirmed
+    @State private var fullAccessSeenAt: Date?
+    @AppStorage(AppModel.liveActivityKey) private var liveActivityEnabled = false
+    @AppStorage(AppModel.arrivalNotificationsKey) private var arrivalNotificationsEnabled = false
+    /// Live Activities can be turned off for Copyd in Settings; re-read on every return to the app.
+    @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
+    @State private var notificationsDenied = false
     #if DEBUG
     /// `-CopydShowQuickGuide YES` (with `-CopydInitialTab settings`) opens the Back Tap guide at launch.
     @State private var showQuickGuide = UserDefaults.standard.bool(forKey: "CopydShowQuickGuide")
@@ -26,6 +37,58 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenTitle(text: String(localized: "Settings")).padding(.bottom, 24)
+
+                sectionLabel("Permissions")
+                VStack(alignment: .leading, spacing: 0) {
+                    let iCloud = PermissionStatus.resolve(granted: model.sync.status != .accountUnavailable,
+                                                          featureOn: model.sync.status != .off)
+                    permissionRow("iCloud", symbol: "icloud", status: iCloud,
+                                  fix: iCloud == .missing ? "Sign in to iCloud" : nil)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    permissionRow("Copyd keyboard added", symbol: "keyboard", status: keyboardStatus,
+                                  fix: keyboardStatus == .granted ? nil : "Open Settings")
+                    Divider().overlay(DesignTokens.Brand.line)
+                    let fullAccess = PermissionStatus.resolve(fullAccessSeenAt: fullAccessSeenAt, now: .now)
+                    permissionRow("Full Access", symbol: "lock.open", status: fullAccess,
+                                  chip: fullAccess == .granted ? fullAccessSeenAt.map {
+                                      Text("Allowed \u{00b7} confirmed \($0.formatted(.relative(presentation: .named)))")
+                                  } : nil,
+                                  hint: fullAccess == .unconfirmed
+                                      ? "Not confirmed yet \u{2014} open the Copyd keyboard once" : nil,
+                                  fix: fullAccess == .unconfirmed ? "Open Settings" : nil)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    // No public API reads this setting, so the row never claims a state.
+                    permissionRow("Paste from other apps", symbol: "doc.on.clipboard", status: .unconfirmed,
+                                  hint: "Set to Allow to skip the paste prompt.", fix: "Open Settings")
+                }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .brandCard()
+                .padding(.bottom, 24)
+
+                sectionLabel("Lock Screen & alerts")
+                VStack(alignment: .leading, spacing: 0) {
+                    // Live Activities are an iPhone feature; an iPad would only ever show the hint.
+                    if UIDevice.current.userInterfaceIdiom == .phone {
+                        if activitiesAllowed {
+                            toggleRow("Show latest clip on Lock Screen", symbol: "lock.rectangle", isOn: $liveActivityEnabled)
+                        } else {
+                            permissionRow("Show latest clip on Lock Screen", symbol: "lock.rectangle", status: .missing,
+                                          hint: "Turn on Live Activities for Copyd in Settings.", fix: "Open Settings")
+                        }
+                        Divider().overlay(DesignTokens.Brand.line)
+                    }
+                    if notificationsDenied {
+                        permissionRow("Notify me when a clip arrives", symbol: "bell", status: .missing,
+                                      hint: "Allow notifications for Copyd in Settings.", fix: "Open Settings")
+                    } else {
+                        toggleRow("Notify me when a clip arrives", symbol: "bell", isOn: $arrivalNotificationsEnabled)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .brandCard()
+                .padding(.bottom, 24)
 
                 sectionLabel("iCloud")
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -106,6 +169,94 @@ struct SettingsView: View {
         }
         .background(DesignTokens.Brand.shelf)
         .sheet(isPresented: $showQuickGuide) { QuickGuideView() }
+        .onChange(of: liveActivityEnabled) { model.updateLiveActivity() }
+        .onChange(of: arrivalNotificationsEnabled) { _, on in
+            guard on else { return }
+            Task {
+                // Asks once; after a "Don't Allow" iOS answers false at once, and only Settings can change it.
+                let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
+                notificationsDenied = !granted
+                if !granted { arrivalNotificationsEnabled = false }
+            }
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active else { return }
+            activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
+            // Notifications can be turned off for Copyd in Settings while the toggle is on, or allowed again after a
+            // denial: the card shows the Settings row while denied, and the toggle, as it was left, once allowed.
+            if arrivalNotificationsEnabled || notificationsDenied {
+                Task {
+                    let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+                    notificationsDenied = status == .denied
+                }
+            }
+            fullAccessSeenAt = SharedDefaults.store?.object(forKey: SharedDefaults.keyboardFullAccessSeenAtKey) as? Date
+            keyboardStatus = .resolve(enabledKeyboards: UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String],
+                                      fullAccessSeenAt: fullAccessSeenAt)
+        }
+    }
+
+    /// A switch row laid out like `permissionRow`.
+    private func toggleRow(_ name: LocalizedStringKey, symbol: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .foregroundStyle(DesignTokens.Brand.ink2)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+            Toggle(name, isOn: isOn).brandFont(16, .semibold)
+        }
+        .padding(.vertical, 10)
+        .frame(minHeight: 44)
+    }
+
+    /// One permissions card row. `chip` defaults to the status's own label; `fix` opens Copyd in Settings.
+    private func permissionRow(_ name: LocalizedStringKey, symbol: String, status: PermissionStatus, chip: Text? = nil,
+                               hint: LocalizedStringKey? = nil, fix: LocalizedStringKey?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Image(systemName: symbol)
+                .foregroundStyle(DesignTokens.Brand.ink2)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(name).brandFont(16, .semibold)
+                    Spacer(minLength: 8)
+                    PermissionChip(status: status, label: chip ?? chipLabel(status))
+                }
+                if let hint {
+                    Text(hint)
+                        .brandFont(13, relativeTo: .footnote)
+                        .foregroundStyle(DesignTokens.Brand.ink2)
+                }
+                if let fix {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    } label: {
+                        Text(fix)
+                            .brandFont(15, .semibold)
+                            .foregroundStyle(DesignTokens.Brand.ink)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 44)
+                            .background(DesignTokens.Brand.chip, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
+            }
+        }
+        .padding(.vertical, 14)
+    }
+
+    private func chipLabel(_ status: PermissionStatus) -> Text {
+        switch status {
+        case .granted: Text("Allowed")
+        case .missing: Text("Not allowed")
+        // Its own key: plain "Off" is the sync status, which reads differently in Spanish.
+        case .notNeeded:
+            Text(String(localized: "Permission.notNeeded", defaultValue: "Off",
+                        comment: "Chip on a permission whose feature is turned off"))
+        case .unconfirmed: Text("Check in Settings")
+        }
     }
 
     private func sectionLabel(_ text: LocalizedStringResource) -> some View {

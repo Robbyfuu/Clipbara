@@ -7,6 +7,8 @@ enum ContentType: String, Codable, CaseIterable, Sendable {
     case image
     case url
     case fileURL
+    /// Copied files read into a `FileBundle`; syncs, unlike `fileURL`, which only stores a local path.
+    case files
     case color
     case unknown
 
@@ -18,6 +20,7 @@ enum ContentType: String, Codable, CaseIterable, Sendable {
         case .image: String(localized: "Image")
         case .url: String(localized: "Link")
         case .fileURL: String(localized: "File")
+        case .files: String(localized: "Files")
         case .color: String(localized: "Color")
         case .unknown: String(localized: "Other")
         }
@@ -31,6 +34,7 @@ enum ContentType: String, Codable, CaseIterable, Sendable {
         case .image: "photo"
         case .url: "link"
         case .fileURL: "doc"
+        case .files: "doc.on.doc"
         case .color: "paintpalette"
         case .unknown: "questionmark.square"
         }

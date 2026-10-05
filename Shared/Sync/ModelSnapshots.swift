@@ -6,7 +6,8 @@ extension ClipboardItem {
         ClipSnapshot(
             id: id, contentType: contentTypeRaw, rawData: rawData, textContent: textContent,
             userTitle: userTitle, sourceAppName: sourceAppName, sourceAppBundleId: sourceAppBundleId,
-            contentHash: contentHash, copiedAt: copiedAt, isPinned: isPinned)
+            contentHash: contentHash, copiedAt: copiedAt, isPinned: isPinned, fileManifest: fileManifestData,
+            fromUniversalClipboard: fromUniversalClipboard)
     }
 
     /// Copies every field except `id`, `thumbnailData` and `syncSystemFields`. `rawData` is written only
@@ -15,6 +16,7 @@ extension ClipboardItem {
     func update(from s: ClipSnapshot) -> Bool {
         let rawChanged = rawData != s.rawData
         if rawChanged { rawData = s.rawData }
+        fileManifestData = s.fileManifest
         contentTypeRaw = s.contentType
         textContent = s.textContent
         userTitle = s.userTitle
@@ -23,6 +25,7 @@ extension ClipboardItem {
         contentHash = s.contentHash
         copiedAt = s.copiedAt
         isPinned = s.isPinned
+        fromUniversalClipboard = s.fromUniversalClipboard
         return rawChanged
     }
 

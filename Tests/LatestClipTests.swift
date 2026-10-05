@@ -27,7 +27,7 @@ final class LatestClipTests: XCTestCase {
     }
 
     func testSkipsFileClips() throws {
-        add("text", dt: 0); add("file:///tmp/a.pdf", type: .fileURL, dt: 20)
+        add("text", dt: 0); add("file:///tmp/a.pdf", type: .fileURL, dt: 20); add("a.pdf", type: .files, dt: 30)
         XCTAssertEqual(try LatestClip.newest(in: context)?.textContent, "text")
     }
 

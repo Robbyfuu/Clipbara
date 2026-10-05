@@ -3,6 +3,13 @@ import SwiftUI
 import WidgetKit
 
 @main
+struct CopydWidgets: WidgetBundle {
+    var body: some Widget {
+        RecentClipsWidget()
+        LatestClipLiveActivity()
+    }
+}
+
 struct RecentClipsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "RecentClips", provider: RecentClipsProvider()) { RecentClipsEntryView(entry: $0) }

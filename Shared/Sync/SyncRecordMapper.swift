@@ -12,6 +12,10 @@ struct ClipSnapshot: Equatable, Sendable {
     var contentHash: String
     var copiedAt: Date
     var isPinned: Bool
+    /// A `.files` clip's manifest JSON (`FileBundle.manifestJSON`); nil for every other clip.
+    var fileManifest: Data? = nil
+    /// `ClipboardItem.fromUniversalClipboard`.
+    var fromUniversalClipboard: Bool = false
 }
 
 struct PinboardSnapshot: Equatable, Sendable {
@@ -48,8 +52,14 @@ enum SyncRecordMapper {
         CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
     }
 
+    /// `fileURL` clips hold a local path and never sync. A `files` bundle may hold up to `FileBundle.maxFiles`
+    /// files of `FileBundle.maxFileBytes` each, so it gets its own cap.
     static func isEligible(contentType: String, byteCount: Int) -> Bool {
-        contentType != "fileURL" && byteCount <= maxClipBytes
+        switch contentType {
+        case ContentType.fileURL.rawValue: false
+        case ContentType.files.rawValue: byteCount <= FileBundle.maxBundleBytes
+        default: byteCount <= maxClipBytes
+        }
     }
 
     static func assetURL(for id: UUID, in directory: URL) -> URL {
@@ -64,7 +74,12 @@ enum SyncRecordMapper {
 
     /// `rawData` and `textContent` above `inlineLimit` each move to their own sealed asset,
     /// both under one `assetKey`, so every record stays under CloudKit's 1 MB limit.
-    static func populate(_ record: CKRecord, from clip: ClipSnapshot, assetDirectory: URL) throws {
+    ///
+    /// `serverContentHash` is the `contentHash` of what the server record already holds (`record(_:_:systemFields:)`).
+    /// When it matches, a pin, rename or merge sends only the metadata: content keys never set on a record rebuilt from
+    /// system fields keep their server values, so a file clip's 49 MB payload and its `assetKey` stay as they are.
+    static func populate(_ record: CKRecord, from clip: ClipSnapshot, assetDirectory: URL,
+                         serverContentHash: String? = nil) throws {
         let values = record.encryptedValues
         values["contentType"] = clip.contentType
         values["userTitle"] = clip.userTitle
@@ -73,6 +88,11 @@ enum SyncRecordMapper {
         values["contentHash"] = clip.contentHash
         values["copiedAt"] = clip.copiedAt
         values["isPinned"] = Int64(clip.isPinned ? 1 : 0)
+        values["fromUniversalClipboard"] = Int64(clip.fromUniversalClipboard ? 1 : 0)
+        guard serverContentHash != clip.contentHash else { return }
+
+        // Names, sizes and types of a file clip, readable without opening the payload. Nil for other clips.
+        values["fileManifest"] = clip.contentType == ContentType.files.rawValue ? FileBundle.manifestJSON(clip.rawData) : nil
 
         let text = clip.textContent.map { Data($0.utf8) }
         let largeText = (text?.count ?? 0) > inlineLimit
@@ -115,6 +135,35 @@ enum SyncRecordMapper {
         record.encryptedValues["addedAt"] = entry.addedAt
     }
 
+    // MARK: - System fields
+
+    /// Stored next to the system fields: the `contentHash` of the content the server record holds.
+    private static let serverContentHashKey = "CopydServerContentHash"
+
+    /// A record's system fields, plus the `contentHash` it carries (a sent, fetched or conflicting server record).
+    static func archive(_ record: CKRecord) -> Data {
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        record.encodeSystemFields(with: coder)
+        coder.encode(record.encryptedValues["contentHash"] as String?, forKey: serverContentHashKey)
+        coder.finishEncoding()
+        return coder.encodedData
+    }
+
+    /// A record carrying the archived system fields (avoids false conflicts) and the hash of the content the server
+    /// holds, or a new record and nil. Archives written before the hash was kept give nil: the next send uploads it all.
+    static func record(_ type: CKRecord.RecordType, _ id: CKRecord.ID,
+                       systemFields: Data?) -> (record: CKRecord, serverContentHash: String?) {
+        if let systemFields, let coder = try? NSKeyedUnarchiver(forReadingFrom: systemFields) {
+            coder.requiresSecureCoding = true
+            let cached = CKRecord(coder: coder)
+            let hash = coder.decodeObject(of: NSString.self, forKey: serverContentHashKey) as String?
+            coder.finishDecoding()
+            // Type only: a cached recordID can carry the real owner name instead of the default one.
+            if let cached, cached.recordType == type { return (cached, hash) }
+        }
+        return (CKRecord(recordType: type, recordID: id), nil)
+    }
+
     // MARK: - Decode
 
     private static func required<T: CKRecordValueProtocol>(_ record: CKRecord, _ key: String) throws -> T {
@@ -155,7 +204,10 @@ enum SyncRecordMapper {
             sourceAppBundleId: values["sourceAppBundleId"] as? String,
             contentHash: try required(record, "contentHash"),
             copiedAt: try required(record, "copiedAt"),
-            isPinned: pinned != 0)
+            isPinned: pinned != 0,
+            fileManifest: values["fileManifest"] as? Data,
+            // Records saved before this field existed have none: an ordinary copy.
+            fromUniversalClipboard: (values["fromUniversalClipboard"] as? Int64 ?? 0) != 0)
     }
 
     static func pinboard(from record: CKRecord) throws -> PinboardSnapshot {

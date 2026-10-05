@@ -45,7 +45,8 @@ final class KeyboardFeedTests: XCTestCase {
     }
 
     func testFileClipsExcluded() throws {
-        add("file:///x", type: .fileURL, dt: 5); add("t", dt: 1)
+        add("file:///x", type: .fileURL, dt: 5); add("a.pdf", type: .files, dt: 6, pinned: true); add("t", dt: 1)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinned), [])
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.preview), ["t"])
     }
 
@@ -129,6 +130,7 @@ final class KeyboardFeedTests: XCTestCase {
     func testPinboardModeExcludesFileClips() throws {
         let b = board("A", order: 0)
         pin(add("file:///x", type: .fileURL), to: b, order: 0); pin(add("t"), to: b, order: 1)
+        pin(add("a.pdf", type: .files), to: b, order: 2)
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinboard(b.id)).map(\.preview), ["t"])
     }
 

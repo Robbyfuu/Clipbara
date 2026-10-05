@@ -1,9 +1,22 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import UserNotifications
 
 /// CKSyncEngine registers its own subscription and handles the push; this only completes the callback.
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    /// Set at launch, so a tap that cold-launches the app still reaches `didReceive`.
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    /// The arrival notice is Copyd's only notification: a tap opens History.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        await MainActor.run { AppModel.shared.pendingRoute = .history }
+    }
+
     func application(
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any]
@@ -75,6 +88,7 @@ struct CopydiOSApp: App {
             .overlay(alignment: .bottom) { KeyboardPreviewHarness(container: model.container) }
             .overlay { WidgetPreviewHarness(container: model.container) }
             .overlay { SharePreviewHarness() }
+            .overlay { LiveActivityPreviewHarness(container: model.container) }
             #endif
             .environment(model)
             .modelContainer(model.container)
@@ -86,6 +100,8 @@ struct CopydiOSApp: App {
                 model.drainInbox()
                 model.captureNewCopy()
                 model.sync.fetchIfStale()
+                // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
+                model.updateLiveActivity()
             }
             .onOpenURL { url in
                 // A link that only foregrounds the app still runs auto-capture behind the iOS prompt.
@@ -108,6 +124,8 @@ struct CopydiOSApp: App {
             focusSearch = true
         case .pinboards:
             tab = "pinboards"
+        case .history:
+            tab = "history"
         case .keyboardSetup:
             tab = "settings"
             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -189,6 +207,63 @@ private struct WidgetPreviewHarness: View {
             .background(DesignTokens.Brand.line)  // stands in for the wallpaper
             .task { state = .load(ModelContext(container)) }
         }
+    }
+}
+
+/// `-CopydLiveActivityPreview YES` shows the Live Activity views for the newest clip of each kind: the Lock Screen
+/// view, then the expanded and compact Dynamic Island assembled from the same pieces the island regions use.
+private struct LiveActivityPreviewHarness: View {
+    let container: ModelContainer
+    @State private var states: [LatestClipActivity.ContentState] = []
+
+    var body: some View {
+        if UserDefaults.standard.bool(forKey: "CopydLiveActivityPreview") {
+            VStack(spacing: 12) {
+                ForEach(states, id: \.clipID) { state in
+                    LatestClipLockScreen(state: state).frame(width: 360)
+                        .background(DesignTokens.Brand.shelf, in: .rect(cornerRadius: 24))
+                }
+                if let state = states.first {
+                    VStack(spacing: 8) {
+                        HStack(alignment: .top) {
+                            CopydMark(size: 30).padding(.leading, 6)
+                            Spacer()
+                            LatestClipAge(state: state).padding(.trailing, 6)
+                        }
+                        LatestClipIslandDetail(state: state)
+                    }
+                    .padding(EdgeInsets(top: 14, leading: 16, bottom: 18, trailing: 16))
+                    .frame(width: 370)
+                    .background(.black, in: .rect(cornerRadius: 44))
+                    .environment(\.colorScheme, .dark)
+                    HStack(spacing: 16) {
+                        ForEach(states.prefix(3), id: \.clipID) { state in
+                            HStack {
+                                CopydMark(size: 20)
+                                Spacer()
+                                LatestClipCompact(state: state)
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(width: 112, height: 36)
+                            .background(.black, in: Capsule())
+                        }
+                    }
+                    .environment(\.colorScheme, .dark)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DesignTokens.Brand.line)  // stands in for the wallpaper
+            .task { load() }
+        }
+    }
+
+    private func load() {
+        let clips = (try? ModelContext(container).fetch(FetchDescriptor<ClipboardItem>(
+            sortBy: [SortDescriptor(\.copiedAt, order: .reverse)]))) ?? []
+        var seen: Set<LatestClipActivity.ContentState.Kind> = []
+        states = clips.filter { $0.contentType != .files && $0.contentType != .fileURL }
+            .map(LatestClipActivity.ContentState.init)
+            .filter { seen.insert($0.kind).inserted }
     }
 }
 

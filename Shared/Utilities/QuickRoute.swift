@@ -3,13 +3,14 @@ import Foundation
 /// Where a Home Screen quick action or a `copyd://` link sends the app. A route's name is the URL host
 /// and the suffix of the shortcut type in `CopydiOS/Info.plist`.
 enum QuickRoute: Equatable {
-    case saveClipboard, search, pinboards, keyboardSetup
+    case saveClipboard, search, pinboards, keyboardSetup, history
     /// `copyd://copy/<uuid>`, from the widget. It only writes the pasteboard, so any link may open it.
     case copy(UUID)
 
     private static let shortcutPrefix = "com.robbyfuu.copyd."
     private static let named: [String: QuickRoute] = [
         "save-clipboard": .saveClipboard, "search": .search, "pinboards": .pinboards, "keyboard-setup": .keyboardSetup,
+        "history": .history,
     ]
 
     static func copyURL(_ id: UUID) -> URL {

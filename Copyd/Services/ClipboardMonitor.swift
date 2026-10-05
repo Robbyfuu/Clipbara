@@ -1,6 +1,5 @@
 import AppKit
 import SwiftData
-import CryptoKit
 
 @MainActor
 @Observable
@@ -11,6 +10,13 @@ final class ClipboardMonitor {
     private var modelContext: ModelContext?
     private var excludedBundleIds: Set<String> = []
     private var shouldSkipNextChange: Bool = false
+    /// A copy is being prepared off the main thread.
+    @ObservationIgnored private var isCapturing = false
+    /// Gets the id of every clip the user copies, including a recent duplicate that is not saved
+    /// again (its existing id), so Paste Stack can queue it. Copyd's own pastes are skipped before this.
+    @ObservationIgnored var onCapture: ((UUID) -> Void)?
+    /// Called before Copyd writes a clip picked in its own UI. Every pick goes through `skipNextChange`.
+    @ObservationIgnored var onPick: (() -> Void)?
 
     var isMonitoring: Bool = false
     var latestItems: [ClipboardItem] = []
@@ -53,6 +59,8 @@ final class ClipboardMonitor {
     }
 
     private func poll() {
+        // The last copy is still being read and hashed: the next change waits for it, so captures keep their order.
+        guard !isCapturing else { return }
         let pasteboard = NSPasteboard.general
         let currentCount = pasteboard.changeCount
 
@@ -72,33 +80,54 @@ final class ClipboardMonitor {
         }
 
         guard let content = classifier.classify(pasteboard) else { return }
-
-        let hash = SHA256.hash(data: content.rawData)
-            .compactMap { String(format: "%02x", $0) }
-            .joined()
-
-        // Duplicate check within last 10 seconds
-        if isDuplicate(hash: hash) { return }
-
         let sourceApp = NSWorkspace.shared.frontmostApplication
+        let source = (name: sourceApp?.localizedName, bundleId: sourceApp?.bundleIdentifier)
+
+        // Copied files (up to 48 MB), the hash and the thumbnail would stall the main thread: prepare them off it.
+        isCapturing = true
+        Task { [weak self] in
+            let prepared = await Task.detached(priority: .userInitiated) {
+                let content = content.readingFiles()
+                return (content: content,
+                        hash: ClipCapture.hash(content.rawData),
+                        // Images, and file clips with an image file
+                        thumbnail: Thumbnail.png(for: content.contentType, rawData: content.rawData),
+                        // Names and sizes for the card, so it never reads the bundle.
+                        manifest: content.contentType == .files ? FileBundle.manifestJSON(content.rawData) : nil)
+            }.value
+            self?.isCapturing = false
+            self?.store(prepared.content, hash: prepared.hash, thumbnail: prepared.thumbnail, manifest: prepared.manifest,
+                        sourceAppName: source.name, sourceAppBundleId: source.bundleId)
+        }
+    }
+
+    /// Inserts a prepared copy, then tells Paste Stack, so it never queues a clip that isn't saved.
+    private func store(_ content: ContentTypeClassifier.ClassifiedContent, hash: String, thumbnail: Data?, manifest: Data?,
+                       sourceAppName: String?, sourceAppBundleId: String?) {
+        // Duplicate check within last 10 seconds. Copying it again still counts for Paste Stack.
+        if let existingID = recentDuplicateID(hash: hash) {
+            onCapture?(existingID)
+            return
+        }
+
         let item = ClipboardItem(
             contentType: content.contentType,
             rawData: content.rawData,
             textContent: content.textContent,
-            sourceAppName: sourceApp?.localizedName,
-            sourceAppBundleId: sourceApp?.bundleIdentifier,
+            sourceAppName: sourceAppName,
+            sourceAppBundleId: sourceAppBundleId,
             contentHash: hash
         )
-
-        // Generate thumbnail for images
-        if content.contentType == .image {
-            item.thumbnailData = Thumbnail.png(from: content.rawData)
-        }
+        // The iPhone's own copy coming back: it syncs, but the iPhone never announces it.
+        item.fromUniversalClipboard = content.fromUniversalClipboard
+        item.thumbnailData = thumbnail
+        item.fileManifestData = manifest
 
         modelContext?.insert(item)
         try? modelContext?.save()
         cleanupOldItems()
         refreshLatestItems()
+        onCapture?(item.id)
     }
 
     /// 히스토리 제한 초과 시 오래된 아이템 삭제 (isPinned 아이템 보존)
@@ -137,18 +166,28 @@ final class ClipboardMonitor {
         try? modelContext.save()
     }
 
-    private func isDuplicate(hash: String) -> Bool {
-        guard let modelContext else { return false }
+    private func recentDuplicateID(hash: String) -> UUID? {
+        guard let modelContext else { return nil }
         let tenSecondsAgo = Date().addingTimeInterval(-10)
         let predicate = #Predicate<ClipboardItem> { item in
             item.contentHash == hash && item.copiedAt > tenSecondsAgo
         }
-        let descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
-        let count = (try? modelContext.fetchCount(descriptor)) ?? 0
-        return count > 0
+        var descriptor = FetchDescriptor<ClipboardItem>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.copiedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first?.id
     }
 
+    /// A clip picked in Copyd's UI is about to be written: don't capture it, and tell `onPick`.
     func skipNextChange() {
+        onPick?()
+        shouldSkipNextChange = true
+    }
+
+    /// Paste Stack staging its next clip: not captured, and not a pick.
+    func skipStagedChange() {
         shouldSkipNextChange = true
     }
 

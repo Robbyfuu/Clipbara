@@ -8,6 +8,8 @@ final class SearchState {
     var selectedContentTypes: Set<ContentType> = []
     var dateFilter: DateFilter = .all
     var selectedIndex: Int? = nil
+    /// Cards picked for a joined paste; empty while only `selectedIndex` is selected.
+    var multiSelection = MultiSelection()
 
     private var debounceTask: Task<Void, Never>?
 
@@ -40,6 +42,9 @@ final class SearchState {
         }
     }
 
+    /// The Filter by Type menu. One "Files" entry covers copied files and the older local file links.
+    static let filterableTypes = ContentType.allCases.filter { $0 != .fileURL }
+
     var isActive: Bool {
         !searchText.isEmpty || !selectedContentTypes.isEmpty || dateFilter != .all
     }
@@ -47,6 +52,7 @@ final class SearchState {
     func updateSearch(_ text: String) {
         searchText = text
         selectedIndex = nil
+        multiSelection.clear()
         debounceTask?.cancel()
         debounceTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
@@ -61,6 +67,7 @@ final class SearchState {
         selectedContentTypes = []
         dateFilter = .all
         selectedIndex = nil
+        multiSelection.clear()
         debounceTask?.cancel()
     }
 
@@ -68,6 +75,7 @@ final class SearchState {
         searchText = ""
         debouncedSearchText = ""
         selectedIndex = nil
+        multiSelection.clear()
         debounceTask?.cancel()
     }
 
@@ -78,6 +86,7 @@ final class SearchState {
             selectedContentTypes.insert(type)
         }
         selectedIndex = nil
+        multiSelection.clear()
     }
 
     func filteredItems(from items: [ClipboardItem]) -> [ClipboardItem] {
@@ -94,7 +103,7 @@ final class SearchState {
                 return false
             }
 
-            if !contentTypes.isEmpty, !contentTypes.contains(item.contentType) {
+            if !contentTypes.isEmpty, !contentTypes.contains(item.contentType == .fileURL ? .files : item.contentType) {
                 return false
             }
 

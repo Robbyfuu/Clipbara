@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square" alt="macOS 14 or later">
 </p>
 
-Copyd keeps a history of what you copy. Press `⌘ ⇧ V` and a panel slides up at the bottom of the screen without pulling focus from the app you are in. Click a clip once and it is back on your clipboard.
+Copyd keeps a history of what you copy. Press `⌘ ⇧ V` and a panel slides up at the bottom of the screen without pulling focus from the app you are in. Click a clip once and it is pasted into that app, once you allow Copyd in Accessibility. Until then, press <kbd>⌘</kbd> <kbd>V</kbd> yourself.
 
 Copyd is a fork of [Clipbara](https://github.com/mobrava/Clipbara) by mobrava, licensed under GPL-3.0.
 
@@ -48,8 +48,7 @@ App Store build coming.
 1. Copy anything with <kbd>⌘</kbd> <kbd>C</kbd> as usual.
 2. Press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>V</kbd> to open the history panel.
 3. Type to search, or move between clips with <kbd>←</kbd> and <kbd>→</kbd>.
-4. Click a clip once, or press <kbd>Return</kbd>. The clip goes to your clipboard and the panel closes.
-5. Press <kbd>⌘</kbd> <kbd>V</kbd> in the app you were using.
+4. Click a clip once, or press <kbd>Return</kbd>. The panel closes and the clip is pasted into the app you were using once Accessibility is allowed. Otherwise press <kbd>⌘</kbd> <kbd>V</kbd>.
 
 Inside the panel:
 
@@ -82,9 +81,15 @@ Add a password manager, or any other app, under **Settings > Exclusions** and no
 
 ## FAQ
 
-### Why doesn't Copyd paste into the app for me?
+### How does Copyd paste into my app, and why does it need Accessibility?
 
-Picking a clip puts it on the clipboard and closes the panel, then you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Pasting on your behalf means synthesizing keystrokes into whatever app is in front, which needs an extra system permission to control other applications. Copyd neither asks for it nor links against those APIs.
+When you pick a clip, Copyd puts it on the clipboard, closes the panel, and presses <kbd>⌘</kbd> <kbd>V</kbd> for you in the app you were using. Sending that keystroke to another app needs the Accessibility permission. Copyd asks for it once, the first time you pick a clip. Until you allow Copyd in **System Settings > Privacy & Security > Accessibility**, the clip still goes to your clipboard and you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Copyd only sends that one <kbd>⌘</kbd> <kbd>V</kbd>, right after a pick.
+
+If direct paste stops working after an update, remove Copyd from **Accessibility** and add it again.
+
+To keep pasting by hand, turn off **Settings > General > Paste directly into the app**.
+
+Input Monitoring is a separate permission. Copyd asks for it only the first time you start Paste Stack. Paste Stack watches for <kbd>⌘</kbd> <kbd>V</kbd> so it can put the next clip on the clipboard, and it stops watching when the stack ends. Nothing else in Copyd needs it.
 
 ### The shortcut does not open the panel
 
@@ -92,7 +97,7 @@ Another app may already hold <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>V</kbd>. Record 
 
 ### Images do not paste in my terminal
 
-Selecting an image clip puts the image back on the macOS clipboard, but a shell prompt cannot accept image data. The program running inside the terminal has to support it, and the shortcut is often not <kbd>⌘</kbd> <kbd>V</kbd>. Codex CLI, for example, attaches the clipboard image with <kbd>Control</kbd> <kbd>V</kbd>: press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>V</kbd>, pick the image, go back to Codex without copying anything else, then press <kbd>Control</kbd> <kbd>V</kbd>.
+Picking an image clip writes it to the clipboard and sends <kbd>⌘</kbd> <kbd>V</kbd>, so a terminal receives the file URL of a temporary PNG, not image data. Programs that attach a clipboard image with <kbd>Control</kbd> <kbd>V</kbd>, such as Codex CLI, still need that key after the pick: pick the image, go back to the program without copying anything else, then press <kbd>Control</kbd> <kbd>V</kbd>.
 
 ### Where does the history live, and how do I remove it?
 

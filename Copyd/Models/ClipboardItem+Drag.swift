@@ -7,7 +7,8 @@ extension ClipboardItem {
         let provider: NSItemProvider
 
         switch contentType {
-        case .plainText, .richText, .html, .unknown:
+        // ponytail: a file bundle drags as its names; paste puts the files themselves on the pasteboard.
+        case .plainText, .richText, .html, .unknown, .files:
             provider = NSItemProvider(object: (textContent ?? "") as NSString)
 
         case .image:

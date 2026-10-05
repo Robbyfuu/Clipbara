@@ -86,16 +86,22 @@ struct PinboardGridView: View {
     private func cardView(entry: PinboardEntry, item: ClipboardItem, index: Int) -> some View {
         let isDragging = draggingEntry?.id == entry.id
         let n = index - appState.firstVisibleIndex
+        let selection = appState.searchState.multiSelection
+        let selectionNumber = selection.number(of: item.id)
 
         ClipboardCardView(
             item: item,
-            isSelected: appState.searchState.selectedIndex == index,
+            isSelected: selection.ids.isEmpty
+                ? appState.searchState.selectedIndex == index
+                : selectionNumber != nil,
             searchText: "",
             pinboards: allPinboards,
             quickPasteNumber: (0...8).contains(n) ? n : nil,
+            selectionNumber: selectionNumber,
             enableDrag: false,
             showsManagementMenu: false,
             onSelect: { _ in
+                appState.searchState.multiSelection.clear()
                 appState.searchState.selectedIndex = index
             },
             onPaste: { selected in
@@ -105,7 +111,9 @@ struct PinboardGridView: View {
             },
             onRemoveFromPinboard: {
                 removeEntry(entry)
-            }
+            },
+            onCommandClick: { appState.toggleSelection(at: index) },
+            onShiftClick: { appState.extendSelection(to: index) }
         )
         .opacity(isDragging ? 0.3 : 1.0)
         .scaleEffect(isDragging ? 0.95 : 1.0)

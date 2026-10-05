@@ -28,11 +28,13 @@ enum KeyboardFeed {
 
     @MainActor
     static func items(in context: ModelContext, mode: Mode, limit: Int = limit) throws -> [KeyboardClip] {
-        let fileRaw = ContentType.fileURL.rawValue
+        // File clips can't be typed or pasted from the keyboard (or copied from the widget): a Mac path, or files.
+        let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
         let predicate: Predicate<ClipboardItem>
         switch mode {
-        case .recent: predicate = #Predicate { $0.contentTypeRaw != fileRaw }
-        case .pinned: predicate = #Predicate { $0.contentTypeRaw != fileRaw && $0.isPinned == true }
+        case .recent: predicate = #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw }
+        case .pinned:
+            predicate = #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isPinned == true }
         case .pinboard(let boardID):
             // A board has few entries; order them in memory by the entry's own `displayOrder`.
             var boardFetch = FetchDescriptor<Pinboard>(predicate: #Predicate { $0.id == boardID })
@@ -40,7 +42,7 @@ enum KeyboardFeed {
             guard let board = try context.fetch(boardFetch).first else { return [] }
             return board.entries.sorted { $0.displayOrder < $1.displayOrder }
                 .compactMap(\.clipboardItem)
-                .filter { $0.contentType != .fileURL }
+                .filter { $0.contentType != .fileURL && $0.contentType != .files }
                 .prefix(limit).map(clip)
         }
         var descriptor = FetchDescriptor<ClipboardItem>(

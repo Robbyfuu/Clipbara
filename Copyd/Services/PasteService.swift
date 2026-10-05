@@ -1,9 +1,51 @@
 import AppKit
+import OSLog
+import SwiftData
 
 @MainActor
 struct PasteService {
 
     private static let tempDir = NSTemporaryDirectory() + "Copyd/"
+    private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Paste")
+
+    nonisolated private static let filesRoot = URL.applicationSupportDirectory
+        .appendingPathComponent("Copyd/Files", isDirectory: true)
+
+    /// Where a file clip's files are written to be pasted: `Application Support/Copyd/Files/<clip-id>/`.
+    nonisolated static func filesDirectory(for id: UUID) -> URL {
+        filesRoot.appendingPathComponent(id.uuidString, isDirectory: true)
+    }
+
+    /// The URLs each file clip's files were last written to, so a Paste Stack re-stage never reads the bundle again.
+    private static var writtenFiles: [UUID: [URL]] = [:]
+
+    /// Removes a file clip's folder when the clip is deleted, whatever deletes it: the panel, the history limit or sync.
+    /// Runs on the main context's saves, as `LocalChangeTracker` does.
+    static func removeFilesOnDelete(in context: ModelContext) {
+        // Read only inside assumeIsolated: the main context posts willSave synchronously on the main thread.
+        nonisolated(unsafe) let context = context
+        _ = NotificationCenter.default.addObserver(forName: ModelContext.willSave, object: context, queue: nil) { _ in
+            MainActor.assumeIsolated {
+                for case let clip as ClipboardItem in context.deletedModelsArray where clip.contentTypeRaw == ContentType.files.rawValue {
+                    writtenFiles[clip.id] = nil
+                    try? FileManager.default.removeItem(at: filesDirectory(for: clip.id))
+                }
+            }
+        }
+    }
+
+    /// Removes the `Files/<id>/` folders of clips that no longer exist, such as ones deleted by a build without the
+    /// observer above. Runs in the background once the store is open.
+    nonisolated static func removeOrphanFiles(in container: ModelContainer) {
+        Task.detached(priority: .utility) {
+            FileBundle.removeOrphanFolders(in: filesRoot) {
+                let files = ContentType.files.rawValue
+                let clips = try ModelContext(container).fetch(FetchDescriptor<ClipboardItem>(
+                    predicate: #Predicate { $0.contentTypeRaw == files }))
+                return Set(clips.map(\.id))
+            }
+        }
+    }
 
     /// Backing key for the "Always Paste as Plain Text" setting (Settings > General).
     nonisolated static let alwaysPlainTextDefaultsKey = "alwaysPastePlainText"
@@ -27,8 +69,9 @@ struct PasteService {
     }
 
     /// - Parameter asPlainText: `nil` resolves from the setting combined with the Shift modifier.
-    func paste(item: ClipboardItem, asPlainText: Bool? = nil) {
-        ReviewPrompter.recordPaste()
+    /// - Parameter recordPaste: `false` for Paste Stack staging, which only prepares the pasteboard.
+    func paste(item: ClipboardItem, asPlainText: Bool? = nil, recordPaste: Bool = true) {
+        if recordPaste { ReviewPrompter.recordPaste() }
         if asPlainText ?? Self.resolvePlainText(), Self.supportsPlainText(item) {
             pastePlainText(item: item)
             return
@@ -84,6 +127,17 @@ struct PasteService {
                 pasteboard.setString(text, forType: .string)
             }
 
+        case .files:
+            // Written on the first paste and reused while the files are there: Paste Stack staging reads no rawData.
+            do {
+                let urls = try FileBundle.reusable(Self.writtenFiles[item.id])
+                    ?? FileBundle.write(item.rawData, to: Self.filesDirectory(for: item.id))
+                Self.writtenFiles[item.id] = urls
+                pasteboard.writeObjects(urls.map { $0 as NSURL })
+            } catch {
+                Self.log.error("Files of \(item.id, privacy: .public) not written: \(error.localizedDescription, privacy: .public)")
+            }
+
         case .color:
             if let text = item.textContent {
                 pasteboard.setString(text, forType: .string)
@@ -96,6 +150,10 @@ struct PasteService {
 
     func pastePlainText(item: ClipboardItem) {
         guard let text = item.textContent else { return }
+        pastePlainText(text)
+    }
+
+    func pastePlainText(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)

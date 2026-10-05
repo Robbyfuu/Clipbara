@@ -186,6 +186,7 @@ private struct RecentClipThumbnail: View {
             }
         }
         .clipShape(.rect(cornerRadius: 8))
+        .privacySensitive()
         .accessibilityElement().accessibilityLabel("Image")
     }
 }

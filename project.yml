@@ -72,6 +72,8 @@ targets:
       - path: CopydKeyboard/KeyboardView.swift
       # DEBUG-only -CopydWidgetPreview harness renders the widget views inside the app.
       - path: CopydWidget/RecentClipsViews.swift
+      # DEBUG-only -CopydLiveActivityPreview harness renders the Live Activity views inside the app.
+      - path: CopydWidget/LatestClipLiveActivity.swift
       # DEBUG-only -CopydSharePreview harness renders the share sheet inside the app.
       - path: CopydShare/ShareView.swift
     resources:
@@ -200,11 +202,18 @@ targets:
       - path: Copyd/Utilities/PanelGeometry.swift
       - path: Copyd/Utilities/PanelTabShortcut.swift
       - path: Copyd/Utilities/QuickPasteShortcut.swift
+      - path: Copyd/Utilities/MultiPaste.swift
+      - path: Copyd/Utilities/PasteStack.swift
+      - path: Copyd/Utilities/AutoPastePolicy.swift
+      - path: Copyd/SearchState.swift
       - path: Shared/Design/PinboardDot.swift
       - path: Copyd/Utilities/WheelScrollTranslation.swift
       - path: Copyd/Utilities/ReviewPromptPolicy.swift
       - path: Copyd/Utilities/AccessPolicy.swift
+      - path: Copyd/Utilities/LaunchGuard.swift
+      - path: Copyd/Services/ContentTypeClassifier.swift
       - path: Shared/Utilities/Thumbnail.swift
+      - path: Shared/Utilities/FileBundle.swift
       - path: Shared/Utilities/PasteboardImage.swift
       - path: Shared/Sync/AssetCrypto.swift
       - path: Shared/Sync/SyncRecordMapper.swift
@@ -215,6 +224,7 @@ targets:
       - path: Shared/Sync/LocalChangeTracker.swift
       - path: Shared/Sync/RemoteApplier.swift
       - path: Shared/Utilities/SharedDefaults.swift
+      - path: Shared/Utilities/PermissionStatus.swift
       - path: Shared/Utilities/SharedStore.swift
       - path: Shared/Utilities/KeyboardFeed.swift
       - path: Shared/Utilities/PasteAction.swift
@@ -226,6 +236,10 @@ targets:
       - path: Shared/Utilities/LatestClip.swift
       - path: Shared/Utilities/SaveText.swift
       - path: Shared/Utilities/Inbox.swift
+      - path: Shared/Utilities/ArrivalNotice.swift
+      - path: Shared/Utilities/LatestClipActivity.swift
+      # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
+      - path: CopydiOS/Resources/Localizable.xcstrings
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.tests

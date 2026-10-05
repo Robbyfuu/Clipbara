@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import UniformTypeIdentifiers
 
 struct ContentTypeClassifier: Sendable {
@@ -7,10 +8,33 @@ struct ContentTypeClassifier: Sendable {
         let contentType: ContentType
         let rawData: Data
         let textContent: String?
+        /// Universal Clipboard brought this copy from another device (`ClipboardItem.fromUniversalClipboard`).
+        var fromUniversalClipboard = false
+        /// Copied files that `readingFiles()` reads into a `.files` clip. The rest is the local file clip kept when they can't be.
+        var fileURLs: [URL]? = nil
+
+        /// The copied files as a `.files` clip, or this content when there are none or they can't be read.
+        /// Reads up to 48 MB: call it off the main thread.
+        func readingFiles() -> ClassifiedContent {
+            guard let fileURLs, var files = ContentTypeClassifier.readFiles(fileURLs) else { return self }
+            files.fromUniversalClipboard = fromUniversalClipboard
+            return files
+        }
     }
+
+    /// Universal Clipboard adds this type to what it brings from another device; Maccy reads the same marker for its
+    /// "ignore Universal Clipboard" option. Not yet seen on the user's own devices, where UC was not delivering when
+    /// this was written: if the iPhone still announces its own copies, check that the type is really there.
+    static let universalClipboardType = NSPasteboard.PasteboardType("com.apple.is-remote-clipboard")
 
     func classify(_ pasteboard: NSPasteboard) -> ClassifiedContent? {
         let types = pasteboard.types ?? []
+        guard var content = classify(pasteboard, types: types) else { return nil }
+        content.fromUniversalClipboard = types.contains(Self.universalClipboardType)
+        return content
+    }
+
+    private func classify(_ pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> ClassifiedContent? {
 
         // Check for transient/concealed content (password managers, etc.)
         if types.contains(NSPasteboard.PasteboardType("org.nspasteboard.TransientType")) ||
@@ -37,6 +61,19 @@ struct ContentTypeClassifier: Sendable {
             }
         }
 
+        // Files: read into a bundle that syncs, later and off the main thread (`readingFiles`). Until then, and for folders,
+        // packages, unreadable or oversized files, the copy is what follows: a local path.
+        let rest = Self.classifyRest(pasteboard, types: types)
+        if types.contains(.fileURL), var fallback = rest,
+           let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
+            fallback.fileURLs = urls
+            return fallback
+        }
+        return rest
+    }
+
+    /// File URL, URL, HTML, rich text and plain text.
+    private static func classifyRest(_ pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> ClassifiedContent? {
         // File URL
         if types.contains(.fileURL),
            let urlString = pasteboard.string(forType: .fileURL),
@@ -83,6 +120,38 @@ struct ContentTypeClassifier: Sendable {
         }
 
         return nil
+    }
+
+    private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Capture")
+
+    /// A `.files` clip when every URL is a local, downloaded regular file within `FileBundle`'s limits and readable,
+    /// else nil. The sandbox grants pasteboard file URLs; the scoped access covers URLs that carry a security scope.
+    private static func readFiles(_ urls: [URL]) -> ClassifiedContent? {
+        let scoped = urls.filter { $0.startAccessingSecurityScopedResource() }
+        defer { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .contentTypeKey,
+                                         .ubiquitousItemDownloadingStatusKey, .volumeIsLocalKey]
+        let values = urls.compactMap { try? $0.resourceValues(forKeys: keys) }
+        let sizes = values.compactMap { $0.isRegularFile == true ? $0.fileSize : nil }
+        // Never read a file that isn't downloaded from iCloud Drive or sits on a network volume.
+        let local = values.allSatisfy {
+            FileBundle.isLocal(downloadingStatus: $0.ubiquitousItemDownloadingStatus, volumeIsLocal: $0.volumeIsLocal)
+        }
+        guard sizes.count == urls.count, local, FileBundle.withinLimits(sizes: sizes) else {
+            log.notice("Copied \(urls.count, privacy: .public) file(s) kept as a local file clip: folder, unreadable, not local or over the limits")
+            return nil
+        }
+        do {
+            let files = try zip(urls, values).map { url, v in
+                (name: url.lastPathComponent, data: try Data(contentsOf: url, options: .mappedIfSafe),
+                 uti: (v.contentType ?? .data).identifier)
+            }
+            return ClassifiedContent(contentType: .files, rawData: try FileBundle.encode(files),
+                                     textContent: files.map(\.name).joined(separator: ", "))
+        } catch {
+            log.error("Copied files not readable, kept as a local file clip: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 }
 

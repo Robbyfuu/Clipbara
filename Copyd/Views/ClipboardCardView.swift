@@ -8,12 +8,17 @@ struct ClipboardCardView: View {
     var searchText: String = ""
     var pinboards: [Pinboard] = []
     var quickPasteNumber: Int? = nil
+    /// Position in the multi-selection, shown as a badge.
+    var selectionNumber: Int? = nil
     var enableDrag: Bool = true
     var showsManagementMenu: Bool = true
     let onSelect: (ClipboardItem) -> Void
     let onPaste: (ClipboardItem) -> Void
     var onDelete: (() -> Void)? = nil
     var onRemoveFromPinboard: (() -> Void)? = nil
+    /// ⌘-click and ⇧-click pick cards for a joined paste instead of pasting this one.
+    var onCommandClick: (() -> Void)? = nil
+    var onShiftClick: (() -> Void)? = nil
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -132,7 +137,7 @@ struct ClipboardCardView: View {
                     .padding(-DesignTokens.Card.ringWidth)
             }
         }
-        .overlay(alignment: .topLeading) { numberBadge }
+        .overlay(alignment: .topTrailing) { numberBadge }
         .shadow(
             color: .black.opacity(isHovered ? DesignTokens.Selection.hoverShadowOpacity : DesignTokens.Selection.defaultShadowOpacity),
             radius: isHovered ? DesignTokens.Selection.hoverShadowRadius : DesignTokens.Selection.defaultShadowRadius,
@@ -146,15 +151,26 @@ struct ClipboardCardView: View {
         .animation(.easeInOut(duration: 0.15), value: isSelected)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityLabel(accessibilityDescription)
         .task(id: item.id) {
             imageDimensions = item.contentType == .image ? Self.pixelSize(of: item.rawData) : nil
         }
     }
 
+    /// The selection number wins over the ⌘-number hint, which only shows while ⌘ is held.
     @ViewBuilder
     private var numberBadge: some View {
-        if let number = quickPasteNumber, appState.isCommandHeld,
+        if let selectionNumber {
+            Text(verbatim: "\(selectionNumber)")
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(DesignTokens.Brand.onButter)
+                .frame(minWidth: 20, minHeight: 20)
+                .background(DesignTokens.Brand.butter, in: Circle())
+                .overlay(Circle().strokeBorder(DesignTokens.Brand.card, lineWidth: 1.5))
+                .offset(x: 6, y: -6)
+                .accessibilityHidden(true)
+        } else if let number = quickPasteNumber, appState.isCommandHeld,
            let hint = QuickPasteShortcut.hint(number: number) {
             Text(hint)
                 .font(.system(size: 11, weight: .semibold))
@@ -162,7 +178,7 @@ struct ClipboardCardView: View {
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)
                 .background(DesignTokens.Brand.butter, in: Capsule())
-                .offset(x: -6, y: -6)
+                .offset(x: 6, y: -6)
                 .accessibilityHidden(true)
         }
     }
@@ -174,7 +190,7 @@ struct ClipboardCardView: View {
         case .url:
             let text = item.textContent ?? ""
             return URL(string: text)?.host ?? text
-        case .color, .fileURL:
+        case .color, .fileURL, .files:
             return item.textContent ?? ""
         default:
             return String((item.textContent ?? "").prefix(60))
@@ -197,6 +213,11 @@ struct ClipboardCardView: View {
     }
 
     private func handleTap() {
+        switch NSEvent.modifierFlags.intersection([.command, .option, .control, .shift]) {
+        case .command where onCommandClick != nil: onCommandClick?(); return
+        case .shift where onShiftClick != nil: onShiftClick?(); return
+        default: break
+        }
         onSelect(item)
         onPaste(item)
     }
@@ -284,6 +305,8 @@ struct ClipboardCardView: View {
             return item.sourceAppName ?? String(localized: "Link")
         case .fileURL:
             return String(localized: "Stays on this Mac")
+        case .files:
+            return item.filesSizeText
         case .image:
             let size = ByteCountFormatter.string(fromByteCount: Int64(item.rawData.count), countStyle: .file)
             guard let dims = imageDimensions else { return size }
@@ -310,7 +333,7 @@ struct ClipboardCardView: View {
             ImageCardContent(item: item)
         case .url:
             LinkCardContent(item: item, searchText: searchText)
-        case .fileURL:
+        case .fileURL, .files:
             FileCardContent(item: item, searchText: searchText)
         case .color:
             ColorCardContent(item: item)

@@ -48,7 +48,7 @@ The visible rename (display name, strings, icon) is out of scope for this spec.
 
 | Local model | Syncs | Notes |
 |---|---|---|
-| `ClipboardItem` | Yes | Except `.fileURL` clips and clips whose `rawData` exceeds 20 MB. |
+| `ClipboardItem` | Yes | Except `.fileURL` clips and clips whose `rawData` exceeds 20 MB. A `.files` clip (copied files) syncs up to 48 MB of file data in total: at most 10 files of 20 MB each, and 49 MB with its manifest. A copy over any of these limits stays a local `.fileURL` clip. |
 | `Pinboard` | Yes | |
 | `PinboardEntry` | Yes | Only when its clip is synced. Entries pointing at a local-only clip stay local. |
 | `ExcludedApp` | No | Per-device choice. |
@@ -87,12 +87,16 @@ It is optional with no default, so SwiftData migrates the store lightweight. No 
 | `assetKey` | encrypted | Data (32 bytes), present when `rawData` or `textContent` > 256 KB |
 | `payload` | plain | `CKAsset`, present when `rawData` > 256 KB |
 | `textPayload` | plain | `CKAsset`, present when `textContent` (UTF-8) > 256 KB |
+| `fileManifest` | encrypted | Data?, JSON `[{name, size, uti}]`, present only for `.files` clips |
+| `fromUniversalClipboard` | encrypted | Int64 (0/1): the Mac captured the copy from Universal Clipboard. Missing on older records, read as 0 |
 
 `payload` holds `rawData` sealed with AES-GCM (CryptoKit) under a random per-clip key stored in `assetKey`. CloudKit encrypts assets at rest on its own, but only Advanced Data Protection makes that end-to-end; sealing the file first keeps clip content end-to-end encrypted for every user.
 
 `textPayload` holds a large `textContent` sealed the same way under the same `assetKey`; without it, a text clip over about 1 MB would carry its full text inline and exceed the record limit.
 
 The 256 KB threshold keeps every record well under CloudKit's 1 MB record limit.
+
+Size caps: a clip's `rawData` is at most 20 MB, except a `.files` clip, whose bundle holds at most 48 MB of file data (10 files of 20 MB each, 48 MB in all) plus its manifest, 49 MB at most. That keeps every `payload` under CloudKit's documented 50 MB asset limit and inside one 50 MB upload batch. A larger copy stays local. The receiving device stores `fileManifest` with the clip (`fileManifestData`), so its cards show names and sizes without opening `payload`.
 
 `rawData` bytes are platform-neutral, so an iOS client can decode them: UTF-8 text for `plainText`, `url`, `html` and `color` (hex), RTF for `richText`, and the captured TIFF/PNG/JPEG bytes for `image`.
 
@@ -123,7 +127,7 @@ New folder `Clipbara/Sync/`.
 
 | Unit | Responsibility |
 |---|---|
-| `SyncRecordMapper` | `ClipSnapshot` / `PinboardSnapshot` / `EntrySnapshot` value types ↔ `CKRecord`. Applies the inline-or-asset rule and the eligibility rule (no `.fileURL`, ≤ 20 MB). |
+| `SyncRecordMapper` | `ClipSnapshot` / `PinboardSnapshot` / `EntrySnapshot` value types ↔ `CKRecord`. Applies the inline-or-asset rule and the eligibility rule (no `.fileURL`, ≤ 20 MB, or ≤ 49 MB for a `.files` bundle). |
 | `AssetCrypto` | AES-GCM seal and open of the asset payload with a per-clip key. |
 | `DuplicateRule` | Decides whether two clips are duplicates and which one survives. |
 
@@ -188,7 +192,7 @@ When the user copies on Mac A, Handoff also places the content on Mac B's pasteb
 
 - **Duplicates:** two clips with the same `contentHash` whose `copiedAt` values are at most 60 seconds apart.
 - **Survivor:** the clip whose `id.uuidString` sorts first. Every device applies the same rule, so all devices converge on the same survivor.
-- **Merge:** survivor `isPinned` = `a || b`; survivor `userTitle` = survivor's, or the other's when the survivor's is nil. The loser's pinboard entries move to the survivor (an entry is deleted instead when the survivor is already in that pinboard).
+- **Merge:** survivor `isPinned` = `a || b`; survivor `userTitle` = survivor's, or the other's when the survivor's is nil; survivor `fromUniversalClipboard` = `a && b`, so a real copy wins over its relayed twin. The loser's pinboard entries move to the survivor (an entry is deleted instead when the survivor is already in that pinboard).
 - **Loser:** deleted locally, with `.deleteRecord` queued. An `unknownItem` answer means another device already deleted it, which is fine.
 - **When it runs:** for each incoming clip, against local clips with the same hash.
 
