@@ -62,7 +62,7 @@ final class AppModel {
         Self.seedOCRImageIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
-        sync = CloudSyncEngine(container: container) { Self.reloadWidgets() }
+        sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied() }
         // The text read in an image never syncs, so its save queues no upload.
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
@@ -265,6 +265,13 @@ final class AppModel {
     }
 
     /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.
+    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read. A background push
+    /// wake reads nothing; the next return to the foreground does. Called by the engine after `shared` exists.
+    private static func remoteChangesApplied() {
+        reloadWidgets()
+        if UIApplication.shared.applicationState == .active { shared.imageText.fill() }
+    }
+
     static func reloadWidgets() {
         WidgetCenter.shared.reloadAllTimelines()
     }

@@ -73,13 +73,16 @@ final class OCRPlanTests: XCTestCase {
     }
 
     func testRecognizerReadsTheTextInAnImage() throws {
-        let text = try XCTUnwrap(ImageTextRecognizer.text(in: OCRImage.png(text: "Copyd OCR test")))
+        guard case .text(let text?) = ImageTextRecognizer.text(in: OCRImage.png(text: "Copyd OCR test")) else {
+            return XCTFail("no text")
+        }
         XCTAssertTrue(text.localizedCaseInsensitiveContains("Copyd OCR test"), text)
     }
 
+    /// No text, or data that is not an image, is a finished read: never retried.
     func testRecognizerFindsNoTextInABlankImage() {
-        XCTAssertNil(ImageTextRecognizer.text(in: OCRImage.png(width: 600, height: 300)))
-        XCTAssertNil(ImageTextRecognizer.text(in: Data("not an image".utf8)))
+        XCTAssertEqual(ImageTextRecognizer.text(in: OCRImage.png(width: 600, height: 300)), .text(nil))
+        XCTAssertEqual(ImageTextRecognizer.text(in: Data("not an image".utf8)), .text(nil))
     }
 }
 
@@ -87,6 +90,7 @@ final class OCRPlanTests: XCTestCase {
 final class ImageTextQueueTests: XCTestCase {
     private var container: ModelContainer!
     private var saves: [Set<UUID>] = []
+    private var titleWasSaved: Bool?
 
     override func setUp() async throws {
         container = try ModelContainer(
@@ -102,11 +106,18 @@ final class ImageTextQueueTests: XCTestCase {
         return item
     }
 
-    private func makeQueue() -> ImageTextQueue {
-        ImageTextQueue(container: container) { [unowned self] ids in
+    private func makeQueue(recognize: (@Sendable (Data) -> ImageTextRecognizer.Outcome)? = nil) -> ImageTextQueue {
+        let save: @MainActor (Set<UUID>) -> Void = { [unowned self] ids in
             saves.append(ids)
             try? container.mainContext.save()
         }
+        guard let recognize else { return ImageTextQueue(container: container, save: save) }
+        return ImageTextQueue(container: container, recognize: recognize, save: save)
+    }
+
+    /// Waits for the pass and any pass a `fill` queued behind it.
+    private func finish(_ queue: ImageTextQueue) async {
+        while let task = queue.task { await task.value }
     }
 
     func testFillReadsNewImagesAndMarksEachOneDone() async throws {
@@ -136,14 +147,119 @@ final class ImageTextQueueTests: XCTestCase {
         XCTAssertEqual(saves.count, 1)
     }
 
-    func testStopEndsThePass() async throws {
-        let image = try insert(.image, OCRImage.png(text: "Copyd OCR test"))
-        let queue = makeQueue()
-        queue.fill()
-        queue.stop()
-        await queue.task?.value
+    /// A Vision error is not a read: the clip stays unread for the next `fill`, and the pass never reads it again,
+    /// even across batches.
+    func testFailedReadIsRetriedByTheNextFillOnly() async throws {
+        let failing = Data([0])
+        let others = try (1...11).map { try insert(.image, Data([UInt8($0)])) }
+        let image = try insert(.image, failing)
+        let reads = Reads()
+        let broken = makeQueue { data in
+            reads.add(data)
+            return data == failing ? .failed : .text("ok")
+        }
+        broken.fill()
+        await finish(broken)
         XCTAssertFalse(image.ocrDone)
-        XCTAssertEqual(saves, [])
+        XCTAssertNil(image.ocrText)
+        XCTAssertEqual(reads.count(of: failing), 1, "once per pass, not once per batch")
+        XCTAssertTrue(others.allSatisfy(\.ocrDone))
+
+        let fixed = makeQueue { _ in .text("Copyd OCR test") }
+        fixed.fill()
+        await finish(fixed)
+        XCTAssertTrue(image.ocrDone)
+        XCTAssertEqual(image.ocrText, "Copyd OCR test")
+    }
+
+    func testEmptyReadIsDone() async throws {
+        let image = try insert(.image, Data([1]))
+        let queue = makeQueue { _ in .text(nil) }
+        queue.fill()
+        await finish(queue)
+        XCTAssertTrue(image.ocrDone)
+        XCTAssertNil(image.ocrText)
+    }
+
+    /// A user change still pending on the main context is saved first, by a save the sync tracker reports.
+    func testPendingChangesAreSavedBeforeTheLocalOnlySave() async throws {
+        let image = try insert(.image, Data([1]))
+        let note = try insert(.plainText, Data("n".utf8), text: "n")
+        let id = note.id
+        let queue = ImageTextQueue(container: container, recognize: { _ in .text("t") }) { [unowned self] _ in
+            let fresh = try? ModelContext(container).fetch(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })).first
+            titleWasSaved = fresh?.userTitle == "renamed"
+            try? container.mainContext.save()
+        }
+        queue.fill()
+        note.userTitle = "renamed"  // unsaved when the pass writes
+        await finish(queue)
+        XCTAssertTrue(image.ocrDone)
+        XCTAssertEqual(titleWasSaved, true)
+    }
+
+    func testStopMidPassKeepsWhatItReadAndReadsNoMore() async throws {
+        let older = try insert(.image, Data([1]))
+        let newer = try insert(.image, Data([2]))
+        let gate = Gate()
+        let queue = makeQueue { data in gate.enter(); return .text("t\(data[0])") }
+        queue.fill()
+        await gate.waitUntilEntered()
+        queue.stop()
+        gate.open()
+        await finish(queue)
+        XCTAssertTrue(newer.ocrDone, "the image being read is kept")
+        XCTAssertFalse(older.ocrDone)
+        XCTAssertEqual(gate.entries, 1)
+    }
+
+    /// `fill` right after `stop`, while the stopped pass still reads its image, restarts once that image is done.
+    func testFillAfterStopMidPassRestartsAndCompletes() async throws {
+        let older = try insert(.image, Data([1]))
+        let newer = try insert(.image, Data([2]))
+        let gate = Gate()
+        let queue = makeQueue { data in gate.enter(); return .text("t\(data[0])") }
+        queue.fill()
+        await gate.waitUntilEntered()
+        queue.stop()
+        queue.fill()
+        gate.open()
+        await finish(queue)
+        XCTAssertEqual(newer.ocrText, "t2")
+        XCTAssertEqual(older.ocrText, "t1")
+        XCTAssertEqual(gate.entries, 2, "each image read once")
+    }
+}
+
+/// The recognizer's inputs, from any thread.
+private final class Reads: @unchecked Sendable {
+    private let lock = NSLock()
+    private var all: [Data] = []
+    func add(_ data: Data) { lock.withLock { all.append(data) } }
+    func count(of data: Data) -> Int { lock.withLock { all.filter { $0 == data }.count } }
+}
+
+/// Holds the recognizer inside its first read until `open`, so a test can stop the pass mid-read.
+private final class Gate: @unchecked Sendable {
+    private let lock = NSLock()
+    private let released = DispatchSemaphore(value: 0)
+    private var count = 0
+    private var isOpen = false
+
+    var entries: Int { lock.withLock { count } }
+
+    func enter() {
+        let wait = lock.withLock { count += 1; return !isOpen }
+        if wait { released.wait() }
+    }
+
+    func open() {
+        lock.withLock { isOpen = true }
+        released.signal()
+    }
+
+    func waitUntilEntered() async {
+        while entries == 0 { try? await Task.sleep(for: .milliseconds(5)) }
     }
 }
 
