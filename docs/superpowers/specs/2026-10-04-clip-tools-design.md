@@ -87,6 +87,7 @@
   - It is deleted automatically after the chosen time. Settings offers 1, 5 (default), 15 or 60 minutes, or Never. A sweep runs on a timer while the app runs, and again at launch.
 - **Setting:** "Protect secrets" / "Proteger secretos", on by default.
 - **Already-synced clips:** detection runs only on new captures. A one-time pass over local history can mark old clips as sensitive and offer to delete them, but that is out of scope for now.
+  - Images are never secrets, and their recognized text is not scanned (the detector needs the whole copy to be the key; the pixels already sync; `ocrText` never leaves the device).
 
 ## 4. Testing
 
