@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Clipbara/Resources/Assets.xcassets/AppIcon.appiconset/256.png" width="128" height="128" alt="Clipbara icon">
+  <img src="Copyd/Resources/Assets.xcassets/AppIcon.appiconset/256.png" width="128" height="128" alt="Copyd icon">
 </p>
 
-<h1 align="center">Clipbara</h1>
+<h1 align="center">Copyd</h1>
 
 <p align="center">
   A clipboard manager for macOS. Everything you copy stays on your Mac.
@@ -13,61 +13,35 @@
 </p>
 
 <p align="center">
-  <a href="https://apps.apple.com/app/apple-store/id6803537696?pt=129317403&amp;ct=github_readme&amp;mt=8"><img src="https://img.shields.io/badge/Mac%20App%20Store-Free%20until%20Oct%202-0D96F6?style=flat-square&logo=apple&logoColor=white" alt="Clipbara on the Mac App Store"></a>
-  <a href="https://github.com/mobrava/Clipbara/releases/latest"><img src="https://img.shields.io/github/v/release/mobrava/Clipbara?style=flat-square" alt="Latest release"></a>
-  <a href="https://github.com/mobrava/Clipbara/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/mobrava/Clipbara/build.yml?branch=main&style=flat-square" alt="Build status"></a>
-  <a href="https://github.com/mobrava/Clipbara/releases"><img src="https://img.shields.io/github/downloads/mobrava/Clipbara/total?style=flat-square" alt="Total downloads"></a>
-  <a href="https://github.com/mobrava/Clipbara/stargazers"><img src="https://img.shields.io/github/stars/mobrava/Clipbara?style=flat-square" alt="GitHub stars"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/mobrava/Clipbara?style=flat-square" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Robbyfuu/Clipbara?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square" alt="macOS 14 or later">
 </p>
 
-<p align="center">
-  <a href="https://apps.apple.com/app/apple-store/id6803537696?pt=129317403&amp;ct=github_readme&amp;mt=8"><strong>Get it on the Mac App Store</strong></a>
-  &nbsp;·&nbsp;
-  <a href="https://github.com/mobrava/Clipbara/releases/latest"><strong>Download the DMG</strong></a>
-</p>
+Copyd keeps a history of what you copy. Press `⌘ ⇧ V` and a panel slides up at the bottom of the screen without pulling focus from the app you are in. Click a clip once and it is back on your clipboard.
 
-<p align="center">
-  <strong>The Mac App Store build is free until October 2.</strong> Get it this week and it stays yours.
-</p>
+Copyd is a fork of [Clipbara](https://github.com/mobrava/Clipbara) by mobrava, licensed under GPL-3.0.
 
-<p align="center">
-  <img src="docs/assets/pasteclip-demo.gif" width="800" alt="Clipbara demo: press Cmd Shift V, click a clip once, and it is on your clipboard ready to paste">
-</p>
-
-Clipbara keeps a history of what you copy. Press `⌘ ⇧ V` and a panel slides up at the bottom of the screen without pulling focus from the app you are in. Click a clip once and it is back on your clipboard.
-
-It runs on macOS 14 Sonoma or later. The DMG and Homebrew builds are free. The Mac App Store build is a one-time purchase.
+It runs on macOS 14 Sonoma or later.
 
 ## Install
 
-### Mac App Store
+### Build from source
 
-[**Download Clipbara on the Mac App Store**](https://apps.apple.com/app/apple-store/id6803537696?pt=129317403&ct=github_readme&mt=8)
-
-### Homebrew
+Requires macOS 14 or later, Xcode 16 or later, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```bash
-brew install --cask mobrava/tap/clipbara
+git clone https://github.com/Robbyfuu/Clipbara.git ~/Code/Copyd && cd ~/Code/Copyd
+brew install xcodegen
+xcodegen generate
+xcodebuild -project Copyd.xcodeproj -scheme Copyd -configuration Debug -derivedDataPath DerivedData -allowProvisioningUpdates build
+open -n "$PWD/DerivedData/Build/Products/Debug/Copyd.app"
 ```
 
-### Direct download
+You can also open `Copyd.xcodeproj` and run the `Copyd` scheme with <kbd>⌘</kbd> <kbd>R</kbd>. The app is Swift 6 with strict concurrency on, SwiftUI hosted inside an AppKit `NSPanel`, and SwiftData for storage. Global shortcuts come from [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts).
 
-Download the latest `.dmg` from [Releases](https://github.com/mobrava/Clipbara/releases/latest), open it, and drag the app into Applications. The DMG is signed with an Apple Developer ID and notarized by Apple as of v1.1.11, so it opens without a security warning.
+### Mac App Store
 
-<details>
-<summary><strong>App Store build or DMG build?</strong></summary>
-
-Both are built from this repository. The App Store build is a one-time purchase, is sandboxed, and updates through the App Store. New releases reach it first. The DMG build is free, updates itself through Sparkle, and gets each release a few weeks later.
-
-The App Store build is not offered in EU storefronts. If you are in the EU, use the DMG or Homebrew build.
-
-The two use different bundle identifiers, so they keep separate histories. To carry your clips across, open **Settings > General > Backup > Export** in one build and **Import** in the other. Existing clips are kept and duplicates are skipped.
-
-Run only one of them. Two copies register `⌘ ⇧ V` twice and open two panels.
-
-</details>
+App Store build coming.
 
 ## Usage
 
@@ -98,31 +72,19 @@ Both global shortcuts and the Quick Look key can be changed in **Settings > Shor
 - History limit, appearance, and launch at login
 - JSON export and import for moving between machines or builds
 
-## Screenshots
-
-<p align="center">
-  <img src="docs/assets/screenshot-history-panel.png" width="900" alt="Clipbara history panel with clipboard cards at the bottom of the screen">
-</p>
-
-<p align="center">
-  <img src="docs/assets/screenshot-menubar.png" width="320" alt="Clipbara menu bar dropdown with recent copies">
-  &nbsp;&nbsp;
-  <img src="docs/assets/screenshot-settings.png" width="420" alt="Clipbara settings window">
-</p>
-
 ## Privacy
 
 History is stored on your Mac with SwiftData and stays there. No account, no server, no analytics.
 
-Capture, search, preview, and paste all work offline. The DMG build reaches the network for one thing, Sparkle update checks, and the App Store build ships without an updater.
+Capture, search, preview, and paste all work offline. Copyd ships without an updater.
 
 Add a password manager, or any other app, under **Settings > Exclusions** and nothing copied from it is recorded.
 
 ## FAQ
 
-### Why doesn't Clipbara paste into the app for me?
+### Why doesn't Copyd paste into the app for me?
 
-Picking a clip puts it on the clipboard and closes the panel, then you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Pasting on your behalf means synthesizing keystrokes into whatever app is in front, which needs an extra system permission to control other applications. Clipbara neither asks for it nor links against those APIs.
+Picking a clip puts it on the clipboard and closes the panel, then you press <kbd>⌘</kbd> <kbd>V</kbd> yourself. Pasting on your behalf means synthesizing keystrokes into whatever app is in front, which needs an extra system permission to control other applications. Copyd neither asks for it nor links against those APIs.
 
 ### The shortcut does not open the panel
 
@@ -134,33 +96,11 @@ Selecting an image clip puts the image back on the macOS clipboard, but a shell 
 
 ### Where does the history live, and how do I remove it?
 
-The DMG build stores it in `~/Library/Application Support/com.minsang.PasteClip`. The App Store build is sandboxed, so it stores it in `~/Library/Containers/com.minsang.Clipbara`. Deleting that folder deletes the history.
+Copyd is sandboxed, so it stores the history in `~/Library/Containers/com.robbyfuu.copyd`. Deleting that folder deletes the history. To uninstall, drag the app to the Trash.
 
-To uninstall, drag the app to the Trash, or run `brew uninstall --cask mobrava/tap/clipbara` if you installed it with Homebrew.
+### Can I import my Clipbara history?
 
-### Wasn't this called PasteClip?
-
-It was, until August 2026. An unrelated app on the Mac App Store already used that name. Releases up to v1.1.11 still ship as PasteClip, and old links redirect on their own.
-
-## Build from source
-
-Requires macOS 14 or later, Xcode 16 or later, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-
-```bash
-git clone https://github.com/mobrava/Clipbara.git
-cd Clipbara
-brew install xcodegen
-xcodegen generate
-open Clipbara.xcodeproj
-```
-
-Build and run the `Clipbara` scheme with <kbd>⌘</kbd> <kbd>R</kbd>. The app is Swift 6 with strict concurrency on, SwiftUI hosted inside an AppKit `NSPanel`, and SwiftData for storage. Global shortcuts come from [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts), and DMG updates from [Sparkle](https://github.com/sparkle-project/Sparkle).
-
-## Motivation
-
-I wanted the card-style clipboard history that Paste has, without the subscription. The code and the DMG build stay free here. The App Store build is a one-time purchase for anyone who wants updates first and through the App Store, or who wants to support the work.
-
-A clipboard manager sees everything you copy, including the things you would rather it did not. That is reason enough to be able to read the code that touches it.
+Yes. Export a JSON backup from Clipbara with **Settings > General > Backup > Export**, then use **Import** in Copyd. Existing clips are kept and duplicates are skipped.
 
 ## Contributing
 
@@ -168,8 +108,4 @@ Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers 
 
 ## License
 
-Clipbara is available under the [GNU General Public License v3.0](LICENSE).
-
-The Mac App Store edition is distributed by the copyright holder under a separate
-proprietary license (dual licensing). The source code for both editions lives in
-this repository.
+Copyd is a fork of [Clipbara](https://github.com/mobrava/Clipbara) by mobrava, licensed under GPL-3.0. See [LICENSE](LICENSE).

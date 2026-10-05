@@ -1,0 +1,204 @@
+import SwiftUI
+import SwiftData
+import UniformTypeIdentifiers
+
+struct PinboardGridView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.modelContext) private var modelContext
+
+    let pinboardId: UUID
+
+    @Query(sort: \Pinboard.displayOrder) private var allPinboards: [Pinboard]
+
+    @State private var orderedEntries: [PinboardEntry] = []
+    @State private var draggingEntry: PinboardEntry?
+    @State private var lastOffset: CGFloat = 0
+
+    private var pinboard: Pinboard? {
+        allPinboards.first { $0.id == pinboardId }
+    }
+
+    var body: some View {
+        Group {
+            if orderedEntries.isEmpty {
+                PanelEmptyState(
+                    title: "Empty Pinboard",
+                    systemImage: "pin.slash",
+                    message: "Drag clips here or use the card menu"
+                )
+            } else {
+                Group {
+                    let rows = [GridItem(.fixed(DesignTokens.Card.height))]
+                    let pinboardItems = orderedEntries.compactMap(\.clipboardItem)
+
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHGrid(rows: rows, spacing: DesignTokens.Card.gridSpacing) {
+                                ForEach(Array(orderedEntries.enumerated()), id: \.element.id) { index, entry in
+                                    if let item = entry.clipboardItem {
+                                        cardView(
+                                            entry: entry,
+                                            item: item,
+                                            index: index
+                                        )
+                                        .id(entry.id)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DesignTokens.Card.gridLeadingPadding)
+                            .padding(.vertical, 8)
+                            .trackScrollOffset(space: "pinboardGridScroll") { offset in
+                                lastOffset = offset
+                                syncFirstVisibleIndex()
+                            }
+                        }
+                        .coordinateSpace(name: "pinboardGridScroll")
+                        .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
+                            if let idx = newIndex, idx < orderedEntries.count {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    proxy.scrollTo(orderedEntries[idx].id, anchor: .center)
+                                }
+                            }
+                        }
+                    }
+                    .onAppear {
+                        syncNavigationItems(pinboardItems)
+                    }
+                    .onChange(of: orderedEntries.map(\.id)) { _, _ in
+                        syncNavigationItems(orderedEntries.compactMap(\.clipboardItem))
+                    }
+                }
+            }
+        }
+        .onAppear { syncEntries() }
+        .onChange(of: appState.selectedTab) { _, newTab in
+            if newTab == .pinboard(pinboardId) { syncFirstVisibleIndex() }
+        }
+        .onChange(of: pinboard?.entries.count) { _, _ in syncEntries() }
+        .onChange(of: appState.panelPresentationID) { _, _ in
+            if appState.selectedTab == .pinboard(pinboardId) {
+                syncEntries()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cardView(entry: PinboardEntry, item: ClipboardItem, index: Int) -> some View {
+        let isDragging = draggingEntry?.id == entry.id
+        let n = index - appState.firstVisibleIndex
+
+        ClipboardCardView(
+            item: item,
+            isSelected: appState.searchState.selectedIndex == index,
+            searchText: "",
+            pinboards: allPinboards,
+            quickPasteNumber: (0...8).contains(n) ? n : nil,
+            enableDrag: false,
+            showsManagementMenu: false,
+            onSelect: { _ in
+                appState.searchState.selectedIndex = index
+            },
+            onPaste: { selected in
+                appState.clipboardMonitor.skipNextChange()
+                appState.pasteService.paste(item: selected)
+                appState.hidePanel()
+            },
+            onRemoveFromPinboard: {
+                removeEntry(entry)
+            }
+        )
+        .opacity(isDragging ? 0.3 : 1.0)
+        .scaleEffect(isDragging ? 0.95 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isDragging)
+        .onDrag {
+            draggingEntry = entry
+            return item.dragProvider()
+        }
+        .onDrop(of: [.text], delegate: ReorderDropDelegate(
+            target: entry,
+            orderedEntries: $orderedEntries,
+            draggingEntry: $draggingEntry,
+            commitOrder: commitOrder
+        ))
+    }
+
+    /// Writes the index only while this pinboard is the active tab; re-run on activation.
+    private func syncFirstVisibleIndex() {
+        guard appState.selectedTab == .pinboard(pinboardId) else { return }
+        let index = QuickPasteShortcut.firstVisibleIndex(scrollOffset: lastOffset)
+        if appState.firstVisibleIndex != index { appState.firstVisibleIndex = index }
+    }
+
+    private func syncEntries() {
+        let current = (pinboard?.entries ?? [])
+            .filter { !$0.isDeleted && $0.clipboardItem != nil }
+            .sorted { $0.displayOrder < $1.displayOrder }
+        if orderedEntries.map(\.id) != current.map(\.id) {
+            orderedEntries = current
+        }
+        syncNavigationItems(current.compactMap(\.clipboardItem))
+    }
+
+    private func syncNavigationItems(_ items: [ClipboardItem]) {
+        appState.currentFilteredItems = items
+        appState.searchState.ensureSelection(itemCount: items.count)
+    }
+
+    private func commitOrder() {
+        for (index, entry) in orderedEntries.enumerated() {
+            entry.displayOrder = index
+        }
+    }
+
+    private func removeEntry(_ entry: PinboardEntry) {
+        let removedIndex = orderedEntries.firstIndex { $0.id == entry.id } ?? appState.searchState.selectedIndex ?? 0
+        orderedEntries.removeAll { $0.id == entry.id }
+        modelContext.delete(entry)
+        commitOrder()
+        syncNavigationItems(orderedEntries.compactMap(\.clipboardItem))
+        if !orderedEntries.isEmpty {
+            appState.searchState.selectedIndex = min(removedIndex, orderedEntries.count - 1)
+        }
+        try? modelContext.save()
+    }
+}
+
+// MARK: - DropDelegate
+
+private struct ReorderDropDelegate: DropDelegate {
+    let target: PinboardEntry
+    @Binding var orderedEntries: [PinboardEntry]
+    @Binding var draggingEntry: PinboardEntry?
+    let commitOrder: () -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let source = draggingEntry, source.id != target.id else { return }
+        guard let sourceIndex = orderedEntries.firstIndex(where: { $0.id == source.id }),
+              let destIndex = orderedEntries.firstIndex(where: { $0.id == target.id }) else { return }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            orderedEntries.move(
+                fromOffsets: IndexSet(integer: sourceIndex),
+                toOffset: destIndex > sourceIndex ? destIndex + 1 : destIndex
+            )
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        commitOrder()
+        draggingEntry = nil
+        return true
+    }
+
+    func dropExited(info: DropInfo) {
+        // keep current order
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingEntry != nil
+    }
+}

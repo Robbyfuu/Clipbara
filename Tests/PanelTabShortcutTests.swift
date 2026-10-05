@@ -5,36 +5,36 @@ final class PanelTabShortcutTests: XCTestCase {
     func testNumberRowMapsToVisibleTabOrder() {
         let keys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
         for (index, key) in keys.enumerated() {
-            XCTAssertEqual(PanelTabShortcut.index(keyCode: key, modifiers: .command), index)
+            XCTAssertEqual(PanelTabShortcut.index(keyCode: key, modifiers: [.command, .option]), index)
         }
     }
 
     func testKeypadMapsToTheSameTabs() {
         let keys: [UInt16] = [83, 84, 85, 86, 87, 88, 89, 91, 92]
         for (index, key) in keys.enumerated() {
-            XCTAssertEqual(PanelTabShortcut.index(keyCode: key, modifiers: [.command, .numericPad]), index)
+            XCTAssertEqual(PanelTabShortcut.index(keyCode: key, modifiers: [.command, .option, .numericPad]), index)
         }
     }
 
-    func testRequiresCommand() {
-        for flags: NSEvent.ModifierFlags in [[], .shift, .option, .control, [.control, .shift]] {
+    func testRequiresCommandAndOption() {
+        for flags: NSEvent.ModifierFlags in [[], .command, .option, [.command, .shift], .control] {
             XCTAssertNil(PanelTabShortcut.index(keyCode: 18, modifiers: flags))
         }
     }
 
     func testRejectsExtraChordModifiers() {
-        for extra: NSEvent.ModifierFlags in [.shift, .option, .control, [.shift, .option, .control]] {
-            XCTAssertNil(PanelTabShortcut.index(keyCode: 19, modifiers: [.command, extra]))
+        for extra: NSEvent.ModifierFlags in [.shift, .control, [.shift, .control]] {
+            XCTAssertNil(PanelTabShortcut.index(keyCode: 19, modifiers: [.command, .option, extra]))
         }
     }
 
     func testCapsLockDoesNotDisableShortcut() {
-        XCTAssertEqual(PanelTabShortcut.index(keyCode: 18, modifiers: [.command, .capsLock]), 0)
+        XCTAssertEqual(PanelTabShortcut.index(keyCode: 18, modifiers: [.command, .option, .capsLock]), 0)
     }
 
     func testZeroAndOtherKeysAreNotTabShortcuts() {
         for key: UInt16 in [29, 82, 49, 36, 53, 123, 124, 0] {
-            XCTAssertNil(PanelTabShortcut.index(keyCode: key, modifiers: .command))
+            XCTAssertNil(PanelTabShortcut.index(keyCode: key, modifiers: [.command, .option]))
         }
     }
 
@@ -70,7 +70,7 @@ final class PanelTabShortcutTests: XCTestCase {
 
     func testHintsMatchShortcutRange() {
         for index in 0..<9 {
-            XCTAssertEqual(PanelTabShortcut.hint(at: index), "⌘\(index + 1)")
+            XCTAssertEqual(PanelTabShortcut.hint(at: index), "⌥⌘\(index + 1)")
         }
         XCTAssertNil(PanelTabShortcut.hint(at: -1))
         XCTAssertNil(PanelTabShortcut.hint(at: 9))

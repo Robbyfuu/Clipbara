@@ -1,5 +1,5 @@
 #!/bin/bash
-# Clipbara Mac App Store build pipeline.
+# Copyd Mac App Store build pipeline.
 #
 # Usage:
 #   bash scripts/build-mas.sh            # archive + export signed .pkg (no upload)
@@ -8,7 +8,7 @@
 # Prerequisites (one-time):
 #   - "Apple Distribution: MinSang Kim (5DH57J8HLC)" cert in login keychain
 #   - "3rd Party Mac Developer Installer: MinSang Kim (5DH57J8HLC)" cert in login keychain
-#   - Provisioning profile "Clipbara Mac App Store" installed
+#   - Provisioning profile "Copyd Mac App Store" installed
 #   - ASC API key at ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8
 #   - Issuer ID at ~/.appstoreconnect/issuer_id (single line)
 #   - App record created in App Store Connect (required for upload only)
@@ -23,9 +23,9 @@ export USER="${USER:-$(id -un)}"
 export LOGNAME="${LOGNAME:-$USER}"
 
 TEAM_ID="5DH57J8HLC"
-SCHEME="ClipbaraMAS"
-BUNDLE_ID="com.minsang.Clipbara"
-PROFILE_NAME="Clipbara Mac App Store"
+SCHEME="Copyd"
+BUNDLE_ID="com.robbyfuu.copyd"
+PROFILE_NAME="Copyd Mac App Store"
 APP_CERT="Apple Distribution"
 PKG_CERT="3rd Party Mac Developer Installer"
 ASC_KEY_ID="${ASC_KEY_ID:-3687V5TUTK}"
@@ -33,7 +33,7 @@ ASC_KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_
 ASC_ISSUER_ID="${ASC_ISSUER_ID:-$(cat "$HOME/.appstoreconnect/issuer_id" 2>/dev/null || true)}"
 
 BUILD_DIR="build/mas"
-ARCHIVE_PATH="$BUILD_DIR/Clipbara.xcarchive"
+ARCHIVE_PATH="$BUILD_DIR/Copyd.xcarchive"
 EXPORT_PATH="$BUILD_DIR/export"
 
 echo "==> Cleaning $BUILD_DIR"
@@ -43,17 +43,17 @@ mkdir -p "$BUILD_DIR"
 echo "==> Generating Xcode project"
 xcodegen generate
 
-VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Clipbara/Info-MAS.plist)
-BUILD_NUM=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Clipbara/Info-MAS.plist)
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Copyd/Info.plist)
+BUILD_NUM=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Copyd/Info.plist)
 echo "==> Version: $VERSION ($BUILD_NUM)"
 
 # NOTE: manual signing (cert + provisioning profile) is configured on the
-# ClipbaraMAS target's Release config in project.yml. Do NOT pass signing
+# Copyd target's Release config in project.yml. Do NOT pass signing
 # overrides on the xcodebuild command line - they leak into SPM package
 # targets (KeyboardShortcuts resource bundle) which reject provisioning profiles.
 echo "==> Archiving $SCHEME (Release, manual signing via project.yml)"
 xcodebuild archive \
-  -project Clipbara.xcodeproj \
+  -project Copyd.xcodeproj \
   -scheme "$SCHEME" \
   -configuration Release \
   -destination 'generic/platform=macOS' \
@@ -115,7 +115,7 @@ EOF
   PKG=$(ls "$EXPORT_PATH"/*.pkg 2>/dev/null | head -1)
   echo "==> Exported: $PKG"
   echo "==> Verifying signatures"
-  APP_IN_ARCHIVE="$ARCHIVE_PATH/Products/Applications/Clipbara.app"
+  APP_IN_ARCHIVE="$ARCHIVE_PATH/Products/Applications/Copyd.app"
   codesign -dv --verbose=2 "$APP_IN_ARCHIVE" 2>&1 | grep -E "Authority=|TeamIdentifier=" | head -4
   pkgutil --check-signature "$PKG" | head -6
   echo "==> Entitlements:"
