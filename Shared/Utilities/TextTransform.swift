@@ -193,6 +193,12 @@ extension ClipboardItem {
     /// Text-like clips can be edited. A secret can't: the editor would show it, and an edit could change its detection.
     var isEditable: Bool { !isSensitive && TextTransform.textTypes.contains(contentType) }
 
+    /// "Paste as…" / "Copy as…": none for a secret. Uppercasing a key defeats detection, and Universal Clipboard would
+    /// carry the result to another device, which captures it unflagged and syncs it. A plain paste still works.
+    var pasteAsTransforms: [TextTransform] {
+        isSensitive ? [] : TextTransform.applicable(to: textContent ?? "", type: contentType)
+    }
+
     /// Saves `text` as the clip's content: plain text, or a link when it is one (the capture rule), with a new
     /// `contentHash`. The sync tracker queues that as a save of the same record: an update, never a new clip.
     ///

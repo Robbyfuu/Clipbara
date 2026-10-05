@@ -228,13 +228,14 @@ final class SecretDetectorTests: XCTestCase {
         XCTAssertEqual(SecretDetector.mask("4242 4242 4242 4242", kind: .card, bundle: es), "Tarjeta •••• 4242")
     }
 
-    /// Settings' footnote under "Delete secrets after", on the Mac and the iPhone.
+    /// Settings' footnote under "Delete secrets after", from the iPhone's catalog (the one this bundle holds): "este
+    /// dispositivo". The Mac's says "este equipo".
     func testSecretsFootnoteSaysTheyStayOnThisDevice() throws {
         let path = try XCTUnwrap(Bundle(for: Self.self).path(forResource: "es", ofType: "lproj"))
         let es = try XCTUnwrap(Bundle(path: path))
         let key = "Detected secrets stay on this device, show masked, and are deleted after this time unless pinned."
         XCTAssertEqual(String(localized: String.LocalizationValue(key), bundle: es),
-                       "Los secretos detectados se quedan en este equipo, se muestran ocultos y se borran después de este tiempo salvo que estén fijados.")
+                       "Los secretos detectados se quedan en este dispositivo, se muestran ocultos y se borran después de este tiempo salvo que estén fijados.")
     }
 
     // MARK: Capture rule
@@ -291,5 +292,21 @@ final class SecretSweeperTests: XCTestCase {
         defaults.set(0, forKey: key)
         XCTAssertNil(SecretSweeper.deleteAfter)
         XCTAssertEqual(SecretSweeper.choices, [1, 5, 15, 60, 0])
+    }
+
+    /// Turning "Protect secrets" off stops the sweep too: Settings disables "Delete secrets after" with it.
+    func testProtectionOffStopsTheSweep() {
+        let defaults = SecretDetector.settings
+        let key = SecretSweeper.deleteAfterDefaultsKey, protect = SecretDetector.protectDefaultsKey
+        let saved = (defaults.object(forKey: key), defaults.object(forKey: protect))
+        defer {
+            defaults.set(saved.0, forKey: key)
+            defaults.set(saved.1, forKey: protect)
+        }
+        defaults.set(15, forKey: key)
+        defaults.set(false, forKey: protect)
+        XCTAssertNil(SecretSweeper.deleteAfter)
+        defaults.set(true, forKey: protect)
+        XCTAssertEqual(SecretSweeper.deleteAfter, 900)
     }
 }

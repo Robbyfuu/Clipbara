@@ -11,8 +11,9 @@ enum SecretSweeper {
     /// Lets the system batch the timer with other wake-ups; a secret lives up to 40 s past its time.
     static let tolerance: TimeInterval = 10
 
-    /// Nil when set to Never.
+    /// Nil when set to Never, or while "Protect secrets" is off: turning protection off stops the sweep too.
     static var deleteAfter: TimeInterval? {
+        guard SecretDetector.isProtecting else { return nil }
         let minutes = SecretDetector.settings.object(forKey: deleteAfterDefaultsKey) as? Int ?? defaultMinutes
         return minutes > 0 ? TimeInterval(minutes * 60) : nil
     }

@@ -202,10 +202,12 @@ final class AppModel {
     }
 
     /// Copies the clip to the pasteboard and flashes the "Copied" toast.
-    /// Returns false, with no toast, when there was nothing to write.
+    /// Returns false, with no toast, when there was nothing to write, or the clip is gone (the sweep or a remote delete
+    /// landed while a menu was open).
     /// - Parameter transformed: A "Copy as…" result, copied in place of the clip's own content.
     @discardableResult
     func copy(_ item: ClipboardItem, text transformed: String? = nil) -> Bool {
+        guard !item.isGone else { return false }
         switch item.contentType {
         case .image where transformed == nil:
             guard let image = PasteboardImage.payload(from: item.rawData, maxPixels: 4096) else { return false }

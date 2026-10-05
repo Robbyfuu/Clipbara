@@ -34,7 +34,8 @@ struct SaveTextIntent: AppIntent {
     }
 }
 
-/// Copies the newest clip and also returns it, so a shortcut can use it without reading the pasteboard.
+/// Copies the newest clip and also returns it, so a shortcut can use it without reading the pasteboard. A secret is
+/// returned masked, as rows show it; the pasteboard still gets the real value.
 struct CopyLatestClipIntent: AppIntent {
     static let title: LocalizedStringResource = "Copy Latest Clip"
 
@@ -45,7 +46,7 @@ struct CopyLatestClipIntent: AppIntent {
         guard let item = try LatestClip.newest(in: model.container.mainContext, includingSecrets: true), model.copy(item) else {
             throw NoClipError()
         }
-        return .result(value: item.contentType == .image ? "Image" : item.textContent ?? "")
+        return .result(value: item.contentType == .image ? "Image" : item.secretMask ?? item.textContent ?? "")
     }
 }
 

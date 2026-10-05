@@ -189,6 +189,8 @@ final class AppState {
     ///   Direct paste and the focus hand-back run as usual; the paste history counts the clip only when the text is
     ///   its own (`MultiPaste.pickedIDs`), so an image's text never counts as a pick of the image.
     func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil) {
+        // The sweep or a remote delete may land while a menu is open.
+        guard !item.isGone else { return NSSound.beep() }
         clipboardMonitor.skipNextChange(picking: text == nil ? [item.id] : MultiPaste.pickedIDs([item]))
         if let text {
             ReviewPrompter.recordPaste()
@@ -201,7 +203,7 @@ final class AppState {
 
     /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Beeps if the transform no longer applies.
     func paste(_ item: ClipboardItem, as transform: TextTransform) {
-        guard let text = item.textContent.flatMap(transform.apply(to:)) else { return NSSound.beep() }
+        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return NSSound.beep() }
         paste(item, text: text)
     }
 
@@ -209,7 +211,7 @@ final class AppState {
     /// skips it (no new clip), Paste Stack stops and direct paste applies. No paste is recorded against the image.
     /// Beeps when the clip has no recognized text.
     func pasteText(_ item: ClipboardItem) {
-        guard let text = item.recognizedText else { return NSSound.beep() }
+        guard !item.isGone, let text = item.recognizedText else { return NSSound.beep() }
         paste(item, text: text)
     }
 

@@ -580,6 +580,11 @@ final class PanelController {
                 ?? appState.searchState.selectedIndex.flatMap({ items.indices.contains($0) ? items[$0] : nil }),
               !item.isGone
         else { return false }
+        // A tool acts on one clip: with several selected, say no rather than drop the selection.
+        if tool != .edit, appState.multiSelectedItems.count >= 2 {
+            NSSound.beep()
+            return true
+        }
         switch tool {
         case .edit: appState.edit(item)
         case .pasteAs: showPasteAsMenu(for: item)
@@ -592,7 +597,7 @@ final class PanelController {
     /// menu: arrows, Return, Escape. Each item goes through the same pick as the card menu.
     private func showPasteAsMenu(for item: ClipboardItem) {
         guard let appState else { return }
-        let transforms = TextTransform.applicable(to: item.textContent ?? "", type: item.contentType)
+        let transforms = item.pasteAsTransforms
         guard !transforms.isEmpty else { return NSSound.beep() }
         let menu = NSMenu()
         menu.addItem(.sectionHeader(title: String(localized: "Paste as…")))

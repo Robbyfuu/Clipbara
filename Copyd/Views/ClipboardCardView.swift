@@ -433,7 +433,7 @@ private struct PasteAsMenu: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        let transforms = TextTransform.applicable(to: item.textContent ?? "", type: item.contentType)
+        let transforms = item.pasteAsTransforms
         if !transforms.isEmpty {
             Menu("Paste as…") {
                 ForEach(transforms, id: \.self) { transform in

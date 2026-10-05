@@ -229,18 +229,19 @@ struct ClipRow: View {
 }
 
 /// "Copy as…", with only the transforms that change this clip. Its own view, so they are worked out again only when
-/// the clip changes. A secret copies its real text, transformed.
+/// the clip changes. None for a secret.
 private struct CopyAsMenu: View {
     @Environment(AppModel.self) private var model
     let item: ClipboardItem
 
     var body: some View {
-        let transforms = TextTransform.applicable(to: item.textContent ?? "", type: item.contentType)
+        let transforms = item.pasteAsTransforms
         if !transforms.isEmpty {
             Menu("Copy as…") {
                 ForEach(transforms, id: \.self) { transform in
                     Button(transform.label()) {
-                        guard let text = item.textContent.flatMap(transform.apply(to:)) else { return }
+                        // The sweep or a sync may have deleted the clip while the menu was open.
+                        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return }
                         model.copy(item, text: text)
                     }
                 }

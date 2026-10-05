@@ -86,6 +86,15 @@ final class ClipEditTests: XCTestCase {
         XCTAssertEqual(secret.textContent, FakeSecret.stripe)
     }
 
+    /// "Paste as…" / "Copy as…" on a secret would put a form of it on the pasteboard that detection misses: Universal
+    /// Clipboard carries it to another device, which captures it unflagged and syncs it.
+    func testSecretsOfferNoPasteAsTransforms() {
+        let clip = text(FakeSecret.stripe)
+        XCTAssertEqual(clip.pasteAsTransforms, [.upper, .lower, .title])
+        clip.isSensitive = true
+        XCTAssertEqual(clip.pasteAsTransforms, [])
+    }
+
     // MARK: Edits that turn out to be secrets
 
     func testUnsyncedClipThatBecomesASecretIsFlaggedInPlace() throws {

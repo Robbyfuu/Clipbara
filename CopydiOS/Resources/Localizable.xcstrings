@@ -878,7 +878,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los secretos detectados se quedan en este equipo, se muestran ocultos y se borran después de este tiempo salvo que estén fijados."
+            "value" : "Los secretos detectados se quedan en este dispositivo, se muestran ocultos y se borran después de este tiempo salvo que estén fijados."
           }
         }
       }
@@ -1108,6 +1108,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Imágenes"
+          }
+        }
+      }
+    },
+    "Insert as…" : {
+      "comment" : "Keyboard card long-press menu: text transforms applied while inserting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert as…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insertar como…"
           }
         }
       }

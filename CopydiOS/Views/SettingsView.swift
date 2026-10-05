@@ -113,6 +113,8 @@ struct SettingsView: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .tint(DesignTokens.Brand.ink)
+                        // Off, nothing is swept: `SecretSweeper.deleteAfter` is nil.
+                        .disabled(!protectSecrets)
                     }
                     .padding(.vertical, 10)
                     .frame(minHeight: 44)

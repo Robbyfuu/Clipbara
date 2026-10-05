@@ -108,6 +108,8 @@ struct GeneralSettingsTab: View {
                     }
                 }
                 .pickerStyle(.menu)
+                // Off, nothing is swept: `SecretSweeper.deleteAfter` is nil.
+                .disabled(!protectSecrets)
             } header: {
                 Text("Secrets")
             } footer: {
