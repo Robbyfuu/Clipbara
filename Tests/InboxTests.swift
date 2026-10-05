@@ -201,4 +201,13 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(try files().count, 1, "kept for the next drain")
         XCTAssertFalse(ctx.hasChanges, "rolled back, not left pending")
     }
+
+    /// Share and the keyboard's auto-capture both land here, so both mark a secret.
+    func testDrainMarksSecretsSensitive() throws {
+        try Inbox.write(InboxItem(kind: .text, text: FakeSecret.jwt, createdAt: now.addingTimeInterval(-2), auto: true),
+                        payload: nil, in: dir)
+        try Inbox.write(InboxItem(kind: .text, text: "plain", createdAt: now.addingTimeInterval(-1)), payload: nil, in: dir)
+        XCTAssertEqual(Inbox.drain(in: context, directory: dir, now: now), 2)
+        XCTAssertEqual(try items().map(\.isSensitive), [true, false])
+    }
 }

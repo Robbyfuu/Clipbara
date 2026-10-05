@@ -36,4 +36,13 @@ final class LatestClipTests: XCTestCase {
         add("file:///tmp/a.pdf", type: .fileURL, dt: 0)
         XCTAssertNil(try LatestClip.newest(in: context), "file clips alone count as empty")
     }
+
+    /// The Live Activity shows the newest clip that is not a secret; Shortcuts' Copy Last Clip still copies it.
+    func testSkipsSecretsUnlessAsked() throws {
+        add("older", dt: 0)
+        add(FakeSecret.stripe, dt: 10)
+        try context.fetch(FetchDescriptor<ClipboardItem>()).first { $0.textContent == FakeSecret.stripe }?.isSensitive = true
+        XCTAssertEqual(try LatestClip.newest(in: context)?.textContent, "older")
+        XCTAssertEqual(try LatestClip.newest(in: context, includingSecrets: true)?.textContent, FakeSecret.stripe)
+    }
 }

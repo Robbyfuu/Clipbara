@@ -15,6 +15,8 @@ final class PanelController {
     private var quickLookPanel: ClipboardQuickLookPanel?
     private var quickLookItem: ClipboardItem?
     private var quickLookZoom: ImageZoomController?
+    /// Closes Quick Look when a save deletes its clip: the secret sweep, a remote delete.
+    @ObservationIgnored private var quickLookSaveObserver: NSObjectProtocol?
     private(set) var isVisible: Bool = false
     private var clickMonitor: Any?
     private var mouseMonitor: Any?
@@ -26,6 +28,8 @@ final class PanelController {
     private(set) var focusReturnApp: NSRunningApplication?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
+    /// Over the selected card, set by the card itself: where ⇧⌥Return opens the "Paste as…" menu.
+    @ObservationIgnored weak var cardMenuAnchor: CardMenuAnchorView?
 
     private let baseHeight = PanelGeometry.height
 
@@ -392,6 +396,7 @@ final class PanelController {
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let keyCode = event.keyCode
+            let characters = event.charactersIgnoringModifiers
             let eventWindowNumber = event.windowNumber
             let shift = event.modifierFlags.intersection([.command, .option, .control, .shift]) == .shift
             let handled: Bool = MainActor.assumeIsolated { [weak self] in
@@ -423,6 +428,12 @@ final class PanelController {
                    let panel = self.panel, !self.isTextInputFocused(in: panel) {
                     self.appState?.pasteSuggestion(number: number)
                     return true
+                }
+
+                // ⇧⌥Return opens the selected card's "Paste as…" menu, ⌘E edits it and ⌥Return pastes an image's
+                // text, also while searching.
+                if let tool = CardShortcut.match(keyCode: keyCode, characters: characters, modifiers: event.modifierFlags) {
+                    return self.useCardTool(tool)
                 }
 
                 // Handle tab shortcuts before the search-field pass-through.
@@ -530,6 +541,10 @@ final class PanelController {
 
         case 36: // Return - paste
             if let item = quickLookItem {
+                guard !item.isGone else {
+                    hideQuickLook()
+                    return true
+                }
                 appState.clipboardMonitor.skipNextChange(picking: [item.id])
                 appState.pasteService.paste(item: item)
                 appState.hidePanel()
@@ -543,7 +558,7 @@ final class PanelController {
             }
 
             guard let idx = appState.searchState.selectedIndex,
-                  idx < items.count else { return false }
+                  idx < items.count, !items[idx].isGone else { return false }
             let item = items[idx]
             appState.clipboardMonitor.skipNextChange(picking: [item.id])
             appState.pasteService.paste(item: item)
@@ -555,10 +570,56 @@ final class PanelController {
         }
     }
 
+    // MARK: - Card tools (⇧⌥Return, ⌘E, ⌥Return)
+
+    /// Acts on the clip in Quick Look, else the selected card. Not handled, so the key goes on, with no card.
+    private func useCardTool(_ tool: CardShortcut) -> Bool {
+        guard let appState else { return false }
+        let items = appState.currentFilteredItems
+        guard let item = quickLookItem
+                ?? appState.searchState.selectedIndex.flatMap({ items.indices.contains($0) ? items[$0] : nil }),
+              !item.isGone
+        else { return false }
+        // A tool acts on one clip: with several selected, say no rather than drop the selection.
+        if tool != .edit, appState.multiSelectedItems.count >= 2 {
+            NSSound.beep()
+            return true
+        }
+        switch tool {
+        case .edit: appState.edit(item)
+        case .pasteAs: showPasteAsMenu(for: item)
+        case .pasteText: appState.pasteText(item)
+        }
+        return true
+    }
+
+    /// The card menu's "Paste as…" list as a menu of its own, at the card's top left corner. Keyboard driven like any
+    /// menu: arrows, Return, Escape. Each item goes through the same pick as the card menu.
+    private func showPasteAsMenu(for item: ClipboardItem) {
+        guard let appState else { return }
+        let transforms = item.pasteAsTransforms
+        guard !transforms.isEmpty else { return NSSound.beep() }
+        let menu = NSMenu()
+        menu.addItem(.sectionHeader(title: String(localized: "Paste as…")))
+        for transform in transforms {
+            menu.addItem(ClosureMenuItem(transform.label()) { [weak appState] in appState?.paste(item, as: transform) })
+        }
+        // After the key monitor returns: the menu runs its own tracking loop.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if self.quickLookItem == nil, let anchor = self.cardMenuAnchor, anchor.clipID == item.id, anchor.window != nil {
+                menu.popUp(positioning: nil, at: NSPoint(x: 8, y: anchor.bounds.height - 8), in: anchor)
+            } else if let view = (self.quickLookPanel ?? self.panel)?.contentView {
+                menu.popUp(positioning: nil, at: NSPoint(x: view.bounds.midX, y: view.bounds.midY), in: view)
+            }
+        }
+    }
+
     // MARK: - Clipboard Quick Look
 
     private func showQuickLook(item: ClipboardItem) {
         guard let appState else { return }
+        guard !item.isGone else { return hideQuickLook() }
 
         appState.selectForPreview(nil)
         quickLookItem = item
@@ -587,7 +648,7 @@ final class PanelController {
                     self?.hideQuickLook()
                 },
                 onPaste: { [weak self, weak appState] in
-                    guard let self, let appState else { return }
+                    guard let self, let appState, !item.isGone else { return }
                     appState.clipboardMonitor.skipNextChange(picking: [item.id])
                     appState.pasteService.paste(item: item)
                     self.hidePanel()
@@ -598,6 +659,15 @@ final class PanelController {
 
         panel.orderFrontRegardless()
         panel.makeKey()
+
+        quickLookSaveObserver = quickLookSaveObserver ?? NotificationCenter.default.addObserver(
+            forName: ModelContext.didSave, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.quickLookItem?.isGone == true else { return }
+                self.hideQuickLook()
+            }
+        }
     }
 
     private func updateQuickLook(for item: ClipboardItem) {
@@ -670,4 +740,19 @@ final class PanelController {
         frame.origin.y = y
         return frame
     }
+}
+
+/// A menu item that runs a closure.
+private final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(run), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func run() { handler() }
 }

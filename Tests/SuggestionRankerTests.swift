@@ -112,6 +112,20 @@ final class SuggestionCandidateTests: XCTestCase {
         XCTAssertEqual(fetched.sourceAppName, "Terminal")
         XCTAssertEqual(fetched.rawData, Data("raw".utf8))
     }
+
+    /// Suggestions and the Apple Intelligence prompt never see a secret.
+    func testSecretIsNeverACandidate() throws {
+        let container = try ModelContainer(for: ClipboardItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let text = ClipboardItem(contentType: .plainText, rawData: Data(), textContent: "hi", contentHash: "a")
+        let secret = ClipboardItem(contentType: .plainText, rawData: Data(), textContent: FakeSecret.stripe, contentHash: "b")
+        secret.isSensitive = true
+        secret.isPinned = true
+        context.insert(text)
+        context.insert(secret)
+        try context.save()
+        XCTAssertEqual(SuggestionRanker.candidateClips(in: context).map(\.id), [text.id])
+    }
 }
 
 final class SuggestedRowTests: XCTestCase {

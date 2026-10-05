@@ -17,6 +17,7 @@ enum SaveText {
         let item = ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
                                  sourceAppName: "Shortcuts", contentHash: clip.contentHash)
         item.copiedAt = now
+        item.isSensitive = SecretDetector.flags(clip.textContent, type: clip.contentType)
         context.insert(item)
         try? context.save()
         return .saved

@@ -204,7 +204,7 @@ import SwiftData
                 guard sizedClips < Self.batchRecords, sizedBytes < Self.batchBytes else { clipsHeldBack = true; continue }
                 let bytes = clip.rawData.count
                 // Per type: a file bundle may be bigger than any other clip.
-                guard SyncRecordMapper.isEligible(contentType: clip.contentTypeRaw, byteCount: bytes) else { dead.append(change); continue }
+                guard SyncRecordMapper.isEligible(contentType: clip.contentTypeRaw, byteCount: bytes, isSensitive: clip.isSensitive) else { dead.append(change); continue }
                 let byteCount = bytes + (clip.textContent?.utf8.count ?? 0)
                 sizedClips += 1
                 sizedBytes += byteCount
@@ -501,6 +501,13 @@ import SwiftData
             ids.formUnion(try modelContext.fetch(FetchDescriptor<PinboardEntry>()).map(\.id))
         } catch { Self.log.error("Could not list models to clear: \(error.syncLogDescription, privacy: .public)") }
         RemoteApplier.clearSystemFields(in: modelContext)
+        save(suppressing: ids)
+    }
+
+    /// Saves main-context changes to fields that never sync (`ocrText`, `ocrDone`) on `ids`: the tracker queues no
+    /// upload, so reading an image never resends its record. Other pending changes on those ids would not upload
+    /// either, so call it right after setting only those fields.
+    func saveLocalOnly(_ ids: Set<UUID>) {
         save(suppressing: ids)
     }
 

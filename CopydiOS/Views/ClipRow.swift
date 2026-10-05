@@ -1,15 +1,25 @@
 import SwiftUI
 import SwiftData
 
-/// One clip card. Tap copies (a file clip opens the share sheet); swipe pins or deletes.
-/// `onDelete` lets Pinboards remove the entry instead of the clip.
+/// One clip card. Tap copies (a file clip opens the share sheet); swipe pins or deletes; long-press offers "Copy as…",
+/// "Copy text" for an image whose text was read, and "Edit". `onDelete` lets Pinboards remove the entry instead of the clip.
 struct ClipRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.modelContext) private var modelContext
     let item: ClipboardItem
     var onDelete: (() -> Void)?
+    @State private var editing = false
 
     var body: some View {
+        // The sweep, a sync or another row's delete may have removed the clip: reading it then would crash.
+        if item.isGone {
+            EmptyView()
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         Button { if item.contentType == .files { model.share(item) } else { model.copy(item) } } label: {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -17,6 +27,17 @@ struct ClipRow: View {
                 .contentShape(RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            CopyAsMenu(item: item)
+            if let text = item.recognizedText {
+                Button { model.copy(item, text: text) } label: { Label("Copy text", systemImage: "text.viewfinder") }
+            }
+            // Never for a secret: the editor would show it.
+            if item.isEditable {
+                Button { editing = true } label: { Label("Edit", systemImage: "pencil") }
+            }
+        }
+        .sheet(isPresented: $editing) { EditClipSheet(item: item) }
         .brandRow(top: 5, bottom: 5)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) { if let onDelete { onDelete() } else { deleteClip() } } label: { Label("Delete", systemImage: "trash") }
@@ -71,6 +92,13 @@ struct ClipRow: View {
                 }
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
+        } else if let mask = item.secretMask {
+            // A secret shows its masked label, whatever its type. A tap still copies the secret itself.
+            VStack(alignment: .leading, spacing: 8) {
+                mainLine(title ?? mask)
+                meta
+            }
+            .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         } else if let parts = linkParts {
             VStack(alignment: .leading, spacing: 6) {
                 if let title {
@@ -144,13 +172,26 @@ struct ClipRow: View {
         }
     }
 
-    /// "Source · age" on the left; "Pinned" on the right when pinned.
+    /// "Source · age" on the left; a lock for a secret, and "Pinned" when pinned, on the right.
     private var meta: some View {
         HStack(spacing: 8) {
             Text("\(item.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: item.copiedAt, now: Date()))")
                 .foregroundStyle(DesignTokens.Brand.ink2)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if item.recognizedText != nil {
+                Text(verbatim: "Aa")
+                    .fontWeight(.bold)
+                    .foregroundStyle(DesignTokens.Brand.ink)
+                    .padding(.horizontal, 5)
+                    .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 5))
+                    .accessibilityLabel("Text found in this image")
+            }
+            if item.isSensitive {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(DesignTokens.Brand.butterInk)
+                    .accessibilityLabel("Secret, kept on this device")
+            }
             if item.isPinned {
                 HStack(spacing: 4) {
                     Image(systemName: "pin.fill").accessibilityHidden(true)
@@ -184,5 +225,77 @@ struct ClipRow: View {
         entries.forEach(modelContext.delete)
         modelContext.delete(item)
         try? modelContext.save()
+    }
+}
+
+/// "Copy as…", with only the transforms that change this clip. Its own view, so they are worked out again only when
+/// the clip changes. None for a secret.
+private struct CopyAsMenu: View {
+    @Environment(AppModel.self) private var model
+    let item: ClipboardItem
+
+    var body: some View {
+        let transforms = item.pasteAsTransforms
+        if !transforms.isEmpty {
+            Menu("Copy as…") {
+                ForEach(transforms, id: \.self) { transform in
+                    Button(transform.label()) {
+                        // The sweep or a sync may have deleted the clip while the menu was open.
+                        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return }
+                        model.copy(item, text: text)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Edits a text clip. Saving stores plain text with a new hash; the sync tracker uploads it as an update.
+private struct EditClipSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    let item: ClipboardItem
+    @State private var text: String
+    @FocusState private var focused: Bool
+
+    init(item: ClipboardItem) {
+        self.item = item
+        _text = State(initialValue: item.isGone ? "" : item.textContent ?? "")
+    }
+
+    var body: some View {
+        if item.isGone {
+            EmptyView()
+        } else {
+            editor
+        }
+    }
+
+    private var editor: some View {
+        NavigationStack {
+            TextEditor(text: $text)
+                .brandFont(16)
+                .foregroundStyle(DesignTokens.Brand.ink)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 12)
+                .background(DesignTokens.Brand.card)
+                .focused($focused)
+                .navigationTitle("Edit clip")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            // The sweep or a sync may have deleted the clip meanwhile.
+                            if !item.isGone { item.saveEdit(text, in: modelContext) }
+                            dismiss()
+                        }
+                        .disabled(text.isEmpty)
+                    }
+                }
+                .onAppear { focused = true }
+        }
     }
 }

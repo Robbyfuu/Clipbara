@@ -101,6 +101,57 @@
         }
       }
     },
+    "API key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de API"
+          }
+        }
+      }
+    },
+    "Card" : {
+      "comment" : "Label of a masked secret clip: a card number",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarjeta"
+          }
+        }
+      }
+    },
+    "Clean link" : {
+      "comment" : "Paste or copy as: tracking parameters removed from links",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean link"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limpiar link"
+          }
+        }
+      }
+    },
     "Clipboard" : {
       "localizations" : {
         "en" : {
@@ -129,6 +180,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Color"
+          }
+        }
+      }
+    },
+    "Compact JSON" : {
+      "comment" : "Paste or copy as: JSON on one line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON compacto"
           }
         }
       }
@@ -299,6 +367,23 @@
         }
       }
     },
+    "Insert as…" : {
+      "comment" : "Keyboard card long-press menu: text transforms applied while inserting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert as…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insertar como…"
+          }
+        }
+      }
+    },
     "Link" : {
       "localizations" : {
         "en" : {
@@ -311,6 +396,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enlace"
+          }
+        }
+      }
+    },
+    "lowercase" : {
+      "comment" : "Paste or copy as: no capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lowercase"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minúsculas"
           }
         }
       }
@@ -429,6 +531,57 @@
         }
       }
     },
+    "Plain text" : {
+      "comment" : "Paste or copy as: no formatting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto sin formato"
+          }
+        }
+      }
+    },
+    "Pretty JSON" : {
+      "comment" : "Paste or copy as: indented JSON",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretty JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON legible"
+          }
+        }
+      }
+    },
+    "Private key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave privada"
+          }
+        }
+      }
+    },
     "Recent" : {
       "localizations" : {
         "en" : {
@@ -511,6 +664,57 @@
         }
       }
     },
+    "Title Case" : {
+      "comment" : "Paste or copy as: each word capitalized",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title Case"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo Título"
+          }
+        }
+      }
+    },
+    "Token" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        }
+      }
+    },
+    "Trim whitespace" : {
+      "comment" : "Paste or copy as: spaces removed at both ends of each line, and blank lines at the ends",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trim whitespace"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar espacios sobrantes"
+          }
+        }
+      }
+    },
     "Turn on Allow Full Access to see your history" : {
       "localizations" : {
         "en" : {
@@ -587,6 +791,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Actualizado ahora"
+          }
+        }
+      }
+    },
+    "UPPERCASE" : {
+      "comment" : "Paste or copy as: all capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UPPERCASE"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MAYÚSCULAS"
           }
         }
       }

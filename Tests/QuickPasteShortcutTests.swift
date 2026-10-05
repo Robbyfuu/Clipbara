@@ -94,4 +94,36 @@ final class QuickPasteShortcutTests: XCTestCase {
         XCTAssertEqual(f(2846), 14)
         XCTAssertEqual(f(-40), 0)
     }
+
+    // MARK: Card tools
+
+    func testShiftOptionReturnOpensPasteAs() {
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.shift, .option]), .pasteAs)
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.shift, .option, .capsLock]), .pasteAs)
+    }
+
+    func testOtherReturnChordsAreNotCardTools() {
+        // Return and ⇧Return paste.
+        for flags: NSEvent.ModifierFlags in [[], .shift, [.shift, .option, .command], [.shift, .option, .control],
+                                             [.option, .command], [.option, .control]] {
+            XCTAssertNil(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: flags), "\(flags)")
+        }
+    }
+
+    func testOptionReturnPastesText() {
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: .option), .pasteText)
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.option, .capsLock]), .pasteText)
+        XCTAssertNil(CardShortcut.match(keyCode: 76, characters: "\u{3}", modifiers: .option), "keypad Enter is not Return")
+    }
+
+    func testCommandEEdits() {
+        XCTAssertEqual(CardShortcut.match(keyCode: 14, characters: "e", modifiers: .command), .edit)
+        XCTAssertEqual(CardShortcut.match(keyCode: 14, characters: "E", modifiers: [.command, .capsLock]), .edit)
+        // Dvorak: E is a different key, and the key in E's place types a period.
+        XCTAssertEqual(CardShortcut.match(keyCode: 2, characters: "e", modifiers: .command), .edit)
+        XCTAssertNil(CardShortcut.match(keyCode: 14, characters: ".", modifiers: .command))
+        for flags: NSEvent.ModifierFlags in [[], .shift, [.command, .shift], [.command, .option]] {
+            XCTAssertNil(CardShortcut.match(keyCode: 14, characters: "e", modifiers: flags), "\(flags)")
+        }
+    }
 }

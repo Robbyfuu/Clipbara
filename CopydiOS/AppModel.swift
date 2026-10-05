@@ -15,6 +15,9 @@ final class AppModel {
 
     let container: ModelContainer
     let sync: CloudSyncEngine
+    /// Reads the text in image clips while the app is in the foreground only: started on launch and on every return,
+    /// stopped when the app goes to the background.
+    let imageText: ImageTextQueue
     /// True when the App Group container was unavailable and the store lives in memory only.
     let isInMemory: Bool
     var toastVisible = false
@@ -56,9 +59,12 @@ final class AppModel {
         isInMemory = inMemory
         #if DEBUG
         Self.seedSampleClipsIfRequested(container)
+        Self.seedOCRImageIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
-        sync = CloudSyncEngine(container: container) { Self.reloadWidgets() }
+        sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied() }
+        // The text read in an image never syncs, so its save queues no upload.
+        imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
@@ -66,6 +72,12 @@ final class AppModel {
         #endif
         // After the engine starts, so its tracker sees the inserts and uploads them.
         drainInbox()
+        sweepSecrets()
+        // Timers fire only while the app runs; the return to the foreground sweeps too.
+        let sweepTimer = Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.sweepSecrets() }
+        }
+        sweepTimer.tolerance = SecretSweeper.tolerance
         #if DEBUG
         applyDebugRoute()
         #endif
@@ -119,13 +131,19 @@ final class AppModel {
         }
     }
 
+    /// Deletes secrets past "Delete secrets after". The save's observers refresh the widget and the Live Activity.
+    func sweepSecrets() {
+        SecretSweeper.sweep(in: container.mainContext)
+    }
+
     /// One notification for the clips a fetch brought, while Copyd is not on screen. Only the sync engine calls this,
     /// with remote inserts: local captures never reach it, nor the iPhone's own copies that the Mac captured from
     /// Universal Clipboard and synced back (`RemoteApplier.Outcome.arrivals` leaves them out).
     private func announceArrivals(_ ids: [UUID]) {
         guard UserDefaults.standard.bool(forKey: Self.arrivalNotificationsKey),
               UIApplication.shared.applicationState != .active else { return }
-        let fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) },
+        // A remote clip is never a secret (the flag never syncs); the check keeps that true if it ever changes.
+        let fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) && $0.isSensitive == false },
                                                    sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         guard let clips = try? container.mainContext.fetch(fetch), !clips.isEmpty else { return }
         let notice = ArrivalNotice.content(
@@ -184,15 +202,18 @@ final class AppModel {
     }
 
     /// Copies the clip to the pasteboard and flashes the "Copied" toast.
-    /// Returns false, with no toast, when there was nothing to write.
+    /// Returns false, with no toast, when there was nothing to write, or the clip is gone (the sweep or a remote delete
+    /// landed while a menu was open).
+    /// - Parameter transformed: A "Copy as…" result, copied in place of the clip's own content.
     @discardableResult
-    func copy(_ item: ClipboardItem) -> Bool {
+    func copy(_ item: ClipboardItem, text transformed: String? = nil) -> Bool {
+        guard !item.isGone else { return false }
         switch item.contentType {
-        case .image:
+        case .image where transformed == nil:
             guard let image = PasteboardImage.payload(from: item.rawData, maxPixels: 4096) else { return false }
             UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
         default:
-            guard let text = item.textContent, !text.isEmpty else { return false }
+            guard let text = transformed ?? item.textContent, !text.isEmpty else { return false }
             UIPasteboard.general.string = text
         }
         // Covers a row tap, the widget's `copy` route and Copy Latest Clip: all of them copy through here.
@@ -246,6 +267,13 @@ final class AppModel {
     }
 
     /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.
+    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read. A background push
+    /// wake reads nothing; the next return to the foreground does. Called by the engine after `shared` exists.
+    private static func remoteChangesApplied() {
+        reloadWidgets()
+        if UIApplication.shared.applicationState == .active { shared.imageText.fill() }
+    }
+
     static func reloadWidgets() {
         WidgetCenter.shared.reloadAllTimelines()
     }
@@ -284,13 +312,16 @@ final class AppModel {
         flash("Saved from clipboard")
     }
 
-    /// Inserts and saves an iPhone copy. The save's observer reloads the widget; the sync tracker uploads it.
+    /// Inserts and saves an iPhone copy. The save's observer reloads the widget; the sync tracker uploads it,
+    /// unless it is a secret, which stays on this iPhone.
     private func insert(_ clip: CapturedClip) {
         let context = container.mainContext
         let thumbnail = clip.contentType == .image ? Thumbnail.png(from: clip.rawData) : nil
-        context.insert(ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
-                                     thumbnailData: thumbnail, sourceAppName: UIDevice.current.model,
-                                     contentHash: clip.contentHash))
+        let item = ClipboardItem(contentType: clip.contentType, rawData: clip.rawData, textContent: clip.textContent,
+                                 thumbnailData: thumbnail, sourceAppName: UIDevice.current.model,
+                                 contentHash: clip.contentHash)
+        item.isSensitive = SecretDetector.flags(clip.textContent, type: clip.contentType)
+        context.insert(item)
         try? context.save()
     }
 
@@ -328,7 +359,8 @@ final class AppModel {
     /// Without `-CopydSeedSampleClips`, deletes leftover `seed-*` rows. Runs before the sync engine exists,
     /// so no tracker sees the delete and `queueEverything` never uploads the samples.
     private static func removeSeedClipsUnlessSeeding(_ container: ModelContainer) {
-        guard !UserDefaults.standard.bool(forKey: "CopydSeedSampleClips") else { return }
+        guard !UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
@@ -352,6 +384,24 @@ final class AppModel {
         do { try Inbox.write(item, payload: nil, in: Inbox.directory(groupContainer: group)) } catch {
             log.error("Could not write the sample inbox item: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// `-CopydSeedOCRImage YES`: inserts one image reading "Copyd OCR test", not read yet, for the fill pass to find.
+    /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without either seed flag deletes it.
+    private static func seedOCRImageIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedOCRImage"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-ocr"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let png = UIGraphicsImageRenderer(size: CGSize(width: 900, height: 300)).pngData { ctx in
+            UIColor.white.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 900, height: 300))
+            ("Copyd OCR test" as NSString).draw(at: CGPoint(x: 40, y: 110), withAttributes: [
+                .font: UIFont.systemFont(ofSize: 72, weight: .semibold), .foregroundColor: UIColor.black])
+        }
+        context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png), contentHash: hash))
+        try? context.save()
     }
 
     private static func seedSampleClipsIfRequested(_ container: ModelContainer) {

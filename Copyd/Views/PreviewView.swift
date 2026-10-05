@@ -138,17 +138,22 @@ struct PreviewView: View {
     @ViewBuilder
     private var previewContent: some View {
         Group {
-            switch item.contentType {
-            case .plainText, .richText, .html, .unknown:
+            // A secret shows its mask, whatever its type, as on its card.
+            if item.isSensitive {
                 textPreview
-            case .image:
-                imagePreview
-            case .url:
-                urlPreview
-            case .fileURL, .files:
-                filePreview
-            case .color:
-                colorPreview
+            } else {
+                switch item.contentType {
+                case .plainText, .richText, .html, .unknown:
+                    textPreview
+                case .image:
+                    imagePreview
+                case .url:
+                    urlPreview
+                case .fileURL, .files:
+                    filePreview
+                case .color:
+                    colorPreview
+                }
             }
         }
         .frame(maxHeight: .infinity)
@@ -159,7 +164,7 @@ struct PreviewView: View {
 
     private var textPreview: some View {
         SelectableTextView(
-            text: item.textContent ?? "...",
+            text: item.secretMask ?? item.textContent ?? "...",
             isMonospaced: cachedIsCodeLike,
             fontSize: 13.5,
             lineSpacing: 5,

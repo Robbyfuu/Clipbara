@@ -11,6 +11,8 @@ struct GeneralSettingsTab: View {
     @AppStorage(AutoPaster.enabledDefaultsKey) private var autoPasteOnPick: Bool = true
     @AppStorage(SuggestedRow.enabledDefaultsKey) private var showSuggestions: Bool = true
     @AppStorage(SuggestionModel.enabledDefaultsKey) private var useAppleIntelligence: Bool = true
+    @AppStorage(SecretDetector.protectDefaultsKey) private var protectSecrets: Bool = true
+    @AppStorage(SecretSweeper.deleteAfterDefaultsKey) private var deleteSecretsAfter: Int = SecretSweeper.defaultMinutes
     /// Re-read whenever Copyd comes back to the front, e.g. from System Settings.
     @State private var hasPasteAccess = CGPreflightPostEventAccess()
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
@@ -96,6 +98,24 @@ struct GeneralSettingsTab: View {
                         .padding(.leading, 20)
                         .disabled(!showSuggestions)
                 }
+            }
+
+            Section {
+                Toggle("Protect secrets", isOn: $protectSecrets)
+                Picker("Delete secrets after", selection: $deleteSecretsAfter) {
+                    ForEach(SecretSweeper.choices, id: \.self) { minutes in
+                        if minutes > 0 { Text("\(minutes) min").tag(minutes) } else { Text("Never").tag(minutes) }
+                    }
+                }
+                .pickerStyle(.menu)
+                // Off, nothing is swept: `SecretSweeper.deleteAfter` is nil.
+                .disabled(!protectSecrets)
+            } header: {
+                Text("Secrets")
+            } footer: {
+                Text("Detected secrets stay on this device, show masked, and are deleted after this time unless pinned.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
 
             Section("iCloud Sync") {

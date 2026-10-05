@@ -17,6 +17,8 @@ final class ClipboardMonitor {
     @ObservationIgnored var onCapture: ((UUID) -> Void)?
     /// Called before Copyd writes clips picked in its own UI, with their ids. Every pick goes through `skipNextChange`.
     @ObservationIgnored var onPick: (([UUID]) -> Void)?
+    /// Called after a new image clip is saved, so its text is read right away.
+    @ObservationIgnored var onNewImage: (() -> Void)?
 
     var isMonitoring: Bool = false
     var latestItems: [ClipboardItem] = []
@@ -122,12 +124,15 @@ final class ClipboardMonitor {
         item.fromUniversalClipboard = content.fromUniversalClipboard
         item.thumbnailData = thumbnail
         item.fileManifestData = manifest
+        // A key, token or card: kept on this Mac, masked, and deleted by SecretSweeper.
+        item.isSensitive = SecretDetector.flags(content.textContent, type: content.contentType)
 
         modelContext?.insert(item)
         try? modelContext?.save()
         cleanupOldItems()
         refreshLatestItems()
         onCapture?(item.id)
+        if content.contentType == .image { onNewImage?() }
     }
 
     /// 히스토리 제한 초과 시 오래된 아이템 삭제 (isPinned 아이템 보존)

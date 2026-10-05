@@ -13,6 +13,11 @@ final class KeyboardViewController: UIInputViewController {
         configureGlobe()
         model.onModeChange = { [weak self] in self?.reload() }
         model.onSelect = { [weak self] in self?.select($0) }
+        model.onInsertAs = { [weak self] in self?.insert($0, as: $1) }
+        model.onMenu = { [weak self] clip in
+            guard let self else { return [] }
+            return KeyboardFeed.menu(for: clip, text: self.text(of: clip))
+        }
         model.onText = { [weak self] in self?.textDocumentProxy.insertText($0) }
         model.onDelete = { [weak self] in self?.textDocumentProxy.deleteBackward() }
         model.onOpenApp = { [weak self] in
@@ -114,12 +119,30 @@ final class KeyboardViewController: UIInputViewController {
         if clip.isClipboard, let captured = clipboard?.clip {
             return paste(captured.contentType, text: captured.textContent, data: captured.rawData)
         }
-        guard let container else { return Self.failure }
+        guard let item = item(for: clip) else { return Self.failure }
+        return paste(item.contentType, text: item.textContent, data: item.rawData)
+    }
+
+    /// "Insert as…": the clip's whole text, transformed, inserted as plain text, or copied when too long to insert.
+    /// The menu came from the text's first 4 KB: when the whole text doesn't support the pick (JSON that turns invalid
+    /// later), nothing happens.
+    private func insert(_ clip: KeyboardClip, as transform: TextTransform) -> String? {
+        guard let text = text(of: clip) else { return Self.failure }
+        guard let result = transform.apply(to: text) else { return nil }
+        return paste(.plainText, text: result, data: Data())
+    }
+
+    /// The clip's whole text. A masked clipboard card has its real text.
+    private func text(of clip: KeyboardClip) -> String? {
+        clip.isClipboard ? clipboard?.clip.textContent : item(for: clip)?.textContent
+    }
+
+    private func item(for clip: KeyboardClip) -> ClipboardItem? {
+        guard let container else { return nil }
         let id = clip.id
         var descriptor = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
-        guard let item = try? ModelContext(container).fetch(descriptor).first else { return Self.failure }
-        return paste(item.contentType, text: item.textContent, data: item.rawData)
+        return try? ModelContext(container).fetch(descriptor).first
     }
 
     private static var failure: String { String(localized: "Couldn't copy this clip.") }

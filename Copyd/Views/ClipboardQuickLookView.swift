@@ -13,6 +13,8 @@ struct ClipboardQuickLookView: View {
     @State private var imageMetadata: (width: Int, height: Int)?
     @State private var cachedCharCount: Int = 0
     @State private var cachedIsCodeLike: Bool = false
+    /// A secret shows its mask until Show. Every item change, ←/→ included, hides it again.
+    @State private var isRevealed = false
 
     init(
         item: ClipboardItem,
@@ -32,6 +34,15 @@ struct ClipboardQuickLookView: View {
     }
 
     var body: some View {
+        // The sweep or a remote delete can remove the clip while it shows; PanelController then closes Quick Look.
+        if item.isGone {
+            EmptyView()
+        } else {
+            quickLook
+        }
+    }
+
+    private var quickLook: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
                 Color.black.opacity(colorScheme == .dark ? 0.26 : 0.16)
@@ -44,6 +55,7 @@ struct ClipboardQuickLookView: View {
             }
         }
         .task(id: item.id) {
+            isRevealed = false
             if item.contentType == .image {
                 let image = cachedImage ?? NSImage(data: item.rawData)
                 cachedImage = image
@@ -69,6 +81,8 @@ struct ClipboardQuickLookView: View {
     private static let footerHeight: CGFloat = 36
     private static let minImageBubbleWidth: CGFloat = 520
     private static let minImageBubbleHeight: CGFloat = 300
+    /// The recognized text under an image: selectable, scrolling past this height.
+    private static let imageTextHeight: CGFloat = 120
 
     /// Text and other types keep the large fixed bubble. Images get a bubble shaped
     /// like the image at its fitted size, so there is no dead checkerboard around it.
@@ -83,7 +97,7 @@ struct ClipboardQuickLookView: View {
             return CGSize(width: maxWidth, height: maxHeight)
         }
 
-        let chrome = Self.toolbarHeight + Self.footerHeight + 2
+        let chrome = Self.toolbarHeight + Self.footerHeight + 2 + (item.recognizedText == nil ? 0 : Self.imageTextHeight + 1)
         let margin = ZoomingImageScrollView.fitMargin * 2
         let maxContent = CGSize(width: maxWidth - margin, height: maxHeight - chrome - margin)
         let scale = min(1, maxContent.width / image.size.width, maxContent.height / image.size.height)
@@ -236,18 +250,37 @@ struct ClipboardQuickLookView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch item.contentType {
-        case .plainText, .richText, .html, .unknown:
-            textContent
-        case .image:
-            imageContent
-        case .url:
-            urlContent
-        case .fileURL, .files:
-            fileContent
-        case .color:
-            colorContent
+        if let mask = item.secretMask, !isRevealed {
+            maskedContent(mask)
+        } else {
+            switch item.contentType {
+            case .plainText, .richText, .html, .unknown:
+                textContent
+            case .image:
+                imageContent
+            case .url:
+                urlContent
+            case .fileURL, .files:
+                fileContent
+            case .color:
+                colorContent
+            }
         }
+    }
+
+    private func maskedContent(_ mask: String) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(mask)
+                .font(.system(size: 18, weight: .semibold, design: .monospaced))
+            Button("Show") { isRevealed = true }
+                .controlSize(.large)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(contentBackground)
     }
 
     private var textContent: some View {
@@ -262,16 +295,26 @@ struct ClipboardQuickLookView: View {
     }
 
     private var imageContent: some View {
-        Group {
-            if let cachedImage {
-                ZoomableImageView(image: cachedImage, controller: zoom)
-            } else {
-                placeholder(systemImage: "photo", text: "Unable to load image")
+        VStack(spacing: 0) {
+            Group {
+                if let cachedImage {
+                    ZoomableImageView(image: cachedImage, controller: zoom)
+                } else {
+                    placeholder(systemImage: "photo", text: "Unable to load image")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            // Images are never secrets, so their text is never masked.
+            if let text = item.recognizedText {
+                Divider().opacity(0.35)
+                SelectableTextView(text: text, fontSize: 13, lineSpacing: 3,
+                                   contentInsets: NSEdgeInsets(top: 10, left: 16, bottom: 10, right: 16))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.imageTextHeight)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(contentBackground)
-        .clipped()
     }
 
     private var urlContent: some View {

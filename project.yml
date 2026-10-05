@@ -120,6 +120,8 @@ targets:
         excludes:
           # The keyboard never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
           - Sync/CloudSyncEngine.swift
+          # Vision text recognition runs in the app only, never in an extension's memory budget.
+          - Services/ImageTextRecognizer.swift
     resources:
       - CopydKeyboard/Resources
     settings:
@@ -148,6 +150,8 @@ targets:
         excludes:
           # The widget never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
           - Sync/CloudSyncEngine.swift
+          # Vision text recognition runs in the app only, never in an extension's memory budget.
+          - Services/ImageTextRecognizer.swift
     resources:
       - CopydWidget/Resources
     settings:
@@ -177,6 +181,8 @@ targets:
         excludes:
           # The extension never syncs; CloudSyncEngine uses UIApplication, unavailable in extensions.
           - Sync/CloudSyncEngine.swift
+          # Vision text recognition runs in the app only, never in an extension's memory budget.
+          - Services/ImageTextRecognizer.swift
     resources:
       - CopydShare/Resources
     settings:
@@ -217,6 +223,7 @@ targets:
       - path: Copyd/Utilities/AccessPolicy.swift
       - path: Copyd/Utilities/LaunchGuard.swift
       - path: Copyd/Services/ContentTypeClassifier.swift
+      - path: Copyd/Services/TransferService.swift
       - path: Shared/Utilities/Thumbnail.swift
       - path: Shared/Utilities/FileBundle.swift
       - path: Shared/Utilities/PasteboardImage.swift
@@ -243,6 +250,11 @@ targets:
       - path: Shared/Utilities/Inbox.swift
       - path: Shared/Utilities/ArrivalNotice.swift
       - path: Shared/Utilities/LatestClipActivity.swift
+      - path: Shared/Utilities/SecretDetector.swift
+      - path: Shared/Utilities/SecretSweeper.swift
+      - path: Shared/Utilities/TextTransform.swift
+      - path: Shared/Utilities/OCRPlan.swift
+      - path: Shared/Services/ImageTextRecognizer.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

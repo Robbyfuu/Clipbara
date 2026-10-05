@@ -372,6 +372,20 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertEqual(try clips().first?.fromUniversalClipboard, false)
     }
 
+    /// The text read in an image is local: a remote update keeps it, unless the image itself changed.
+    func testRemoteUpdateKeepsTheTextReadInAnImageUntilTheImageChanges() throws {
+        try apply(clips: [clip(1, type: "image", data: Data([1]))])
+        let local = try XCTUnwrap(try clips().first)
+        local.ocrText = "Copyd OCR test"
+        local.ocrDone = true
+        try apply(clips: [clip(1, title: "renamed", type: "image", data: Data([1]))])
+        XCTAssertEqual(local.ocrText, "Copyd OCR test")
+        XCTAssertTrue(local.ocrDone)
+        try apply(clips: [clip(1, hash: "h2", type: "image", data: Data([2]))])
+        XCTAssertNil(local.ocrText)
+        XCTAssertFalse(local.ocrDone, "the new image is read again")
+    }
+
     func testNoMergeAt61Seconds() throws {
         try apply(clips: [clip(1)])
         let out = try apply(clips: [clip(2, dt: 61)])

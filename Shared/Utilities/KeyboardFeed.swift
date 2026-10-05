@@ -29,12 +29,16 @@ enum KeyboardFeed {
     @MainActor
     static func items(in context: ModelContext, mode: Mode, limit: Int = limit) throws -> [KeyboardClip] {
         // File clips can't be typed or pasted from the keyboard (or copied from the widget): a Mac path, or files.
+        // Secrets never show in the keyboard or the widget.
         let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
         let predicate: Predicate<ClipboardItem>
         switch mode {
-        case .recent: predicate = #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw }
+        case .recent:
+            predicate = #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isSensitive == false }
         case .pinned:
-            predicate = #Predicate { $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isPinned == true }
+            predicate = #Predicate {
+                $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isPinned == true && $0.isSensitive == false
+            }
         case .pinboard(let boardID):
             // A board has few entries; order them in memory by the entry's own `displayOrder`.
             var boardFetch = FetchDescriptor<Pinboard>(predicate: #Predicate { $0.id == boardID })
@@ -42,7 +46,7 @@ enum KeyboardFeed {
             guard let board = try context.fetch(boardFetch).first else { return [] }
             return board.entries.sorted { $0.displayOrder < $1.displayOrder }
                 .compactMap(\.clipboardItem)
-                .filter { $0.contentType != .fileURL && $0.contentType != .files }
+                .filter { $0.contentType != .fileURL && $0.contentType != .files && !$0.isSensitive }
                 .prefix(limit).map(clip)
         }
         var descriptor = FetchDescriptor<ClipboardItem>(
@@ -58,10 +62,13 @@ enum KeyboardFeed {
     }
 
     /// The first card in Recent for a copy the keyboard just captured. The inbox drain stores it when the app next opens.
-    static func clipboardCard(_ clip: CapturedClip, now: Date) -> KeyboardClip {
+    /// A secret shows masked; tapping it still inserts the copy itself.
+    static func clipboardCard(_ clip: CapturedClip, now: Date, protects: Bool = SecretDetector.isProtecting) -> KeyboardClip {
         let type = clip.contentType
+        let secret = SecretDetector.flags(clip.textContent, type: type, protects: protects)
+            ? clip.textContent.map { SecretDetector.mask($0) } : nil
         return KeyboardClip(
-            id: UUID(), contentType: type, preview: preview(type, clip.textContent),
+            id: UUID(), contentType: type, preview: secret ?? preview(type, clip.textContent),
             // ImageIO, so the full image is never decoded in the keyboard.
             thumbnail: type == .image ? Thumbnail.png(from: clip.rawData) : nil,
             isPinned: false, copiedAt: now, textByteCount: clip.textContent?.utf8.count ?? 0,
@@ -76,6 +83,14 @@ enum KeyboardFeed {
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
             sourceAppName: item.sourceAppName)
+    }
+
+    /// "Insert as…" for one card, worked out when it is long-pressed, never for the whole feed. `text` is the clip's
+    /// whole text, fetched only for a text clip short enough to insert: a longer one is copied instead.
+    static func menu(for clip: KeyboardClip, text: @autoclosure () -> String?) -> [TextTransform] {
+        guard TextTransform.textTypes.contains(clip.contentType), clip.textByteCount <= PasteAction.insertByteLimit,
+              let text = text() else { return [] }
+        return TextTransform.applicable(to: text, type: clip.contentType)
     }
 
     private static func preview(_ type: ContentType, _ text: String?) -> String {

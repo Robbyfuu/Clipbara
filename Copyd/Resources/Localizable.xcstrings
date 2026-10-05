@@ -439,6 +439,23 @@
         }
       }
     },
+    "API key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de API"
+          }
+        }
+      }
+    },
     "Appearance" : {
       "localizations" : {
         "es" : {
@@ -549,6 +566,23 @@
         }
       }
     },
+    "Card" : {
+      "comment" : "Label of a masked secret clip: a card number",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarjeta"
+          }
+        }
+      }
+    },
     "Card name" : {
       "localizations" : {
         "es" : {
@@ -589,6 +623,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "检查更新..."
+          }
+        }
+      }
+    },
+    "Clean link" : {
+      "comment" : "Paste or copy as: tracking parameters removed from links",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean link"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limpiar link"
           }
         }
       }
@@ -737,6 +788,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Coma"
+          }
+        }
+      }
+    },
+    "Compact JSON" : {
+      "comment" : "Paste or copy as: JSON on one line",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON compacto"
           }
         }
       }
@@ -1200,6 +1268,39 @@
         }
       }
     },
+    "Delete secrets after" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete secrets after"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar secretos después de"
+          }
+        }
+      }
+    },
+    "Detected secrets stay on this device, show masked, and are deleted after this time unless pinned." : {
+      "comment" : "Settings footnote under Delete secrets after: secrets stay local, show masked, and pinned ones are kept",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detected secrets stay on this device, show masked, and are deleted after this time unless pinned."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los secretos detectados se quedan en este equipo, se muestran ocultos y se borran después de este tiempo salvo que estén fijados."
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "es" : {
@@ -1262,6 +1363,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "把常用的剪贴内容拖到钉板上，就不会过期。"
+          }
+        }
+      }
+    },
+    "Edit clip" : {
+      "comment" : "Title of the window that edits a clip's text",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit clip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar clip"
+          }
+        }
+      }
+    },
+    "Edit…" : {
+      "comment" : "Card menu: opens the Edit clip window",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar…"
           }
         }
       }
@@ -2223,6 +2358,23 @@
         }
       }
     },
+    "lowercase" : {
+      "comment" : "Paste or copy as: no capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lowercase"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minúsculas"
+          }
+        }
+      }
+    },
     "macOS may need Copyd to restart after you allow a permission." : {
       "localizations" : {
         "es" : {
@@ -2311,6 +2463,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Necesita acceso en Accesibilidad. Mientras tanto, elegir un clip solo lo copia."
+          }
+        }
+      }
+    },
+    "Never" : {
+      "comment" : "Delete secrets after: never",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca"
           }
         }
       }
@@ -2762,6 +2931,23 @@
         }
       }
     },
+    "Paste as…" : {
+      "comment" : "Card menu: submenu of text transforms applied while pasting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste as…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar como…"
+          }
+        }
+      }
+    },
     "Paste directly into the app" : {
       "localizations" : {
         "en" : {
@@ -2822,6 +3008,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paste Stack · %lld"
+          }
+        }
+      }
+    },
+    "Paste text" : {
+      "comment" : "Image clip menu and ⌥Return: pastes the text recognized in the image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar texto"
           }
         }
       }
@@ -2952,6 +3155,23 @@
         }
       }
     },
+    "Plain text" : {
+      "comment" : "Paste or copy as: no formatting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plain text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto sin formato"
+          }
+        }
+      }
+    },
     "Press a key…" : {
       "localizations" : {
         "es" : {
@@ -3018,6 +3238,23 @@
         }
       }
     },
+    "Pretty JSON" : {
+      "comment" : "Paste or copy as: indented JSON",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pretty JSON"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON legible"
+          }
+        }
+      }
+    },
     "Preview a clip" : {
       "localizations" : {
         "es" : {
@@ -3036,6 +3273,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "预览剪贴内容"
+          }
+        }
+      }
+    },
+    "Private key" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave privada"
+          }
+        }
+      }
+    },
+    "Protect secrets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protect secrets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteger secretos"
           }
         }
       }
@@ -3339,6 +3609,40 @@
         }
       }
     },
+    "Secret, kept on this device" : {
+      "comment" : "Lock badge on a secret clip, read by VoiceOver and shown on hover",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secret, kept on this device"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secreto, solo en este dispositivo"
+          }
+        }
+      }
+    },
+    "Secrets" : {
+      "comment" : "Settings section about copied keys, tokens and card numbers",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secrets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secretos"
+          }
+        }
+      }
+    },
     "Select App to Exclude" : {
       "localizations" : {
         "es" : {
@@ -3439,6 +3743,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快捷键"
+          }
+        }
+      }
+    },
+    "Show" : {
+      "comment" : "Quick Look button that reveals a masked secret",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar"
           }
         }
       }
@@ -3771,6 +4092,23 @@
         }
       }
     },
+    "Text found in this image" : {
+      "comment" : "The \"Aa\" badge on an image clip whose text was recognized",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text found in this image"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto encontrado en esta imagen"
+          }
+        }
+      }
+    },
     "Text only — %lld skipped" : {
       "localizations" : {
         "en" : {
@@ -3975,6 +4313,23 @@
         }
       }
     },
+    "Title Case" : {
+      "comment" : "Paste or copy as: each word capitalized",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title Case"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo Título"
+          }
+        }
+      }
+    },
     "To paste the next clip with ⌘V, Copyd has to see that key. Turn on Copyd in System Settings › Privacy & Security › Input Monitoring, then start Paste Stack again." : {
       "localizations" : {
         "en" : {
@@ -4035,6 +4390,23 @@
         }
       }
     },
+    "Token" : {
+      "comment" : "Label of a masked secret clip",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        }
+      }
+    },
     "Trial ended" : {
       "localizations" : {
         "es" : {
@@ -4053,6 +4425,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "试用已结束"
+          }
+        }
+      }
+    },
+    "Trim whitespace" : {
+      "comment" : "Paste or copy as: spaces removed at both ends of each line, and blank lines at the ends",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trim whitespace"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar espacios sobrantes"
           }
         }
       }
@@ -4119,6 +4508,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请尝试其他搜索词或筛选条件"
+          }
+        }
+      }
+    },
+    "UPPERCASE" : {
+      "comment" : "Paste or copy as: all capitals",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UPPERCASE"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MAYÚSCULAS"
           }
         }
       }

@@ -71,4 +71,30 @@ final class SearchStateTests: XCTestCase {
         _ = state.multiSelection.toggle(1, focus: 0, in: (0..<5).map { _ in UUID() })
         XCTAssertFalse(state.mayReorderSuggestions(initialIndex: 0), "multi-select")
     }
+
+    /// Search reads a secret's masked label, never the secret itself.
+    func testSearchMatchesASecretsMaskNotItsText() {
+        let secret = clip(.plainText)
+        secret.textContent = FakeSecret.stripe
+        secret.isSensitive = true
+        let state = SearchState()
+        state.debouncedSearchText = "sk_live"
+        XCTAssertEqual(state.filteredItems(from: [secret]).map(\.id), [])
+        state.debouncedSearchText = "API key"
+        XCTAssertEqual(state.filteredItems(from: [secret]).map(\.id), [secret.id])
+        state.debouncedSearchText = "p7dc"
+        XCTAssertEqual(state.filteredItems(from: [secret]).map(\.id), [secret.id], "the last four show, so they match")
+    }
+
+    /// An image is found by the text recognized in it.
+    func testSearchMatchesTheTextInAnImage() {
+        let image = clip(.image)
+        image.textContent = nil
+        image.ocrText = "Invoice 2026\nCopyd OCR test"
+        let state = SearchState()
+        state.debouncedSearchText = "ocr TEST"
+        XCTAssertEqual(state.filteredItems(from: [image, clip(.plainText)]).map(\.id), [image.id])
+        state.debouncedSearchText = "receipt"
+        XCTAssertEqual(state.filteredItems(from: [image]).map(\.id), [])
+    }
 }

@@ -6,6 +6,7 @@ struct TextCardContent: View {
     @State private var isCode: Bool = false
 
     private var previewText: String {
+        if let mask = item.secretMask { return mask }
         // Display only: leading blank lines (common in copied HTML) would push the text down the card.
         guard let text = item.textContent?.trimmingCharacters(in: .whitespacesAndNewlines) else { return "..." }
         let maxCharacters = 900
@@ -34,7 +35,7 @@ struct TextCardContent: View {
         .padding(10)
         .background(DesignTokens.Brand.chip)
         .task(id: item.id) {
-            guard let text = item.textContent else { return }
+            guard !item.isSensitive, let text = item.textContent else { return }
             let sample = text.prefix(900)
             let codeIndicators = ["func ", "var ", "let ", "class ", "import ", "def ", "return ", "{", "}", "=>", "->", "();", "//", "/*"]
             isCode = codeIndicators.contains { sample.contains($0) }

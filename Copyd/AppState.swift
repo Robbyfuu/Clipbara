@@ -49,6 +49,8 @@ final class AppState {
     var currentFilteredQuery: String = ""
 
     private(set) var cloudSync: CloudSyncEngine?
+    /// Reads the text in image clips: right after one is captured, at launch, and after a sync brings new ones.
+    @ObservationIgnored private var imageText: ImageTextQueue?
 
     @ObservationIgnored private var hasStarted = false
 
@@ -85,14 +87,21 @@ final class AppState {
             }
         }
         setupHotkey()
+        sweepSecrets()
 
         let engine = CloudSyncEngine(container: modelContainer) { [weak self] in
             self?.clipboardMonitor.refreshLatestItems()
+            self?.imageText?.fill()
         }
         cloudSync = engine
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) {
             engine.start()
         }
+        // The text read in an image never syncs, so its save queues no upload.
+        let imageText = ImageTextQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        self.imageText = imageText
+        clipboardMonitor.onNewImage = { [weak imageText] in imageText?.fill() }
+        imageText.fill()
 
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in
@@ -176,10 +185,43 @@ final class AppState {
 
     /// Shared paste path for panel and pinboard cards.
     /// - Parameter asPlainText: `nil` resolves from the setting combined with the Shift modifier.
-    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil) {
-        clipboardMonitor.skipNextChange(picking: [item.id])
-        pasteService.paste(item: item, asPlainText: asPlainText)
+    /// - Parameter text: Plain text written in place of the clip: a "Paste as…" result, or an image's "Paste text".
+    ///   Direct paste and the focus hand-back run as usual; the paste history counts the clip only when the text is
+    ///   its own (`MultiPaste.pickedIDs`), so an image's text never counts as a pick of the image.
+    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil) {
+        // The sweep or a remote delete may land while a menu is open.
+        guard !item.isGone else { return NSSound.beep() }
+        clipboardMonitor.skipNextChange(picking: text == nil ? [item.id] : MultiPaste.pickedIDs([item]))
+        if let text {
+            ReviewPrompter.recordPaste()
+            pasteService.pastePlainText(text)
+        } else {
+            pasteService.paste(item: item, asPlainText: asPlainText)
+        }
         hidePanel()
+    }
+
+    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Beeps if the transform no longer applies.
+    func paste(_ item: ClipboardItem, as transform: TextTransform) {
+        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return NSSound.beep() }
+        paste(item, text: text)
+    }
+
+    /// "Paste text" and ⌥Return: the text read in an image, as plain text, through the pick funnel, so the monitor
+    /// skips it (no new clip), Paste Stack stops and direct paste applies. No paste is recorded against the image.
+    /// Beeps when the clip has no recognized text.
+    func pasteText(_ item: ClipboardItem) {
+        guard !item.isGone, let text = item.recognizedText else { return NSSound.beep() }
+        paste(item, text: text)
+    }
+
+    /// ⌘E and "Edit…". Hides the panel, as Settings from the sync chip does, then opens the Edit clip window over it,
+    /// which activates Copyd. Closing that window hands focus back to the app the panel opened over.
+    func edit(_ item: ClipboardItem) {
+        guard item.isEditable, let context = modelContainer?.mainContext else { return NSSound.beep() }
+        let app = panelController.focusReturnApp
+        hidePanel()
+        EditClipWindowController.shared.show(item, in: context, returnTo: app)
     }
 
     /// ⌘-click: adds or removes a card from the multi-selection.
@@ -209,7 +251,7 @@ final class AppState {
         }
         ReviewPrompter.recordPaste()
         // One event per joined clip: images and files left out of the text don't count.
-        clipboardMonitor.skipNextChange(picking: items.filter { MultiPaste.text(of: $0) != nil }.map(\.id))
+        clipboardMonitor.skipNextChange(picking: MultiPaste.pickedIDs(items))
         pasteService.pastePlainText(joined.text)
         hidePanel()
     }
@@ -256,6 +298,19 @@ final class AppState {
     }
 
     var clearHistoryRequested = false
+
+    /// Deletes expired secrets now and every `SecretSweeper.interval` while Copyd runs.
+    private func sweepSecrets() {
+        guard let context = modelContainer?.mainContext else { return }
+        SecretSweeper.sweep(in: context)
+        let timer = Timer.scheduledTimer(withTimeInterval: SecretSweeper.interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let context = self?.modelContainer?.mainContext else { return }
+                SecretSweeper.sweep(in: context)
+            }
+        }
+        timer.tolerance = SecretSweeper.tolerance
+    }
 
     private func setupHotkey() {
         KeyboardShortcuts.onKeyDown(for: .toggleHistoryPanel) { [weak self] in

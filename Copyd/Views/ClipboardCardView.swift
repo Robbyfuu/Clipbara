@@ -39,6 +39,11 @@ struct ClipboardCardView: View {
 
     private var cardBody: some View {
         cardSurface
+        .overlay {
+            if isSelected {
+                CardMenuAnchor(clipID: item.id) { appState.panelController.cardMenuAnchor = $0 }
+            }
+        }
         .onHover { hovering in
             isHovered = hovering
         }
@@ -74,6 +79,13 @@ struct ClipboardCardView: View {
             Button("Paste as Plain Text") { appState.paste(item, asPlainText: true) }
         } else {
             Button("Paste") { onPaste(item) }
+        }
+        PasteAsMenu(item: item)
+        if item.recognizedText != nil {
+            Button("Paste text") { appState.pasteText(item) }
+        }
+        if item.isEditable {
+            Button("Edit…") { appState.edit(item) }
         }
         if showsManagementMenu {
             Divider()
@@ -186,6 +198,7 @@ struct ClipboardCardView: View {
     }
 
     private var accessibilitySummary: String {
+        if let mask = item.secretMask { return mask }
         switch item.contentType {
         case .image:
             return imageDimensions.map { String(localized: "image \(Int($0.width)) × \(Int($0.height))") } ?? String(localized: "image")
@@ -233,6 +246,15 @@ struct ClipboardCardView: View {
         HStack(alignment: .center, spacing: 6) {
             Image(systemName: item.contentType.systemImage)
                 .foregroundStyle(DesignTokens.typeTint(for: item.contentType, itemColor: item.textContent))
+            if item.isSensitive {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(DesignTokens.Brand.butterInk)
+                    .help("Secret, kept on this device")
+                    .accessibilityLabel("Secret, kept on this device")
+            }
+            if item.recognizedText != nil {
+                TextFoundBadge()
+            }
             if isSuggested {
                 Text("Suggested")
                     .font(.system(size: 10, weight: .bold))
@@ -341,6 +363,16 @@ struct ClipboardCardView: View {
 
     @ViewBuilder
     private var cardContent: some View {
+        // A secret shows its masked label, whatever its type.
+        if item.isSensitive {
+            TextCardContent(item: item, searchText: searchText)
+        } else {
+            typedContent
+        }
+    }
+
+    @ViewBuilder
+    private var typedContent: some View {
         switch item.contentType {
         case .plainText, .richText, .html:
             TextCardContent(item: item, searchText: searchText)
@@ -378,6 +410,57 @@ struct ClipboardCardView: View {
         modelContext.delete(item)
         try? modelContext.save()
     }
+}
+
+/// "Aa" on an image whose text was read: search finds it by that text, and "Paste text" pastes it.
+private struct TextFoundBadge: View {
+    var body: some View {
+        Text(verbatim: "Aa")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(DesignTokens.Brand.ink)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .help("Text found in this image")
+            .accessibilityLabel("Text found in this image")
+    }
+}
+
+/// "Paste as…", with only the transforms that change this clip. Its own view, so they are worked out again only when
+/// the clip changes, not on every hover of the card.
+private struct PasteAsMenu: View {
+    let item: ClipboardItem
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        let transforms = item.pasteAsTransforms
+        if !transforms.isEmpty {
+            Menu("Paste as…") {
+                ForEach(transforms, id: \.self) { transform in
+                    Button(transform.label()) { appState.paste(item, as: transform) }
+                }
+            }
+        }
+    }
+}
+
+/// An invisible AppKit view over a selected card: where ⇧⌥Return opens its "Paste as…" menu.
+private struct CardMenuAnchor: NSViewRepresentable {
+    let clipID: UUID
+    let onUpdate: (CardMenuAnchorView) -> Void
+
+    func makeNSView(context: Context) -> CardMenuAnchorView { CardMenuAnchorView() }
+
+    func updateNSView(_ view: CardMenuAnchorView, context: Context) {
+        view.clipID = clipID
+        onUpdate(view)
+    }
+}
+
+/// Never takes a click: the card under it keeps its taps, hover and drag.
+final class CardMenuAnchorView: NSView {
+    var clipID: UUID?
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 // MARK: - Conditional Drag Modifier

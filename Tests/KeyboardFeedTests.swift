@@ -145,4 +145,60 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(boards.map(\.id), [first.id, second.id])
         XCTAssertEqual(boards.first?.colorIndex, PinboardDot.index(for: first.id))
     }
+
+    /// The keyboard and the widget (which reads this feed) never show a secret, in any mode.
+    func testSecretsStayOutOfTheFeed() throws {
+        let b = board("Keys", order: 0)
+        let secret = add(FakeSecret.stripe, dt: 10, pinned: true)
+        secret.isSensitive = true
+        pin(secret, to: b, order: 0); pin(add("t", dt: 0, pinned: true), to: b, order: 1)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.preview), ["t"])
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinned).map(\.preview), ["t"])
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .pinboard(b.id)).map(\.preview), ["t"])
+    }
+
+    /// The keyboard's own capture of a secret shows masked; tapping it still inserts the real text.
+    func testClipboardCardMasksASecret() throws {
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: true)
+        XCTAssertEqual(card.preview, "API key •••• p7dc")
+        let open = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: false)
+        XCTAssertEqual(open.preview, FakeSecret.stripe, "Protect secrets is off")
+    }
+
+    func testClipboardCardMasksTheKeyInAnEnvCopy() throws {
+        let env = "STRIPE_SECRET_KEY=" + FakeSecret.stripe + "\nPORT=3000"
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(env)), now: t0, protects: true)
+        XCTAssertEqual(card.preview, "API key •••• p7dc")
+    }
+
+    // MARK: Insert as…
+
+    /// Worked out for the one long-pressed card, from the text the controller fetches for it.
+    func testInsertAsMenuForOneCard() throws {
+        add("[1, 2]", dt: 2)
+        add("12345", dt: 0)
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[0], text: "[1, 2]"), [.prettyJSON, .compactJSON])
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[1], text: "12345"), [], "no transform changes it")
+    }
+
+    /// An image, or a clip too long to insert (it is copied instead), has no menu, and its text is never fetched.
+    func testNoMenuForImagesOrAboveTheInsertLimit() throws {
+        add("png", type: .image, dt: 2)
+        add(String(repeating: "a", count: PasteAction.insertByteLimit + 1), dt: 1)
+        add(String(repeating: "a", count: PasteAction.insertByteLimit), dt: 0)
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        var fetches = 0
+        func fetch(_ text: String) -> String? { fetches += 1; return text }
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[0], text: fetch("png")), [])
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[1], text: fetch("a")), [])
+        XCTAssertEqual(fetches, 0)
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[2], text: fetch("a")), [.upper, .title])
+    }
+
+    /// The menu comes from the real text, not the masked preview.
+    func testClipboardCardMenuUsesTheRealText() throws {
+        let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: true)
+        XCTAssertEqual(KeyboardFeed.menu(for: card, text: FakeSecret.stripe), [.upper, .lower, .title])
+    }
 }
