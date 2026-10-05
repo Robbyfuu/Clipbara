@@ -7,6 +7,9 @@ enum TextTransform: CaseIterable {
 
     /// Clips whose text is the content. Colors, files and unknown data are not offered transforms or editing.
     static let textTypes: Set<ContentType> = [.plainText, .richText, .html, .url]
+    /// A menu is worked out from at most this many bytes at the start of the text, so a long clip costs no more than
+    /// a short one. It only decides what is offered: the pick applies to the whole text, and may then give nil.
+    static let menuProbeLimit = 4096
 
     /// Query parameters that only track where a link came from. Matched without case; `utm_` and `_hs` are prefixes.
     private static let trackingNames: Set<String> = ["fbclid", "gclid", "mc_eid", "igshid", "si", "ref_src", "spm"]
@@ -32,10 +35,31 @@ enum TextTransform: CaseIterable {
         return result
     }
 
-    /// The transforms that change this clip's text, in menu order. `plain` only for formatted text.
+    /// The transforms that change this clip's text, in menu order, judged from its first `menuProbeLimit` bytes.
+    /// `plain` only for formatted text. Longer JSON is offered when it starts like an object or an array.
     static func applicable(to text: String, type: ContentType) -> [TextTransform] {
         guard textTypes.contains(type) else { return [] }
-        return allCases.filter { ($0 != .plain || type == .richText || type == .html) && $0.apply(to: text) != nil }
+        let probe = menuProbe(text)
+        let cut = probe.utf8.count < text.utf8.count
+        return allCases.filter { transform in
+            guard transform != .plain || type == .richText || type == .html else { return false }
+            if cut, transform == .prettyJSON || transform == .compactJSON {
+                return probe.utf8.first { !isJSONWhitespace($0) }.map { $0 == UInt8(ascii: "{") || $0 == UInt8(ascii: "[") } ?? false
+            }
+            return transform.apply(to: probe) != nil
+        }
+    }
+
+    /// The text, or its first `menuProbeLimit` bytes, cut on a Unicode scalar. A cut drops the whitespace before it,
+    /// which is mid-line in the clip and would offer "Trim whitespace" for nothing.
+    private static func menuProbe(_ text: String) -> String {
+        let utf8 = text.utf8
+        guard utf8.count > menuProbeLimit else { return text }
+        var end = utf8.index(utf8.startIndex, offsetBy: menuProbeLimit)
+        while UTF8.isContinuation(utf8[end]) { utf8.formIndex(before: &end) }
+        var probe = text[..<end]
+        while probe.last?.isWhitespace == true { probe.removeLast() }
+        return String(probe)
     }
 
     func label(bundle: Bundle = .main) -> String {
@@ -55,14 +79,20 @@ enum TextTransform: CaseIterable {
 
     // MARK: Trim
 
-    /// Spaces and tabs off both ends of every line, and blank lines off both ends of the text. CRLF stays CRLF.
+    /// Spaces and tabs off both ends of every line, and blank lines off both ends of the text. Each line keeps its own
+    /// terminator: `\r\n`, `\n`, `\r`, U+2028 or U+2029.
     private static func trimmed(_ text: String) -> String {
-        // A Character "\r\n" is one newline, so CRLF splits once.
-        var lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-        while lines.first?.isEmpty == true { lines.removeFirst() }
-        while lines.last?.isEmpty == true { lines.removeLast() }
-        return lines.joined(separator: text.contains("\r\n") ? "\r\n" : "\n")
+        // (content, terminator). A Character "\r\n" is one newline, so CRLF is one terminator.
+        var lines: [(String, String)] = []
+        var rest = text[...]
+        while let end = rest.firstIndex(where: \.isNewline) {
+            lines.append((rest[..<end].trimmingCharacters(in: .whitespaces), String(rest[end])))
+            rest = rest[rest.index(after: end)...]
+        }
+        lines.append((rest.trimmingCharacters(in: .whitespaces), ""))
+        guard let first = lines.firstIndex(where: { !$0.0.isEmpty }),
+              let last = lines.lastIndex(where: { !$0.0.isEmpty }) else { return "" }
+        return lines[first..<last].map { $0.0 + $0.1 }.joined() + lines[last].0
     }
 
     // MARK: Clean link

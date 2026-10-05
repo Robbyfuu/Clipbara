@@ -167,25 +167,32 @@ final class KeyboardFeedTests: XCTestCase {
 
     // MARK: Insert as…
 
-    func testCardsCarryTheirTransforms() throws {
+    /// Worked out for the one long-pressed card, from the text the controller fetches for it.
+    func testInsertAsMenuForOneCard() throws {
         add("[1, 2]", dt: 2)
-        add("png", type: .image, dt: 1)
         add("12345", dt: 0)
         let clips = try KeyboardFeed.items(in: context, mode: .recent)
-        XCTAssertEqual(clips.map(\.transforms), [[.prettyJSON, .compactJSON], [], []],
-                       "worked out from the whole text; none for images or text no transform changes")
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[0], text: "[1, 2]"), [.prettyJSON, .compactJSON])
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[1], text: "12345"), [], "no transform changes it")
     }
 
-    /// Longer clips are copied, never inserted, so there is nothing to insert them as.
-    func testNoTransformsAboveTheInsertLimit() throws {
-        add(String(repeating: "a", count: PasteAction.insertByteLimit + 1))
-        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).first?.transforms, [])
-        add(String(repeating: "a", count: PasteAction.insertByteLimit), dt: 1)
-        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).first?.transforms, [.upper, .title])
+    /// An image, or a clip too long to insert (it is copied instead), has no menu, and its text is never fetched.
+    func testNoMenuForImagesOrAboveTheInsertLimit() throws {
+        add("png", type: .image, dt: 2)
+        add(String(repeating: "a", count: PasteAction.insertByteLimit + 1), dt: 1)
+        add(String(repeating: "a", count: PasteAction.insertByteLimit), dt: 0)
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        var fetches = 0
+        func fetch(_ text: String) -> String? { fetches += 1; return text }
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[0], text: fetch("png")), [])
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[1], text: fetch("a")), [])
+        XCTAssertEqual(fetches, 0)
+        XCTAssertEqual(KeyboardFeed.menu(for: clips[2], text: fetch("a")), [.upper, .title])
     }
 
-    func testClipboardCardCarriesTheRealTextsTransforms() throws {
+    /// The menu comes from the real text, not the masked preview.
+    func testClipboardCardMenuUsesTheRealText() throws {
         let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: true)
-        XCTAssertEqual(card.transforms, [.upper, .lower, .title], "a masked secret still pastes as its real text")
+        XCTAssertEqual(KeyboardFeed.menu(for: card, text: FakeSecret.stripe), [.upper, .lower, .title])
     }
 }

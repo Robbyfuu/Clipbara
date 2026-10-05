@@ -11,6 +11,15 @@ struct ClipRow: View {
     @State private var editing = false
 
     var body: some View {
+        // The sweep, a sync or another row's delete may have removed the clip: reading it then would crash.
+        if item.isGone {
+            EmptyView()
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         Button { if item.contentType == .files { model.share(item) } else { model.copy(item) } } label: {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -239,10 +248,18 @@ private struct EditClipSheet: View {
 
     init(item: ClipboardItem) {
         self.item = item
-        _text = State(initialValue: item.textContent ?? "")
+        _text = State(initialValue: item.isGone ? "" : item.textContent ?? "")
     }
 
     var body: some View {
+        if item.isGone {
+            EmptyView()
+        } else {
+            editor
+        }
+    }
+
+    private var editor: some View {
         NavigationStack {
             TextEditor(text: $text)
                 .brandFont(16)
@@ -260,7 +277,7 @@ private struct EditClipSheet: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             // The sweep or a sync may have deleted the clip meanwhile.
-                            if !item.isDeleted, item.modelContext != nil { item.saveEdit(text, in: modelContext) }
+                            if !item.isGone { item.saveEdit(text, in: modelContext) }
                             dismiss()
                         }
                         .disabled(text.isEmpty)

@@ -13,8 +13,6 @@ struct KeyboardClip: Identifiable, Equatable {
     let sourceAppName: String?
     /// The keyboard's own capture of the current pasteboard, not yet in the store. Shows "Clipboard" for its meta line.
     var isClipboard = false
-    /// "Insert as…", worked out from the whole text when the feed loads, since the card only carries a preview.
-    var transforms: [TextTransform] = []
 }
 
 /// A pinboard chip in the keyboard header.
@@ -74,7 +72,7 @@ enum KeyboardFeed {
             // ImageIO, so the full image is never decoded in the keyboard.
             thumbnail: type == .image ? Thumbnail.png(from: clip.rawData) : nil,
             isPinned: false, copiedAt: now, textByteCount: clip.textContent?.utf8.count ?? 0,
-            sourceAppName: nil, isClipboard: true, transforms: transforms(type, clip.textContent))
+            sourceAppName: nil, isClipboard: true)
     }
 
     private static func clip(_ item: ClipboardItem) -> KeyboardClip {
@@ -84,13 +82,15 @@ enum KeyboardFeed {
             id: item.id, contentType: type, preview: preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
-            sourceAppName: item.sourceAppName, transforms: transforms(type, text))
+            sourceAppName: item.sourceAppName)
     }
 
-    /// Only for clips short enough to insert: longer ones are copied instead, and the cost stays small in the extension.
-    private static func transforms(_ type: ContentType, _ text: String?) -> [TextTransform] {
-        guard let text, text.utf8.count <= PasteAction.insertByteLimit else { return [] }
-        return TextTransform.applicable(to: text, type: type)
+    /// "Insert as…" for one card, worked out when it is long-pressed, never for the whole feed. `text` is the clip's
+    /// whole text, fetched only for a text clip short enough to insert: a longer one is copied instead.
+    static func menu(for clip: KeyboardClip, text: @autoclosure () -> String?) -> [TextTransform] {
+        guard TextTransform.textTypes.contains(clip.contentType), clip.textByteCount <= PasteAction.insertByteLimit,
+              let text = text() else { return [] }
+        return TextTransform.applicable(to: text, type: clip.contentType)
     }
 
     private static func preview(_ type: ContentType, _ text: String?) -> String {

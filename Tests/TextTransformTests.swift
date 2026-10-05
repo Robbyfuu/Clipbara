@@ -34,6 +34,18 @@ final class TextTransformTests: XCTestCase {
         XCTAssertEqual(apply(.trim, "  a  \r\n\r\n b \r\n"), "a\r\n\r\nb")
     }
 
+    func testTrimKeepsEachLinesOwnTerminator() {
+        XCTAssertEqual(apply(.trim, " a \r\nb \n c\r\n\n"), "a\r\nb\nc")
+    }
+
+    func testTrimKeepsALoneCarriageReturn() {
+        XCTAssertEqual(apply(.trim, " a \r b "), "a\rb")
+    }
+
+    func testTrimKeepsLineAndParagraphSeparators() {
+        XCTAssertEqual(apply(.trim, " a \u{2028} b \u{2029}c "), "a\u{2028}b\u{2029}c")
+    }
+
     func testTrimDoesNotApplyToTidyOrBlankText() {
         XCTAssertNil(apply(.trim, "a\nb"))
         XCTAssertNil(apply(.trim, " \n\t\r\n "), "nothing left to paste")
@@ -164,6 +176,41 @@ final class TextTransformTests: XCTestCase {
         XCTAssertFalse(compacted.contains(.compactJSON), "already compact")
         XCTAssertTrue(Set(TextTransform.applicable(to: "[1, 2]", type: .plainText)).isSuperset(of: [.prettyJSON, .compactJSON]))
         XCTAssertTrue(Set(TextTransform.applicable(to: "{nope}", type: .plainText)).isDisjoint(with: [.prettyJSON, .compactJSON]))
+    }
+
+    // MARK: Menu probe
+
+    /// A long clip's menu comes from its first 4 KB, so a 200 KB clip costs no more than a short one.
+    func testMenuOfALongTextComesFromItsFirst4KB() {
+        // 4 KB of lowercase text with untracked links, then 200 KB of tracked links.
+        let text = String(repeating: "see https://a.example/?q=1 ", count: 160)
+            + String(repeating: "Visit https://b.example/?utm_source=x ", count: 5_300)
+        XCTAssertGreaterThan(text.utf8.count, 200_000)
+        var menu: [TextTransform] = []
+        let elapsed = ContinuousClock().measure { menu = TextTransform.applicable(to: text, type: .plainText) }
+        XCTAssertLessThan(elapsed, .milliseconds(100), "\(elapsed)")
+        XCTAssertEqual(menu, [.upper, .title], "lowercase, Trim and Clean link would only change the text after 4 KB")
+    }
+
+    /// The 4 KB cut lands right after a space here: that space is mid-line in the clip, nothing to trim.
+    func testCutAfterASpaceDoesNotOfferTrim() {
+        let text = String(repeating: "abc ", count: 2_000) + "abc"
+        XCTAssertEqual(TextTransform.applicable(to: text, type: .plainText), [.upper, .title])
+    }
+
+    /// Only the whole text can be parsed: a long clip that opens like an object or an array is offered both, and a
+    /// pick the rest of the text doesn't support gives nil, so nothing is pasted.
+    func testJSONMenuOfALongText() {
+        let valid = "[" + (0..<500).map { #"{"id": \#($0)}"# }.joined(separator: ", ") + "]"
+        XCTAssertGreaterThan(valid.utf8.count, TextTransform.menuProbeLimit)
+        let invalid = String(valid.dropLast())
+        for text in [valid, " \n" + invalid] {
+            XCTAssertTrue(Set(TextTransform.applicable(to: text, type: .plainText)).isSuperset(of: [.prettyJSON, .compactJSON]))
+        }
+        XCTAssertNotNil(apply(.prettyJSON, valid))
+        XCTAssertNil(apply(.prettyJSON, invalid))
+        XCTAssertNil(apply(.compactJSON, invalid))
+        XCTAssertTrue(Set(TextTransform.applicable(to: "x" + valid, type: .plainText)).isDisjoint(with: [.prettyJSON, .compactJSON]))
     }
 
     func testNothingAppliesToImagesFilesOrColors() {

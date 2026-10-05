@@ -14,6 +14,10 @@ final class KeyboardViewController: UIInputViewController {
         model.onModeChange = { [weak self] in self?.reload() }
         model.onSelect = { [weak self] in self?.select($0) }
         model.onInsertAs = { [weak self] in self?.insert($0, as: $1) }
+        model.onMenu = { [weak self] clip in
+            guard let self else { return [] }
+            return KeyboardFeed.menu(for: clip, text: self.text(of: clip))
+        }
         model.onText = { [weak self] in self?.textDocumentProxy.insertText($0) }
         model.onDelete = { [weak self] in self?.textDocumentProxy.deleteBackward() }
         model.onOpenApp = { [weak self] in
@@ -120,11 +124,17 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     /// "Insert as…": the clip's whole text, transformed, inserted as plain text, or copied when too long to insert.
-    /// A masked clipboard card inserts its real text.
+    /// The menu came from the text's first 4 KB: when the whole text doesn't support the pick (JSON that turns invalid
+    /// later), nothing happens.
     private func insert(_ clip: KeyboardClip, as transform: TextTransform) -> String? {
-        let text = clip.isClipboard ? clipboard?.clip.textContent : item(for: clip)?.textContent
-        guard let result = text.flatMap(transform.apply(to:)) else { return Self.failure }
+        guard let text = text(of: clip) else { return Self.failure }
+        guard let result = transform.apply(to: text) else { return nil }
         return paste(.plainText, text: result, data: Data())
+    }
+
+    /// The clip's whole text. A masked clipboard card has its real text.
+    private func text(of clip: KeyboardClip) -> String? {
+        clip.isClipboard ? clipboard?.clip.textContent : item(for: clip)?.textContent
     }
 
     private func item(for clip: KeyboardClip) -> ClipboardItem? {
