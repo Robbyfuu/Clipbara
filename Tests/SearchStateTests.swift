@@ -85,4 +85,16 @@ final class SearchStateTests: XCTestCase {
         state.debouncedSearchText = "p7dc"
         XCTAssertEqual(state.filteredItems(from: [secret]).map(\.id), [secret.id], "the last four show, so they match")
     }
+
+    /// An image is found by the text recognized in it.
+    func testSearchMatchesTheTextInAnImage() {
+        let image = clip(.image)
+        image.textContent = nil
+        image.ocrText = "Invoice 2026\nCopyd OCR test"
+        let state = SearchState()
+        state.debouncedSearchText = "ocr TEST"
+        XCTAssertEqual(state.filteredItems(from: [image, clip(.plainText)]).map(\.id), [image.id])
+        state.debouncedSearchText = "receipt"
+        XCTAssertEqual(state.filteredItems(from: [image]).map(\.id), [])
+    }
 }

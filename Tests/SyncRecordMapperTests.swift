@@ -1,4 +1,5 @@
 import CloudKit
+import SwiftData
 import XCTest
 
 final class SyncRecordMapperTests: XCTestCase {
@@ -128,6 +129,26 @@ final class SyncRecordMapperTests: XCTestCase {
         try SyncRecordMapper.populate(rec, from: clip, assetDirectory: dir)
         rec.encryptedValues["fromUniversalClipboard"] = nil as Int64?
         XCTAssertFalse(try SyncRecordMapper.clip(from: rec).fromUniversalClipboard)
+    }
+
+    /// The text read in an image never syncs: each device reads its own, and none of it reaches CloudKit.
+    @MainActor
+    func testTextReadInAnImageIsNeverMapped() throws {
+        let container = try ModelContainer(for: ClipboardItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let image = ClipboardItem(contentType: .image, rawData: Data([1, 2, 3]), contentHash: "h")
+        container.mainContext.insert(image)
+        image.ocrText = "Copyd OCR test"
+        image.ocrDone = true
+        let rec = record(for: image.snapshot)
+        try SyncRecordMapper.populate(rec, from: image.snapshot, assetDirectory: dir)
+        let keys = Set(rec.allKeys()).union(rec.encryptedValues.allKeys())
+        XCTAssertTrue(keys.filter { $0.lowercased().contains("ocr") }.isEmpty, "\(keys)")
+        for key in rec.encryptedValues.allKeys() {
+            XCTAssertNotEqual(rec.encryptedValues[key] as? String, "Copyd OCR test", key)
+        }
+        let back = try SyncRecordMapper.clip(from: rec)
+        XCTAssertNil(back.textContent)
+        XCTAssertEqual(back, image.snapshot)
     }
 
     func testOnlyAllowedPlainKeys() throws {

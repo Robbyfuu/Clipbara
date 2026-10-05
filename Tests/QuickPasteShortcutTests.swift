@@ -102,11 +102,18 @@ final class QuickPasteShortcutTests: XCTestCase {
         XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.shift, .option, .capsLock]), .pasteAs)
     }
 
-    func testOtherReturnChordsAreNotPasteAs() {
-        // ⌥Return is kept for "Copy text"; Return and ⇧Return paste.
-        for flags: NSEvent.ModifierFlags in [[], .option, .shift, [.shift, .option, .command], [.shift, .option, .control]] {
+    func testOtherReturnChordsAreNotCardTools() {
+        // Return and ⇧Return paste.
+        for flags: NSEvent.ModifierFlags in [[], .shift, [.shift, .option, .command], [.shift, .option, .control],
+                                             [.option, .command], [.option, .control]] {
             XCTAssertNil(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: flags), "\(flags)")
         }
+    }
+
+    func testOptionReturnCopiesText() {
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: .option), .copyText)
+        XCTAssertEqual(CardShortcut.match(keyCode: 36, characters: "\r", modifiers: [.option, .capsLock]), .copyText)
+        XCTAssertNil(CardShortcut.match(keyCode: 76, characters: "\u{3}", modifiers: .option), "keypad Enter is not Return")
     }
 
     func testCommandEEdits() {

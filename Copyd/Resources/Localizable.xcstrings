@@ -809,6 +809,23 @@
         }
       }
     },
+    "Copy text" : {
+      "comment" : "Image clip menu: copies the text recognized in the image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar texto"
+          }
+        }
+      }
+    },
     "Copyd" : {
       "shouldTranslate" : false
     },
@@ -4071,6 +4088,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文本"
+          }
+        }
+      }
+    },
+    "Text found in this image" : {
+      "comment" : "The \"Aa\" badge on an image clip whose text was recognized",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text found in this image"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto encontrado en esta imagen"
           }
         }
       }

@@ -47,7 +47,8 @@ enum Thumbnail {
         return out as Data
     }
 
-    private static func image(from data: Data, maxPixels: CGFloat) -> CGImage? {
+    /// Decodes at most `maxPixels` on the longest side, never the whole image. Never upscales.
+    static func image(from data: Data, maxPixels: CGFloat) -> CGImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,

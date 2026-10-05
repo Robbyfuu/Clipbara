@@ -81,6 +81,9 @@ struct ClipboardCardView: View {
             Button("Paste") { onPaste(item) }
         }
         PasteAsMenu(item: item)
+        if item.recognizedText != nil {
+            Button("Copy text") { appState.copyText(item) }
+        }
         if item.isEditable {
             Button("Edit…") { appState.edit(item) }
         }
@@ -249,6 +252,9 @@ struct ClipboardCardView: View {
                     .help("Secret, kept on this device")
                     .accessibilityLabel("Secret, kept on this device")
             }
+            if item.recognizedText != nil {
+                TextFoundBadge()
+            }
             if isSuggested {
                 Text("Suggested")
                     .font(.system(size: 10, weight: .bold))
@@ -403,6 +409,20 @@ struct ClipboardCardView: View {
         }
         modelContext.delete(item)
         try? modelContext.save()
+    }
+}
+
+/// "Aa" on an image whose text was read: search finds it by that text, and "Copy text" copies it.
+private struct TextFoundBadge: View {
+    var body: some View {
+        Text(verbatim: "Aa")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(DesignTokens.Brand.ink)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .help("Text found in this image")
+            .accessibilityLabel("Text found in this image")
     }
 }
 

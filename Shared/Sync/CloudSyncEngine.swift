@@ -504,6 +504,13 @@ import SwiftData
         save(suppressing: ids)
     }
 
+    /// Saves main-context changes to fields that never sync (`ocrText`, `ocrDone`) on `ids`: the tracker queues no
+    /// upload, so reading an image never resends its record. Other pending changes on those ids would not upload
+    /// either, so call it right after setting only those fields.
+    func saveLocalOnly(_ ids: Set<UUID>) {
+        save(suppressing: ids)
+    }
+
     private func save(suppressing ids: Set<UUID>) {
         do {
             if let tracker {

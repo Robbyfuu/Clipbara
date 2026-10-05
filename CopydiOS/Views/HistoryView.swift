@@ -17,7 +17,12 @@ struct HistoryView: View {
 
     @Environment(AppModel.self) private var model
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse) private var items: [ClipboardItem]
+    #if DEBUG
+    /// `-CopydSearch <text>` starts with that search, for simulator screenshots.
+    @State private var search = UserDefaults.standard.string(forKey: "CopydSearch") ?? ""
+    #else
     @State private var search = ""
+    #endif
     @State private var filter = Filter.all
     @FocusState private var searchFocused: Bool
     /// Set by the Search quick action; focuses the field once, then resets.
@@ -34,9 +39,11 @@ struct HistoryView: View {
             case .links: if item.contentType != .url { return false }
             case .images: if item.contentType != .image { return false }
             }
+            // Matches like the Mac panel's search: a secret by its mask, an image by the text read in it.
             return search.isEmpty
                 || ((item.secretMask ?? item.textContent)?.localizedCaseInsensitiveContains(search) ?? false)
                 || (item.userTitle?.localizedCaseInsensitiveContains(search) ?? false)
+                || (item.recognizedText?.localizedCaseInsensitiveContains(search) ?? false)
         }
     }
 

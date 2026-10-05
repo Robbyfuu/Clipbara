@@ -10,12 +10,17 @@ extension ClipboardItem {
             fromUniversalClipboard: fromUniversalClipboard)
     }
 
-    /// Copies every field except `id`, `thumbnailData` and `syncSystemFields`. `rawData` is written only
-    /// when it differs, so an echo of our own save does not rewrite the external blob. Returns whether it did.
+    /// Copies every field except `id`, `thumbnailData`, `syncSystemFields` and the local-only ones. `rawData` is written
+    /// only when it differs, so an echo of our own save does not rewrite the external blob. Returns whether it did.
+    /// New content drops the text read in the old image, so the fill pass reads it again.
     @discardableResult
     func update(from s: ClipSnapshot) -> Bool {
         let rawChanged = rawData != s.rawData
-        if rawChanged { rawData = s.rawData }
+        if rawChanged {
+            rawData = s.rawData
+            ocrText = nil
+            ocrDone = false
+        }
         fileManifestData = s.fileManifest
         contentTypeRaw = s.contentType
         textContent = s.textContent

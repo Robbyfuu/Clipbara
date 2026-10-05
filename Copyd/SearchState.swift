@@ -149,10 +149,11 @@ final class SearchState {
 }
 
 private extension ClipboardItem {
-    /// A secret matches by its masked label only, never by the secret itself.
+    /// A secret matches by its masked label only, never by the secret itself. An image also by the text read in it.
     func matchesSearchQuery(_ query: String) -> Bool {
         (secretMask ?? textContent)?.localizedCaseInsensitiveContains(query) == true ||
         sourceAppName?.localizedCaseInsensitiveContains(query) == true ||
-        userTitle?.localizedCaseInsensitiveContains(query) == true
+        userTitle?.localizedCaseInsensitiveContains(query) == true ||
+        recognizedText?.localizedCaseInsensitiveContains(query) == true
     }
 }

@@ -430,7 +430,8 @@ final class PanelController {
                     return true
                 }
 
-                // ⇧⌥Return opens the selected card's "Paste as…" menu and ⌘E edits it, also while searching.
+                // ⇧⌥Return opens the selected card's "Paste as…" menu, ⌘E edits it and ⌥Return copies an image's
+                // text, also while searching.
                 if let tool = CardShortcut.match(keyCode: keyCode, characters: characters, modifiers: event.modifierFlags) {
                     return self.useCardTool(tool)
                 }
@@ -569,7 +570,7 @@ final class PanelController {
         }
     }
 
-    // MARK: - Card tools (⇧⌥Return, ⌘E)
+    // MARK: - Card tools (⇧⌥Return, ⌘E, ⌥Return)
 
     /// Acts on the clip in Quick Look, else the selected card. Not handled, so the key goes on, with no card.
     private func useCardTool(_ tool: CardShortcut) -> Bool {
@@ -582,6 +583,7 @@ final class PanelController {
         switch tool {
         case .edit: appState.edit(item)
         case .pasteAs: showPasteAsMenu(for: item)
+        case .copyText: appState.copyText(item)
         }
         return true
     }

@@ -55,15 +55,16 @@ enum QuickPasteShortcut {
     }
 }
 
-/// Panel-local tools for the selected card: ⇧⌥Return opens its "Paste as…" menu, ⌘E edits it.
-/// ⌥Return is left free for "Copy text".
+/// Panel-local tools for the selected card: ⇧⌥Return opens its "Paste as…" menu, ⌘E edits it, and ⌥Return copies
+/// the text read in an image.
 enum CardShortcut: Equatable {
-    case pasteAs, edit
+    case pasteAs, edit, copyText
 
     /// `characters` is the event's `charactersIgnoringModifiers`: E by the letter it types, whatever the layout.
     static func match(keyCode: UInt16, characters: String?, modifiers: NSEvent.ModifierFlags) -> CardShortcut? {
         switch modifiers.intersection([.command, .option, .control, .shift]) {
         case [.shift, .option] where keyCode == 36: .pasteAs
+        case .option where keyCode == 36: .copyText
         case .command where characters?.lowercased() == "e": .edit
         default: nil
         }

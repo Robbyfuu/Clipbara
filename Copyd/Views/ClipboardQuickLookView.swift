@@ -81,6 +81,8 @@ struct ClipboardQuickLookView: View {
     private static let footerHeight: CGFloat = 36
     private static let minImageBubbleWidth: CGFloat = 520
     private static let minImageBubbleHeight: CGFloat = 300
+    /// The recognized text under an image: selectable, scrolling past this height.
+    private static let imageTextHeight: CGFloat = 120
 
     /// Text and other types keep the large fixed bubble. Images get a bubble shaped
     /// like the image at its fitted size, so there is no dead checkerboard around it.
@@ -95,7 +97,7 @@ struct ClipboardQuickLookView: View {
             return CGSize(width: maxWidth, height: maxHeight)
         }
 
-        let chrome = Self.toolbarHeight + Self.footerHeight + 2
+        let chrome = Self.toolbarHeight + Self.footerHeight + 2 + (item.recognizedText == nil ? 0 : Self.imageTextHeight + 1)
         let margin = ZoomingImageScrollView.fitMargin * 2
         let maxContent = CGSize(width: maxWidth - margin, height: maxHeight - chrome - margin)
         let scale = min(1, maxContent.width / image.size.width, maxContent.height / image.size.height)
@@ -293,16 +295,26 @@ struct ClipboardQuickLookView: View {
     }
 
     private var imageContent: some View {
-        Group {
-            if let cachedImage {
-                ZoomableImageView(image: cachedImage, controller: zoom)
-            } else {
-                placeholder(systemImage: "photo", text: "Unable to load image")
+        VStack(spacing: 0) {
+            Group {
+                if let cachedImage {
+                    ZoomableImageView(image: cachedImage, controller: zoom)
+                } else {
+                    placeholder(systemImage: "photo", text: "Unable to load image")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            // Images are never secrets, so their text is never masked.
+            if let text = item.recognizedText {
+                Divider().opacity(0.35)
+                SelectableTextView(text: text, fontSize: 13, lineSpacing: 3,
+                                   contentInsets: NSEdgeInsets(top: 10, left: 16, bottom: 10, right: 16))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.imageTextHeight)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(contentBackground)
-        .clipped()
     }
 
     private var urlContent: some View {

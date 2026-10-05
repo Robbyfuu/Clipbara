@@ -53,6 +53,8 @@ final class StoreMigrationTests: XCTestCase {
         XCTAssertTrue(clip.isPinned)
         XCTAssertFalse(clip.fromUniversalClipboard)
         XCTAssertFalse(clip.isSensitive, "existing clips are not secrets: detection runs only on new copies")
+        XCTAssertNil(clip.ocrText)
+        XCTAssertFalse(clip.ocrDone, "existing images are read by the first fill pass")
     }
 
     /// Paste history is a new Mac-only entity: today's store must open in place with it, keeping every clip.

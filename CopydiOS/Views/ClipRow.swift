@@ -1,8 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// One clip card. Tap copies (a file clip opens the share sheet); swipe pins or deletes; long-press offers "Copy as…"
-/// and "Edit". `onDelete` lets Pinboards remove the entry instead of the clip.
+/// One clip card. Tap copies (a file clip opens the share sheet); swipe pins or deletes; long-press offers "Copy as…",
+/// "Copy text" for an image whose text was read, and "Edit". `onDelete` lets Pinboards remove the entry instead of the clip.
 struct ClipRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.modelContext) private var modelContext
@@ -29,6 +29,9 @@ struct ClipRow: View {
         .buttonStyle(.plain)
         .contextMenu {
             CopyAsMenu(item: item)
+            if let text = item.recognizedText {
+                Button { model.copy(item, text: text) } label: { Label("Copy text", systemImage: "text.viewfinder") }
+            }
             // Never for a secret: the editor would show it.
             if item.isEditable {
                 Button { editing = true } label: { Label("Edit", systemImage: "pencil") }
@@ -176,6 +179,14 @@ struct ClipRow: View {
                 .foregroundStyle(DesignTokens.Brand.ink2)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if item.recognizedText != nil {
+                Text(verbatim: "Aa")
+                    .fontWeight(.bold)
+                    .foregroundStyle(DesignTokens.Brand.ink)
+                    .padding(.horizontal, 5)
+                    .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 5))
+                    .accessibilityLabel("Text found in this image")
+            }
             if item.isSensitive {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(DesignTokens.Brand.butterInk)

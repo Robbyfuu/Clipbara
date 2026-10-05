@@ -24,6 +24,11 @@ final class ClipboardItem {
     /// The capture matched `SecretDetector`. Local only: never synced, masked in every view, deleted by `SecretSweeper`.
     /// Additive with a default, so existing stores migrate lightweight.
     var isSensitive: Bool = false
+    /// The text Vision read in an image clip (`ImageTextQueue`). Local only: never synced, each device reads its own.
+    /// Never sent to the suggestions model. Additive, so existing stores migrate lightweight.
+    var ocrText: String?
+    /// Recognition already ran, so an image with no text is never read again. Local only, like `ocrText`.
+    var ocrDone: Bool = false
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }

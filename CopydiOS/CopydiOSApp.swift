@@ -96,11 +96,15 @@ struct CopydiOSApp: App {
             // `initial`, so a cold launch captures the clipboard too. A repeat is harmless: the drain is idempotent
             // and the capture reads each `changeCount` once.
             .onChange(of: scenePhase, initial: true) { _, phase in
+                // Reading images runs in the foreground only; it picks up where it stopped on the next return.
+                if phase == .background { model.imageText.stop() }
                 guard phase == .active else { return }
                 model.drainInbox()
                 model.captureNewCopy()
                 model.sweepSecrets()
                 model.sync.fetchIfStale()
+                // After the drain and the capture, so their new images are read first.
+                model.imageText.fill()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()
             }
