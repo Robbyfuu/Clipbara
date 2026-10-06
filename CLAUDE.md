@@ -115,6 +115,23 @@ Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPh
   - A failed read leaves `ocrDone == false`, so the next fill retries it.
 - **Transforms (`TextTransform`)** decide applicability from the first 4 KB (`menuProbeLimit`) and apply to the full text. Clips with `isSensitive` never get Paste as.
 
+## System integration and previews (spec: `docs/superpowers/specs/2026-10-05-everywhere-previews-design.md`)
+
+- **Controls and Lock Screen widgets** live in `CopydWidget`.
+  - The intents are compiled into both the app and the widget. The app-only body sits behind `WIDGET_EXTENSION`, and the extension copy sets `isDiscoverable = false`.
+  - Never expose save-clipboard as a URL: `QuickRoute.allowsURL` must stay false for it.
+- **Link previews** (`linkTitle`, `linkImageData`, `linkPreviewDone`) are local-only and never mapped.
+  - They are fetched in the app only, never in an extension.
+  - Never fetched: secrets, single-use links (token/code/reset… query names, `#…=` fragments, reset/verify paths) and local or private hosts (`LinkPreviewPlan.fetchableURL`).
+  - The Mac needs `com.apple.security.network.client`.
+- **Spotlight** is iPhone and iPad only (`SpotlightIndexer`).
+  - It indexes every clip except secrets, including text that `SecretDetector` flags.
+  - It follows main-context saves and reconciles through `spotlightIndexVersion`.
+  - Tapping a result goes through `SceneDelegate` into `QuickRoute.copy`. File clips open the share sheet.
+- **The keyboard feed** must use `propertiesToFetch` (`KeyboardFeed.cardFields`). Never load `rawData` or `linkImageData` there.
+- **Code highlighting** uses `CodeDetector` and `SyntaxHighlighter` on the first 2 KB, with tokens cached by `contentHash`. The code colors are WCAG ≥ 4.5:1 on `chip` and `card`.
+- **Spanish strings:** `python3 scripts/check_es.py` must report `0 missing`.
+
 ## Project rules
 
 - **Language and platform.** Swift 6 strict concurrency (`SWIFT_STRICT_CONCURRENCY: complete`), targeting macOS 14+ and iOS 17+.
