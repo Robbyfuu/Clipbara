@@ -93,6 +93,7 @@ final class AppModel {
         #if DEBUG
         applyDebugRoute()
         spotlight.checkIfRequested()
+        continueSpotlightIfRequested()
         #endif
         // Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the
         // sync engine's applied remote changes, foreground or a background push wake.
@@ -393,9 +394,37 @@ final class AppModel {
         seeds.forEach(context.delete)
         boards.forEach(context.delete)
         try? context.save()
+        invalidateSpotlight()
     }
 
     private static let seedBoardID = UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!
+
+    /// The seeds write through their own context, before the indexer exists, so it never sees them: dropping the stored
+    /// index version makes it rebuild when it starts.
+    private static func invalidateSpotlight() {
+        SecretDetector.settings.removeObject(forKey: SpotlightIndexer.versionDefaultsKey)
+    }
+
+    /// `-CopydContinueSpotlight YES` (with `-CopydSeedSampleClips YES -iCloudSyncEnabled NO`): after 3 s, hands the
+    /// scene's delegate a tapped Spotlight result for the "Hello from Copyd" sample, as iOS does while Copyd runs, then
+    /// logs whether the pasteboard holds the clip.
+    private func continueSpotlightIfRequested() {
+        guard UserDefaults.standard.bool(forKey: "CopydContinueSpotlight") else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == "seed-short" })
+            fetch.fetchLimit = 1
+            guard let clip = try? container.mainContext.fetch(fetch).first,
+                  let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive })
+            else { return Self.log.error("Spotlight continue: no sample clip or no active scene") }
+            let activity = NSUserActivity(activityType: QuickRoute.spotlightActivityType)
+            activity.userInfo = [QuickRoute.spotlightIDKey: clip.id.uuidString]
+            scene.delegate?.scene?(scene, continue: activity)
+            try? await Task.sleep(for: .seconds(1))
+            let copied = UIPasteboard.general.string == clip.textContent
+            Self.log.notice("Spotlight continue \(copied ? "PASS" : "FAIL", privacy: .public): pasteboard holds the clip=\(copied, privacy: .public)")
+        }
+    }
 
     /// `-CopydWriteSampleInbox YES`: writes one text item to the inbox, as the Share extension would, and skips the
     /// drain for this launch. The next launch imports it and shows "Added 1 from Share".
@@ -423,6 +452,7 @@ final class AppModel {
         }
         context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png), contentHash: hash))
         try? context.save()
+        invalidateSpotlight()
     }
 
     /// `-CopydSeedLinkClip YES`: inserts one link to https://www.apple.com, not fetched yet, for the fill pass to find.
@@ -437,6 +467,7 @@ final class AppModel {
         let link = "https://www.apple.com"
         context.insert(ClipboardItem(contentType: .url, rawData: Data(link.utf8), textContent: link, contentHash: hash))
         try? context.save()
+        invalidateSpotlight()
     }
 
     /// `-CopydSeedSecretClip YES`: inserts one secret, as a detected capture would, for the Spotlight check to miss.
@@ -453,6 +484,7 @@ final class AppModel {
         clip.isSensitive = true
         context.insert(clip)
         try? context.save()
+        invalidateSpotlight()
     }
 
     /// `-CopydSeedCodeClips YES`: inserts one code clip and one color clip, for the code colors and the swatch row.
@@ -507,6 +539,7 @@ final class AppModel {
             context.insert(PinboardEntry(clipboardItem: item, pinboard: work, displayOrder: order))
         }
         try? context.save()
+        invalidateSpotlight()
     }
     #endif
 }

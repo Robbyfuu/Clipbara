@@ -1,4 +1,3 @@
-import CoreSpotlight
 import SwiftUI
 import SwiftData
 import UIKit
@@ -37,13 +36,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 }
 
-/// Hands Home Screen quick actions to `AppModel.pendingRoute`. SwiftUI's `WindowGroup` still owns the window,
-/// so this never creates one.
+/// Hands Home Screen quick actions and tapped Spotlight results to `AppModel.pendingRoute`. SwiftUI's `WindowGroup`
+/// still owns the window, so this never creates one.
 @MainActor
 final class SceneDelegate: NSObject, UIWindowSceneDelegate {
-    /// Cold launch: the item arrives with the connection options, before any view exists.
+    /// Cold launch: the item or the Spotlight result arrives with the connection options, before any view exists.
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         if let item = connectionOptions.shortcutItem { route(item) }
+        for activity in connectionOptions.userActivities { route(activity) }
+    }
+
+    /// A Spotlight result tapped while Copyd runs, in the foreground or the background.
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        route(userActivity)
+    }
+
+    /// A tapped Spotlight result copies its clip, as a widget row does. The only route here, so nothing copies twice.
+    private func route(_ activity: NSUserActivity) {
+        if let route = QuickRoute(activityType: activity.activityType, userInfo: activity.userInfo) {
+            AppModel.shared.pendingRoute = route
+        }
     }
 
     /// Warm launch: the app was already running.
@@ -118,12 +130,6 @@ struct CopydiOSApp: App {
                 // A link that only foregrounds the app still runs auto-capture behind the iOS prompt.
                 // A link must never read the pasteboard: only the quick action and the intents may save the clipboard.
                 if let route = QuickRoute(url: url), QuickRoute.allowsURL(route) { model.pendingRoute = route }
-            }
-            // A tapped Spotlight result copies its clip, as a widget row does.
-            .onContinueUserActivity(CSSearchableItemActionType) { activity in
-                guard let id = (activity.userInfo?[CSSearchableItemActivityIdentifier] as? String)
-                    .flatMap(UUID.init(uuidString:)) else { return }
-                model.pendingRoute = .copy(id)
             }
             // `initial` picks up a quick action the scene delegate stored before this view existed.
             .onChange(of: model.pendingRoute, initial: true) { _, route in

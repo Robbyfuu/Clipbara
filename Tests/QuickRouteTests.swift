@@ -1,3 +1,4 @@
+import CoreSpotlight
 import XCTest
 
 final class QuickRouteTests: XCTestCase {
@@ -50,5 +51,20 @@ final class QuickRouteTests: XCTestCase {
         XCTAssertNil(try route("copyd://nope"))
         XCTAssertNil(QuickRoute(shortcutType: "com.robbyfuu.copyd.nope"))
         XCTAssertNil(QuickRoute(shortcutType: "search"))
+    }
+
+    /// A tapped Spotlight result copies its clip. The constants are CoreSpotlight's, spelled out so `QuickRoute`
+    /// never links CoreSpotlight into the extensions.
+    func testSpotlightActivityRoutesToCopy() {
+        XCTAssertEqual(QuickRoute.spotlightActivityType, CSSearchableItemActionType)
+        XCTAssertEqual(QuickRoute.spotlightIDKey, CSSearchableItemActivityIdentifier)
+        let id = UUID()
+        XCTAssertEqual(QuickRoute(activityType: CSSearchableItemActionType,
+                                  userInfo: [CSSearchableItemActivityIdentifier: id.uuidString]), .copy(id))
+        XCTAssertNil(QuickRoute(activityType: "com.robbyfuu.copyd.other", userInfo: [CSSearchableItemActivityIdentifier: id.uuidString]),
+                     "another activity")
+        XCTAssertNil(QuickRoute(activityType: CSSearchableItemActionType, userInfo: nil))
+        XCTAssertNil(QuickRoute(activityType: CSSearchableItemActionType, userInfo: [CSSearchableItemActivityIdentifier: "nope"]))
+        XCTAssertNil(QuickRoute(activityType: CSSearchableItemActionType, userInfo: [CSSearchableItemActivityIdentifier: 42]))
     }
 }

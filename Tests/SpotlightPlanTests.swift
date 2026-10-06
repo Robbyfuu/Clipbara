@@ -122,6 +122,13 @@ final class SpotlightPlanTests: XCTestCase {
         XCTAssertEqual(Set(out.delete), Set(secrets.map(\.id)), "a clip saved as a secret leaves the index")
     }
 
+    /// Text read in an image is the image's only text: when it reads as a secret, the image stays out.
+    func testImageWhoseTextIsASecretIsNotIndexed() {
+        XCTAssertNil(SpotlightPlan.record(for: input(.image, ocr: FakeSecret.aws, thumbnail: true)))
+        XCTAssertNil(SpotlightPlan.record(for: input(.image, ocr: "\n " + FakeSecret.stripe + " \n", thumbnail: true)))
+        XCTAssertNotNil(SpotlightPlan.record(for: input(.image, ocr: "Invoice 42", thumbnail: true)))
+    }
+
     // MARK: Transitions
 
     func testOCRTextRemovedBecomesADelete() {
@@ -204,6 +211,44 @@ final class SpotlightPlanTests: XCTestCase {
         saved = []
         try context.save()
         XCTAssertEqual(saved, [], "an empty save hands over nothing")
+    }
+
+    // MARK: The indexer's bookkeeping
+
+    func testSameRecordIndexesOnce() {
+        let records = SpotlightPlan.IndexedRecords()
+        let a = SpotlightRecord(id: UUID(), title: "a", summary: "", thumbnailSource: .none)
+        XCTAssertEqual(records.changed([a]), [a], "never indexed")
+        records.stored([a])
+        XCTAssertEqual(records.changed([a]), [], "saved again, unchanged: a pin, sync bookkeeping")
+        let renamed = SpotlightRecord(id: a.id, title: "b", summary: "", thumbnailSource: .none)
+        XCTAssertEqual(records.changed([renamed]), [renamed])
+        records.removed([a.id])
+        XCTAssertEqual(records.changed([a]), [a], "deleted, then back")
+        records.stored([a])
+        records.removeAll()
+        XCTAssertEqual(records.changed([a]), [a], "a rebuild or a clear forgets everything")
+    }
+
+    /// The version is stored only once the queue drains with every job done, so a kill mid-queue rebuilds next launch.
+    func testVersionIsStoredOnlyOnceTheQueueDrains() {
+        var ledger = SpotlightPlan.JobLedger()
+        XCTAssertTrue(ledger.start(), "the first job clears the stored version")
+        XCTAssertFalse(ledger.start(), "already cleared")
+        XCTAssertFalse(ledger.finish(succeeded: true, resets: false), "one still running")
+        XCTAssertTrue(ledger.finish(succeeded: true, resets: false), "drained in step")
+    }
+
+    func testLostJobKeepsTheVersionClearedUntilARebuild() {
+        var ledger = SpotlightPlan.JobLedger()
+        _ = ledger.start()
+        XCTAssertFalse(ledger.finish(succeeded: false, resets: false), "a lost update")
+        _ = ledger.start()
+        XCTAssertFalse(ledger.finish(succeeded: true, resets: false), "a later update does not bring it back in step")
+        _ = ledger.start()
+        XCTAssertTrue(ledger.finish(succeeded: true, resets: true), "a rebuild does")
+        _ = ledger.start()
+        XCTAssertFalse(ledger.finish(succeeded: false, resets: true), "a failed rebuild does not")
     }
 
     // MARK: Reading a clip

@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftData
 
 /// What Spotlight shows for a clip, and which index entries a save adds, refreshes or removes. CoreSpotlight itself
@@ -22,8 +23,8 @@ enum SpotlightPlan {
         let isSensitive: Bool
     }
 
-    /// The entry for `input`, or nil for anything never indexed: a secret, an image with no text read in it, a color, an
-    /// unknown type, empty text. `bundle` holds the catalog; tests pass one language's `.lproj`.
+    /// The entry for `input`, or nil for anything never indexed: a secret, an image with no text read in it or whose text
+    /// is a secret, a color, an unknown type, empty text. `bundle` holds the catalog; tests pass one language's `.lproj`.
     static func record(for input: Input, bundle: Bundle = .main) -> SpotlightRecord? {
         guard !input.isSensitive else { return nil }
         let id = input.id
@@ -41,7 +42,9 @@ enum SpotlightPlan {
             return SpotlightRecord(id: id, title: split(page, room: titleLimit).title,
                                    summary: String(url.prefix(summaryLimit)), thumbnailSource: thumbnail)
         case .image:
-            guard let text = clean(input.ocrText) else { return nil }
+            // The text read is an image's only text, so an image that reads as a secret stays out, whatever "Protect
+            // secrets" says: Spotlight is outside the app, where nothing can be masked.
+            guard let text = clean(input.ocrText), SecretDetector.kind(of: text) == nil else { return nil }
             let label = String(localized: "Image", bundle: bundle) + " \u{00b7} "
             let (line, summary) = split(text, room: titleLimit - label.count)
             return SpotlightRecord(id: id, title: label + line, summary: summary,
@@ -80,6 +83,51 @@ enum SpotlightPlan {
         let title = String(text.prefix { !$0.isNewline }.prefix(room))
         let rest = text.dropFirst(title.count).trimmingCharacters(in: .whitespacesAndNewlines)
         return (title, String(rest.prefix(summaryLimit)))
+    }
+
+    /// The records Spotlight holds as this launch indexed them, so a save that changes nothing Spotlight shows (sync
+    /// bookkeeping, a pin) is not indexed again. Kept in memory only: after a launch, each clip's first save reindexes it.
+    final class IndexedRecords: Sendable {
+        private let records = OSAllocatedUnfairLock(initialState: [UUID: SpotlightRecord]())
+
+        /// `upsert` without the records already indexed exactly so.
+        func changed(_ upsert: [SpotlightRecord]) -> [SpotlightRecord] {
+            records.withLock { held in upsert.filter { held[$0.id] != $0 } }
+        }
+
+        /// Call once Spotlight has taken `indexed`.
+        func stored(_ indexed: [SpotlightRecord]) {
+            records.withLock { held in for record in indexed { held[record.id] = record } }
+        }
+
+        func removed(_ ids: [UUID]) {
+            records.withLock { held in for id in ids { held[id] = nil } }
+        }
+
+        func removeAll() {
+            records.withLock { $0 = [:] }
+        }
+    }
+
+    /// Whether the index is in step with the store across the indexer's queued jobs. The stored index version is cleared
+    /// when the first job is queued, and stored again only once the queue drains with no job lost since the last full
+    /// rebuild or clear. A launch that finds it missing, after a kill or a failed job, rebuilds.
+    struct JobLedger {
+        private var running = 0
+        private var lost = false
+
+        /// A job was queued. True: clear the stored version now.
+        mutating func start() -> Bool {
+            running += 1
+            return running == 1
+        }
+
+        /// A job ended. `resets`: a rebuild or a clear, which brings the index in step on its own. True: store the version.
+        mutating func finish(succeeded: Bool, resets: Bool) -> Bool {
+            running -= 1
+            if !succeeded { lost = true } else if resets { lost = false }
+            return running == 0 && !lost
+        }
     }
 
     /// Hands over the clip ids each save of `context` touched: collected at `willSave`, while a deleted clip's id can
