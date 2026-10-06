@@ -52,14 +52,19 @@ enum TopicPlan {
         !isSensitive && [.plainText, .richText, .html, .url].contains(type)
     }
 
+    /// A link waits this long at most for its preview: one outside the preview window, or whose host keeps timing out,
+    /// would never get one.
+    static let linkPreviewWait: TimeInterval = 86_400
+
     /// The newest text and link clips not asked yet, at most `limit`, among the `window` newest clips. Never an id in
-    /// `skipping`: the model failed on it. `waitsForLinkPreviews` ("Link previews" is on): a link is asked about once its
-    /// preview is fetched, so the model reads its page title too.
+    /// `skipping`: the model failed on it. `waitsForLinkPreviews` ("Link previews" is on): a link younger than
+    /// `linkPreviewWait` is asked about once its preview is fetched, so the model reads its page title too.
     static func nextBatch(clips: [Candidate], limit: Int = batchSize, window: Int = window,
-                          skipping: Set<UUID>, waitsForLinkPreviews: Bool = false) -> [UUID] {
-        clips.sorted { $0.copiedAt > $1.copiedAt }.prefix(window)
+                          skipping: Set<UUID>, waitsForLinkPreviews: Bool = false, now: Date = Date()) -> [UUID] {
+        let waitsSince = now.addingTimeInterval(-linkPreviewWait)
+        return clips.sorted { $0.copiedAt > $1.copiedAt }.prefix(window)
             .filter { !$0.isDone && !skipping.contains($0.id) && isEligible($0.contentType, isSensitive: $0.isSensitive)
-                && !(waitsForLinkPreviews && $0.contentType == .url && !$0.linkPreviewDone) }
+                && !(waitsForLinkPreviews && $0.contentType == .url && !$0.linkPreviewDone && $0.copiedAt > waitsSince) }
             .prefix(limit).map(\.id)
     }
 

@@ -39,10 +39,16 @@ final class TopicPlanTests: XCTestCase {
     func testLinksWaitForTheirPreview() {
         let waiting = candidate(.url, 0, previewDone: false), fetched = candidate(.url, 1),
             text = candidate(.plainText, 2, previewDone: false)
-        XCTAssertEqual(TopicPlan.nextBatch(clips: [waiting, fetched, text], skipping: [], waitsForLinkPreviews: true),
+        XCTAssertEqual(TopicPlan.nextBatch(clips: [waiting, fetched, text], skipping: [], waitsForLinkPreviews: true, now: now),
                        [fetched.id, text.id])
         XCTAssertEqual(TopicPlan.nextBatch(clips: [waiting, fetched, text], skipping: [], waitsForLinkPreviews: false),
                        [waiting.id, fetched.id, text.id], "with previews off, nothing to wait for")
+    }
+
+    /// A link waits a day at most: one outside the preview window, or whose host keeps timing out, still gets a topic.
+    func testALinkWaitsForItsPreviewOneDayAtMost() {
+        let old = candidate(.url, 2 * 24 * 60, previewDone: false), recent = candidate(.url, 60, previewDone: false)
+        XCTAssertEqual(TopicPlan.nextBatch(clips: [old, recent], skipping: [], waitsForLinkPreviews: true, now: now), [old.id])
     }
 
     /// Low Power Mode, a serious or critical thermal state, or the Mac's panel open (its suggestions share the model).

@@ -265,7 +265,7 @@ enum ClipTopic: String {
         let ids = TopicPlan.nextBatch(clips: clips.map {
             TopicPlan.Candidate(id: $0.id, contentType: $0.contentType, isSensitive: $0.isSensitive,
                                 isDone: $0.topicDone, copiedAt: $0.copiedAt, linkPreviewDone: $0.linkPreviewDone)
-        }, skipping: failed, waitsForLinkPreviews: LinkPreviewPlan.isEnabled)
+        }, skipping: failed, waitsForLinkPreviews: LinkPreviewPlan.isEnabled, now: Date())
         guard !ids.isEmpty else { return [] }
         var batch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) })
         batch.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.linkTitle, \.isSensitive, \.contentHash]
