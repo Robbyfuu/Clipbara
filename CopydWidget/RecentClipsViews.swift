@@ -169,7 +169,7 @@ struct RecentClipsInline: View {
 
     var body: some View {
         if let clip = state.clips.first {
-            Label { Text(clip.summary).privacySensitive() } icon: { Image(systemName: "doc.on.clipboard") }
+            Label { Text(clip.summary) } icon: { Image(systemName: "doc.on.clipboard") }.privacySensitive()
         } else {
             Text(state.message)
         }

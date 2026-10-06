@@ -11,6 +11,10 @@ import AppIntents
 struct SaveClipboardIntent: AppIntent {
     static let title: LocalizedStringResource = "Save Clipboard"
     static let openAppWhenRun = true
+    #if WIDGET_EXTENSION
+    /// The extension copy exists only so controls can open the app; Shortcuts lists the app's copy.
+    static let isDiscoverable = false
+    #endif
 
     @MainActor
     func perform() async throws -> some IntentResult {
@@ -25,6 +29,10 @@ struct SaveClipboardIntent: AppIntent {
 struct OpenSearchIntent: AppIntent {
     static let title: LocalizedStringResource = "Search Copyd"
     static let openAppWhenRun = true
+    #if WIDGET_EXTENSION
+    /// The extension copy exists only so controls can open the app; Shortcuts lists the app's copy.
+    static let isDiscoverable = false
+    #endif
 
     @MainActor
     func perform() async throws -> some IntentResult {
