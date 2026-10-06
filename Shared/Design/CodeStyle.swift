@@ -8,6 +8,7 @@ enum CodeStyle {
         init(_ text: AttributedString?) { self.text = text }
     }
 
+    // Keyed by `contentHash` alone: every caller for a given hash passes the same display text (Mac: `previewText`; iOS: the first 2048 characters).
     private nonisolated(unsafe) static let cache: NSCache<NSString, Entry> = {
         let cache = NSCache<NSString, Entry>()
         cache.countLimit = 300

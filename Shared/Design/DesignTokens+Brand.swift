@@ -30,11 +30,12 @@ extension DesignTokens {
         static let keyShadow = dynamic(light: 0x191926, dark: 0x000000, alpha: 0.35)
         /// Liquid Glass tint (macOS 26+): faint paper / ink keeps text legible over any wallpaper.
         static let glassTint = dynamic(light: 0xF2F0E9, dark: 0x12121A, alpha: 0.4)
-        /// Code colors, one per `CodeTokenKind`. Other code text stays `ink`.
+        /// Code colors, one per `CodeTokenKind`. Other code text stays `ink`. Each is at least 4.5:1 on `card` and
+        /// `chip` in both modes (`CodeColorContrastTests`).
         static let codeKeyword = dynamic(light: 0x7A3EB1, dark: 0xC792EA)
-        static let codeString = dynamic(light: 0x2E7D32, dark: 0xA5D6A7)
-        static let codeComment = dynamic(light: 0x8A8F98, dark: 0x7F848E)
-        static let codeNumber = dynamic(light: 0xB35C00, dark: 0xF6B26B)
+        static let codeString = dynamic(light: 0x1F6B25, dark: 0xA5D6A7)
+        static let codeComment = dynamic(light: 0x5A606A, dark: 0x9CA2AD)
+        static let codeNumber = dynamic(light: 0x964A00, dark: 0xF6B26B)
 
         static func code(_ kind: CodeTokenKind) -> Color {
             switch kind {

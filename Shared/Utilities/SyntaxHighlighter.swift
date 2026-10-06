@@ -43,14 +43,28 @@ enum SyntaxHighlighter {
         return word.allSatisfy(\.isUppercase) && keywords.contains(word.lowercased())
     }
 
+    /// Every range starts and ends on a Character boundary of `text`. `limit` counts Unicode scalars, so one huge
+    /// Character (thousands of combining marks) costs no more than `limit` either.
     static func tokens(in text: String, limit: Int = 2048) -> [CodeToken] {
-        let utf8 = text.utf8
-        let end = text.index(text.startIndex, offsetBy: limit, limitedBy: text.endIndex) ?? text.endIndex
+        // All scanning and grapheme work runs on this bounded copy. A break before a scalar depends only on that scalar
+        // and the ones before it, so its boundaries are `text`'s, except after its last Character, which may continue
+        // past the cut in `text`: that Character is left out.
+        let cut = text.unicodeScalars.index(text.startIndex, offsetBy: limit, limitedBy: text.endIndex) ?? text.endIndex
+        let head = String(text.unicodeScalars[..<cut])
+        let end = cut == text.endIndex || head.isEmpty ? head.endIndex : head.index(before: head.endIndex)
+        let utf8 = head.utf8
         var tokens: [CodeToken] = []
 
         func at(_ index: String.Index) -> UInt8? { index < end ? utf8[index] : nil }
         func next(_ index: String.Index) -> String.Index { utf8.index(after: index) }
-        func previous(_ index: String.Index) -> UInt8? { index > text.startIndex ? utf8[utf8.index(before: index)] : nil }
+        func previous(_ index: String.Index) -> UInt8? { index > head.startIndex ? utf8[utf8.index(before: index)] : nil }
+        /// `head`'s Character boundary at or before (`up` false) or at or after `index`, as the same offset in `text`.
+        /// A string closed just before a combining mark ends after the mark.
+        func boundary(_ index: String.Index, up: Bool) -> String.Index {
+            let snapped = index.samePosition(in: head)
+                ?? (up ? head.index(after: index) : head.index(before: head.index(after: index)))
+            return text.utf8.index(text.startIndex, offsetBy: utf8.distance(from: head.startIndex, to: snapped))
+        }
         /// The first line break at or after `index`, or `end`.
         func lineEnd(_ index: String.Index) -> String.Index {
             var i = index
@@ -58,7 +72,7 @@ enum SyntaxHighlighter {
             return i
         }
 
-        var i = text.startIndex
+        var i = head.startIndex
         while let byte = at(i) {
             let following = at(next(i))
             let start = i
@@ -93,12 +107,12 @@ enum SyntaxHighlighter {
                 tokens.append((start..<i, .number))
             case _ where isWordByte(byte):
                 while let b = at(i), isWordByte(b) { i = next(i) }
-                if isKeyword(text[start..<i]) { tokens.append((start..<i, .keyword)) }
+                if isKeyword(head[start..<i]) { tokens.append((start..<i, .keyword)) }
             default:
                 i = next(i)
             }
         }
-        return tokens
+        return tokens.map { (boundary($0.range.lowerBound, up: false)..<boundary($0.range.upperBound, up: true), $0.kind) }
     }
 
     private static func isLineBreak(_ byte: UInt8) -> Bool { byte == 0x0A || byte == 0x0D }

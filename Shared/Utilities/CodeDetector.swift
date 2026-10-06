@@ -16,10 +16,13 @@ enum CodeDetector {
         return lines.filter(isCodeLine).count * 2 > lines.count
     }
 
-    /// Starts with "{" or "[" followed by a quote, a bracket or a digit. "[draft] notes" does not.
+    /// Opens like JSON (an object with a key, an array with a value) and closes like it, or has a ":" or "," inside
+    /// (a sample cut at 2 KB has no closing bracket). "[draft] notes", "[1] Buy milk" and "{{name}}" do not.
     private static func looksLikeJSON(_ body: String) -> Bool {
-        guard body.first == "{" || body.first == "[" else { return false }
-        return body.dropFirst().first { !$0.isWhitespace }.map { "\"{[".contains($0) || $0.isNumber } ?? false
+        guard let first = body.first, first == "{" || first == "[",
+              let next = body.dropFirst().first(where: { !$0.isWhitespace }) else { return false }
+        let opens = first == "{" ? next == "\"" || next == "}" : "\"{[]-".contains(next) || next.isNumber
+        return opens && (body.hasSuffix("}") || body.hasSuffix("]") || body.contains(":") || body.contains(","))
     }
 
     private static let operators = [" == ", " != ", " && ", " || ", " => ", " += ", " := ", "::", "${", "$(", "</", "/>"]

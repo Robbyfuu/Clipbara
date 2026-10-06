@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A large swatch filling the card, with the HEX and RGB values below it.
+/// A large swatch filling the card, with the RGB value below it. The card's footer already shows the HEX.
 struct ColorCardContent: View {
     let item: ClipboardItem
 
@@ -9,21 +9,16 @@ struct ColorCardContent: View {
         VStack(alignment: .leading, spacing: 0) {
             (Color(hex: hex) ?? DesignTokens.Brand.chip)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: hex)
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+            if let rgb = ColorFormat.rgbString(hex: hex) {
+                Text(verbatim: rgb)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(DesignTokens.Brand.ink)
-                if let rgb = ColorFormat.rgbString(hex: hex) {
-                    Text(verbatim: rgb)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(DesignTokens.Brand.ink2)
-                }
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(DesignTokens.Brand.chip)
             }
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DesignTokens.Brand.chip)
         }
     }
 }

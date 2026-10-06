@@ -28,6 +28,10 @@ final class CodeDetectorTests: XCTestCase {
             "for example: we could meet at the café, or at the office.",
             "Hola, ¿cómo estás? Te mando el documento para revisar.",
             "464501",
+            // Bracketed notes and a template placeholder are not JSON.
+            "[1] Buy milk",
+            "[2024-10-05] meeting notes",
+            "{{name}}",
         ]
         for text in prose {
             XCTAssertFalse(CodeDetector.isCode(text), text)
@@ -41,6 +45,8 @@ final class CodeDetectorTests: XCTestCase {
             "python": "import os\n\ndef greet(name):\n    print(f\"Hello, {name}\")\n    return len(name)",
             "json": "{\"name\": \"Copyd\", \"tags\": [1, 2]}",
             "json array": "[\n  {\"id\": 1}\n]",
+            // Longer than the 2 KB sample, so the sample is cut before the closing bracket.
+            "long json": "[" + Array(repeating: "{\"id\": 1, \"name\": \"Copyd\"}", count: 120).joined(separator: ", ") + "]",
             "shell": "cd ~/Code/app && npm install\nexport PATH=\"$HOME/.local/bin:$PATH\"",
             "shebang": "#!/bin/zsh\necho done",
             "sql": "SELECT id, name\nFROM users\nWHERE active = 1\nORDER BY name;",

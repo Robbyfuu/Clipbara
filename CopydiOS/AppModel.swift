@@ -501,6 +501,7 @@ final class AppModel {
         let code = "// Greets a user\nfunc greet(_ name: String) {\n    print(\"Hi, \\(name)!\", 42)\n}"
         context.insert(ClipboardItem(contentType: .plainText, rawData: Data(code.utf8), textContent: code, contentHash: hash))
         try? context.save()
+        invalidateSpotlight()
     }
 
     private static func seedSampleClipsIfRequested(_ container: ModelContainer) {

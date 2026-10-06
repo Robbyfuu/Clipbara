@@ -273,6 +273,7 @@ targets:
       - path: Shared/Utilities/CodeDetector.swift
       - path: Shared/Utilities/SyntaxHighlighter.swift
       - path: Shared/Design/Color+Hex.swift
+      - path: Shared/Design/DesignTokens+Brand.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:
