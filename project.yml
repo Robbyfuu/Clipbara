@@ -54,6 +54,8 @@ targets:
         com.apple.security.files.user-selected.read-write: true
         # Link previews: LinkPresentation fetches each link's page title and image.
         com.apple.security.network.client: true
+        # The local MCP server: listens on 127.0.0.1 only (Copyd/MCP).
+        com.apple.security.network.server: true
         com.apple.developer.icloud-container-identifiers: [iCloud.com.robbyfuu.copyd]
         com.apple.developer.icloud-services: [CloudKit]
         com.apple.developer.aps-environment: development
@@ -307,6 +309,8 @@ targets:
       - path: Copyd/MCP/MCPTools.swift
       - path: Copyd/MCP/MCPRouter.swift
       - path: Copyd/MCP/MCPServer.swift
+      - path: Copyd/MCP/StoreClipLibrary.swift
+      - path: Copyd/MCP/MCPToken.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

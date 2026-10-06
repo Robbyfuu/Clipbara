@@ -73,8 +73,9 @@ final class MCPServerLoopbackTests: XCTestCase {
     private let session = URLSession(configuration: .ephemeral)
     private let library = FakeClipLibrary()
 
-    private func startServer(idleTimeout: TimeInterval = 30, maxConnections: Int = 8) async throws {
-        server = MCPServer(port: 0, token: token, router: MCPRouter(library: library, allowsWrite: { false }),
+    private func startServer(library: (any ClipLibrary)? = nil, idleTimeout: TimeInterval = 30,
+                             maxConnections: Int = 8) async throws {
+        server = MCPServer(port: 0, token: token, router: MCPRouter(library: library ?? self.library, allowsWrite: { false }),
                            idleTimeout: idleTimeout, maxConnections: maxConnections)
         let running = expectation(description: "running")
         let box = PortBox()
@@ -137,6 +138,95 @@ final class MCPServerLoopbackTests: XCTestCase {
         try second.start()
         await fulfillment(of: [failed], timeout: 5)
         XCTAssertEqual(second.state, .failed("Port \(port) is in use"))
+    }
+
+    /// Regenerate in Settings: the new token applies to the next request, with no restart.
+    func testANewTokenAppliesToTheNextRequest() async throws {
+        try await startServer()
+        server.token = "regenerated-token"
+
+        let (old, _, _) = try await status(request(body: ping))
+        XCTAssertEqual(old, 401)
+        var renewed = request(body: ping)
+        renewed.setValue("Bearer regenerated-token", forHTTPHeaderField: "Authorization")
+        let (new, _, _) = try await status(renewed)
+        XCTAssertEqual(new, 200)
+    }
+
+    func testTheSavedPortFallsBackToTheDefaultOutsideTheRange() {
+        defer { UserDefaults.standard.removeObject(forKey: MCPServer.portDefaultsKey) }
+        UserDefaults.standard.removeObject(forKey: MCPServer.portDefaultsKey)
+        XCTAssertEqual(MCPServer.savedPort, 39787)
+        UserDefaults.standard.set(40000, forKey: MCPServer.portDefaultsKey)
+        XCTAssertEqual(MCPServer.savedPort, 40000)
+        UserDefaults.standard.set(80, forKey: MCPServer.portDefaultsKey)
+        XCTAssertEqual(MCPServer.savedPort, 39787)
+        UserDefaults.standard.set(70000, forKey: MCPServer.portDefaultsKey)
+        XCTAssertEqual(MCPServer.savedPort, 39787)
+    }
+
+    /// Settings restarts the server at once when writing is allowed or not, so clients list the tools again: the next
+    /// server binds the same port even while the stopped one's listener is still closing.
+    func testAServerRestartedAtOnceOnTheSamePortRuns() async throws {
+        try await startServer()
+        server.onStateChange = nil
+        var previous: MCPServer = server
+        for _ in 0..<10 {
+            previous.stop()
+            let next = MCPServer(port: port, token: token, router: MCPRouter(library: library, allowsWrite: { false }))
+            addTeardownBlock { next.stop() }
+            let settled = expectation(description: "running or failed")
+            next.onStateChange = { state in
+                switch state {
+                case .running, .failed: settled.fulfill()
+                case .off: break
+                }
+            }
+            try next.start()
+            await fulfillment(of: [settled], timeout: 5)
+            next.onStateChange = nil
+            XCTAssertEqual(next.state, .running(port))
+            previous = next
+        }
+    }
+
+    /// Switching the server off cancels a request still running, so a copy in progress never lands afterwards.
+    func testStopCancelsARequestInFlight() async throws {
+        let library = HangingLibrary(started: expectation(description: "started"), cancelled: expectation(description: "cancelled"))
+        try await startServer(library: library)
+        let call = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_clips","arguments":{}}}"#
+        let session = session, request = request(body: call)
+        let pending = Task { try? await session.data(for: request) }
+        await fulfillment(of: [library.started], timeout: 5)
+
+        server.stop()
+
+        await fulfillment(of: [library.cancelled], timeout: 5)
+        pending.cancel()
+    }
+
+    /// Settings restarts the server for a new port, or when it is switched off and on: the next one binds the same port
+    /// once the old one is off.
+    func testANewServerBindsThePortOnceTheOldOneIsOff() async throws {
+        try await startServer()
+        let off = expectation(description: "off")
+        server.onStateChange = { if $0 == .off { off.fulfill() } }
+        server.stop()
+        await fulfillment(of: [off], timeout: 5)
+        server.onStateChange = nil  // the teardown's stop reports off again
+
+        let next = MCPServer(port: port, token: token, router: MCPRouter(library: library, allowsWrite: { false }))
+        addTeardownBlock { next.stop() }
+        let settled = expectation(description: "running or failed")
+        next.onStateChange = { state in
+            switch state {
+            case .running, .failed: settled.fulfill()
+            case .off: break
+            }
+        }
+        try next.start()
+        await fulfillment(of: [settled], timeout: 5)
+        XCTAssertEqual(next.state, .running(port))
     }
 
     // MARK: HTTP statuses
@@ -272,6 +362,31 @@ final class MCPServerLoopbackTests: XCTestCase {
 }
 
 /// Records the first running port reported, across the server's queue and the test.
+/// A library whose search waits until it is cancelled, and says so.
+private final class HangingLibrary: ClipLibrary, @unchecked Sendable {
+    let started: XCTestExpectation
+    let cancelled: XCTestExpectation
+    init(started: XCTestExpectation, cancelled: XCTestExpectation) {
+        self.started = started
+        self.cancelled = cancelled
+    }
+
+    func search(query: String?, type: ClipKind?, board: String?, limit: Int) async throws -> [ClipSummary] {
+        started.fulfill()
+        do {
+            try await Task.sleep(for: .seconds(30))
+        } catch {
+            cancelled.fulfill()
+            throw error
+        }
+        return []
+    }
+
+    func clip(id: UUID) async throws -> ClipDetail? { nil }
+    func boards() async throws -> [BoardSummary] { [] }
+    func copy(text: String) async throws {}
+}
+
 private final class PortBox: @unchecked Sendable {
     private let lock = NSLock()
     private var value: UInt16 = 0

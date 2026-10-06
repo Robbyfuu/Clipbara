@@ -14,10 +14,26 @@ final class MCPServer: @unchecked Sendable {
         case failed(String)
     }
 
+    // Settings > Integrations, in `.standard`.
+    static let enabledDefaultsKey = "mcpServerEnabled"
+    static let portDefaultsKey = "mcpServerPort"
+    static let allowsWriteDefaultsKey = "mcpAllowsWrite"
+    static let defaultPort = 39787
+    static let ports = 1024...65535
+
+    /// The saved port, or the default when it is outside `ports`.
+    static var savedPort: Int {
+        let port = UserDefaults.standard.object(forKey: portDefaultsKey) as? Int ?? defaultPort
+        return ports.contains(port) ? port : defaultPort
+    }
+
+    /// The `.failed` message for a busy port, which Settings shows localized.
+    static func portInUse(_ port: UInt16) -> String { "Port \(port) is in use" }
+
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "MCP")
 
     private let port: UInt16
-    private let token: String
+    private var currentToken: String
     private let router: MCPRouter
     private let idleTimeout: TimeInterval
     private let maxConnections: Int
@@ -29,15 +45,22 @@ final class MCPServer: @unchecked Sendable {
     private var currentState: State = .off
     private var stateHandler: (@Sendable (State) -> Void)?
 
+    /// A busy port is tried again this many times, `bindRetryDelay` apart, before it fails: a server just stopped on
+    /// the same port (a restart from Settings) may still be closing its listener.
+    private static let bindRetries = 5
+    private static let bindRetryDelay: TimeInterval = 0.1
+
     // Confined to `queue`.
     private var listener: NWListener?
+    private var retriesLeft = 0
+    private var retry: DispatchWorkItem?
     private var boundPort: UInt16 = 0
     private var clients: [ObjectIdentifier: Client] = [:]
 
     /// `port` 0 binds an ephemeral port, which `.running` reports.
     init(port: UInt16, token: String, router: MCPRouter, idleTimeout: TimeInterval = 30, maxConnections: Int = 8) {
         self.port = port
-        self.token = token
+        self.currentToken = token
         self.router = router
         self.idleTimeout = idleTimeout
         self.maxConnections = maxConnections
@@ -50,6 +73,12 @@ final class MCPServer: @unchecked Sendable {
 
     var state: State { lock.withLock { currentState } }
 
+    /// Read on every request, so Regenerate applies without rebinding the port.
+    var token: String {
+        get { lock.withLock { currentToken } }
+        set { lock.withLock { currentToken = newValue } }
+    }
+
     /// Called on the server's queue on every state change.
     var onStateChange: (@Sendable (State) -> Void)? {
         get { lock.withLock { stateHandler } }
@@ -58,22 +87,11 @@ final class MCPServer: @unchecked Sendable {
 
     /// Throws only for parameters Network rejects; a busy port arrives later as `.failed`.
     func start() throws {
-        let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port) ?? .any)
-        let listener = try NWListener(using: parameters)
-        let id = ObjectIdentifier(listener)
-        listener.stateUpdateHandler = { [weak self] state in
-            guard let self, let current = self.listener, ObjectIdentifier(current) == id else { return }
-            self.listenerChanged(state)
-        }
-        listener.newConnectionHandler = { [weak self] connection in
-            guard let self, let current = self.listener, ObjectIdentifier(current) == id else { return connection.cancel() }
-            self.accept(connection)
-        }
+        let listener = try makeListener()
         queue.async {
             self.teardown()
-            self.listener = listener
-            listener.start(queue: self.queue)
+            self.retriesLeft = Self.bindRetries
+            self.listen(listener)
         }
     }
 
@@ -86,6 +104,29 @@ final class MCPServer: @unchecked Sendable {
 
     // MARK: listener
 
+    private func makeListener() throws -> NWListener {
+        let parameters = NWParameters.tcp
+        // Lets a restart bind past connections in TIME_WAIT. A port another listener holds still fails as in use.
+        parameters.allowLocalEndpointReuse = true
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port) ?? .any)
+        return try NWListener(using: parameters)
+    }
+
+    /// On `queue`.
+    private func listen(_ listener: NWListener) {
+        let id = ObjectIdentifier(listener)
+        listener.stateUpdateHandler = { [weak self] state in
+            guard let self, let current = self.listener, ObjectIdentifier(current) == id else { return }
+            self.listenerChanged(state)
+        }
+        listener.newConnectionHandler = { [weak self] connection in
+            guard let self, let current = self.listener, ObjectIdentifier(current) == id else { return connection.cancel() }
+            self.accept(connection)
+        }
+        self.listener = listener
+        listener.start(queue: queue)
+    }
+
     private func listenerChanged(_ state: NWListener.State) {
         switch state {
         case .ready:
@@ -93,7 +134,18 @@ final class MCPServer: @unchecked Sendable {
             Self.log.info("MCP server running on 127.0.0.1:\(self.boundPort, privacy: .public)")
             setState(.running(boundPort))
         case .failed(let error), .waiting(let error):
-            let message = if case .posix(.EADDRINUSE) = error { "Port \(port) is in use" } else { error.localizedDescription }
+            if case .posix(.EADDRINUSE) = error, retriesLeft > 0 {
+                retriesLeft -= 1
+                teardown()
+                let retry = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    do { self.listen(try self.makeListener()) } catch { self.setState(.failed(error.localizedDescription)) }
+                }
+                self.retry = retry
+                queue.asyncAfter(deadline: .now() + Self.bindRetryDelay, execute: retry)
+                return
+            }
+            let message = if case .posix(.EADDRINUSE) = error { Self.portInUse(port) } else { error.localizedDescription }
             Self.log.error("MCP server failed: \(message, privacy: .public)")
             teardown()
             setState(.failed(message))
@@ -111,6 +163,8 @@ final class MCPServer: @unchecked Sendable {
     }
 
     private func teardown() {
+        retry?.cancel()
+        retry = nil
         listener?.stateUpdateHandler = nil
         listener?.newConnectionHandler = nil
         listener?.cancel()
@@ -125,6 +179,8 @@ final class MCPServer: @unchecked Sendable {
         let connection: NWConnection
         var parser = HTTPRequestParser()
         var idleTimer: DispatchWorkItem?
+        /// The request the router is working on; dropping the client cancels it.
+        var request: Task<Void, Never>?
         init(_ connection: NWConnection) { self.connection = connection }
     }
 
@@ -157,6 +213,7 @@ final class MCPServer: @unchecked Sendable {
 
     private func drop(_ client: Client) {
         client.idleTimer?.cancel()
+        client.request?.cancel()
         client.connection.stateUpdateHandler = nil
         client.connection.cancel()
         clients[ObjectIdentifier(client)] = nil
@@ -202,7 +259,7 @@ final class MCPServer: @unchecked Sendable {
         }
 
         let router = router
-        Task {
+        client.request = Task {
             let response = await router.handle(request.body)
             self.queue.async {
                 guard self.clients[ObjectIdentifier(client)] != nil else { return }

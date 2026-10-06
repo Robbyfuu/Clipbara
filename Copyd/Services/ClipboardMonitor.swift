@@ -226,7 +226,8 @@ final class ClipboardMonitor {
         shouldSkipNextChange = true
     }
 
-    /// Paste Stack staging its next clip: not captured, and not a pick.
+    /// Paste Stack staging its next clip, or Settings copying the MCP token or a client config: not captured, and not a
+    /// pick, so nothing pastes into the front app.
     func skipStagedChange() {
         shouldSkipNextChange = true
     }

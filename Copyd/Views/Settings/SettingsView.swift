@@ -29,11 +29,17 @@ struct SettingsView: View {
                     Label("Exclusions", systemImage: "nosign")
                 }
 
+            IntegrationsSettingsTab()
+                .tabItem {
+                    Label("Integrations", systemImage: "puzzlepiece.extension")
+                }
+
             AboutTab()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        .frame(width: 480, height: 360)
+        // Wide enough for seven tabs in the toolbar, in English and Spanish.
+        .frame(width: 560, height: 360)
     }
 }
