@@ -44,22 +44,29 @@ enum KeyboardFeed {
                 $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isPinned == true && $0.isSensitive == false
             }
         case .pinboard(let boardID):
-            // A board has few entries; order them in memory by the entry's own `displayOrder`.
-            var boardFetch = FetchDescriptor<Pinboard>(predicate: #Predicate { $0.id == boardID })
-            boardFetch.fetchLimit = 1
-            guard let board = try context.fetch(boardFetch).first else { return [] }
-            return board.entries.sorted { $0.displayOrder < $1.displayOrder }
-                .compactMap(\.clipboardItem)
-                .filter { $0.contentType != .fileURL && $0.contentType != .files && !$0.isSensitive }
-                .prefix(limit).map { clip($0, linkTitles: linkTitles) }
+            // The entries in their own order, then only the card fields of their clips: following `clipboardItem`
+            // would load each clip whole. A clip's id is read from the relationship without loading the clip.
+            let entries = try context.fetch(FetchDescriptor<PinboardEntry>(
+                predicate: #Predicate { $0.pinboard?.id == boardID }, sortBy: [SortDescriptor(\.displayOrder)]))
+            let ids = entries.compactMap { $0.clipboardItem?.persistentModelID }
+            let byID = Dictionary(try context.fetch(cardFields(#Predicate {
+                ids.contains($0.persistentModelID)
+                    && $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isSensitive == false
+            })).map { ($0.persistentModelID, $0) }, uniquingKeysWith: { first, _ in first })
+            return ids.compactMap { byID[$0] }.prefix(limit).map { clip($0, linkTitles: linkTitles) }
         }
-        var descriptor = FetchDescriptor<ClipboardItem>(
-            predicate: predicate, sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        var descriptor = cardFields(predicate)
+        descriptor.sortBy = [SortDescriptor(\.copiedAt, order: .reverse)]
         descriptor.fetchLimit = limit
-        // What a card shows, never `rawData` nor `linkImageData`: small blobs are stored inline, and would load with the row.
+        return try context.fetch(descriptor).map { clip($0, linkTitles: linkTitles) }
+    }
+
+    /// What a card shows, never `rawData` nor `linkImageData`: small blobs are stored inline, and would load with the row.
+    private static func cardFields(_ predicate: Predicate<ClipboardItem>) -> FetchDescriptor<ClipboardItem> {
+        var descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
         descriptor.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.thumbnailData, \.isPinned, \.copiedAt,
                                         \.sourceAppName, \.sourceAppBundleId, \.isSensitive, \.linkTitle]
-        return try context.fetch(descriptor).map { clip($0, linkTitles: linkTitles) }
+        return descriptor
     }
 
     @MainActor
