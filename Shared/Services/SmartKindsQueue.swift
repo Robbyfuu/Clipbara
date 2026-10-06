@@ -69,10 +69,12 @@ import SwiftData
         let context = container.mainContext
         // A pending user change goes out in a save the tracker reports, before the save that hides these clips from it.
         if context.hasChanges { try? context.save() }
+        let ids = results.map(\.id)
+        let clips = (try? context.fetch(FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) }))) ?? []
+        let byID = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var written: Set<UUID> = []
         for result in results {
-            guard let clip = context.syncClip(id: result.id), !clip.isGone, clip.contentHash == result.contentHash
-            else { continue }
+            guard let clip = byID[result.id], !clip.isGone, clip.contentHash == result.contentHash else { continue }
             clip.smartKinds = result.kinds
             clip.smartKindsVersion = SmartKinds.version
             written.insert(result.id)

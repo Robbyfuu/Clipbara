@@ -22,6 +22,8 @@ struct RemoteApplier {
         /// Both sides of every merge in which one side is a copy this device already had and announced (an existing
         /// clip not from Universal Clipboard), or had itself merged with one.
         var mergedWithExisting: Set<UUID> = []
+        /// An app identity was inserted, updated or deleted: the iPhone redraws its app icons.
+        var identitiesChanged = false
         /// New clips that stayed new: what the iPhone announces. Two new copies that merge with each other give one.
         var arrivals: Set<UUID> { inserted.subtracting(deletes).subtracting(mergedWithExisting) }
     }
@@ -222,6 +224,7 @@ struct RemoteApplier {
                                        updatedAt: s.updatedAt))
         }
         out.touched.insert(s.id)
+        out.identitiesChanged = true
     }
 
     // MARK: Duplicates (spec section 10)
@@ -289,6 +292,7 @@ struct RemoteApplier {
             context.delete(e)
         } else if let a = try identity(id) {
             context.delete(a)
+            out.identitiesChanged = true
         } else {
             return
         }

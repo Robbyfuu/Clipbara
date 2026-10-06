@@ -109,6 +109,9 @@ enum ClipTopic: String {
 @MainActor final class TopicQueue {
     private let container: ModelContainer
     private let isEnabled: @MainActor () -> Bool
+    /// The passes that run first (ruling R7): the type boards, and on the iPhone the image text too. Each pass waits for
+    /// them to finish, so the model never runs beside them.
+    private let waitsFor: @MainActor () -> [Task<Void, Never>?]
     /// `TopicPlan.shouldPause`, checked before each request and after each batch.
     private let shouldPause: @MainActor () -> Bool
     /// Between two batches.
@@ -126,6 +129,7 @@ enum ClipTopic: String {
 
     init(container: ModelContainer,
          isEnabled: @escaping @MainActor () -> Bool = { TopicPlan.isEnabled && TopicClassifier.isAvailable },
+         waitsFor: @escaping @MainActor () -> [Task<Void, Never>?] = { [] },
          shouldPause: @escaping @MainActor () -> Bool = { TopicPlan.shouldPause() },
          pause: Duration = .seconds(2),
          defaults: UserDefaults = SecretDetector.settings,
@@ -133,6 +137,7 @@ enum ClipTopic: String {
          save: @escaping @MainActor (Set<UUID>) -> Void) {
         self.container = container
         self.isEnabled = isEnabled
+        self.waitsFor = waitsFor
         self.shouldPause = shouldPause
         self.pause = pause
         self.defaults = defaults
@@ -161,6 +166,8 @@ enum ClipTopic: String {
     private func drain() async {
         while again, !Task.isCancelled {
             again = false
+            for before in waitsFor() { await before?.value }
+            if Task.isCancelled { break }
             await pass()
         }
         task = nil
@@ -185,10 +192,10 @@ enum ClipTopic: String {
                 let outcome = clip.preview.isEmpty ? .other : await classify(clip.preview)
                 // Stopped meanwhile: the request may have been cut off, so its answer is not kept.
                 if Task.isCancelled { return write(results) }
+                // The model went away: this clip and every other stay unmarked until it is back.
+                if outcome == .unavailable { return write(results) }
                 guard outcome.isDone else { failed.insert(clip.id); continue }
                 results.append(Answered(id: clip.id, contentHash: clip.contentHash, outcome: outcome))
-                // Every other clip would meet the same: they wait until the model is back.
-                if outcome == .unavailable { return write(results) }
             }
             write(results)
             if shouldPause() { return }
@@ -216,21 +223,23 @@ enum ClipTopic: String {
         let context = container.mainContext
         // A pending user change goes out in a save the tracker reports, before the save that hides these clips from it.
         if context.hasChanges { try? context.save() }
+        guard !results.isEmpty else { return }
+        let ids = results.map(\.id)
+        let clips = (try? context.fetch(FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) }))) ?? []
+        let byID = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var written: Set<UUID> = []
         for result in results {
-            guard let clip = context.syncClip(id: result.id), !clip.isGone, !clip.isSensitive,
+            guard let clip = byID[result.id], !clip.isGone, !clip.isSensitive,
                   clip.contentHash == result.contentHash else { continue }
             clip.topicRaw = result.outcome.topicRaw
             clip.topicDone = true
             written.insert(result.id)
         }
-        if results.contains(where: { $0.outcome == .unavailable }) { defaults.set(0, forKey: TopicPlan.versionDefaultsKey) }
         if !written.isEmpty { save(written) }
     }
 
-    /// Clips marked done with no topic while the model was unavailable, or under an older `TopicPlan.version`, are
-    /// asked again: the pass only runs while the model is available. Only the `TopicPlan.window` newest, the clips a
-    /// pass reaches, found off the main thread.
+    /// Clips marked done with no topic under an older `TopicPlan.version` are asked again. Only the `TopicPlan.window`
+    /// newest, the clips a pass reaches, found off the main thread.
     private func resetIfStale() async {
         guard defaults.integer(forKey: TopicPlan.versionDefaultsKey) != TopicPlan.version else { return }
         let container = container

@@ -52,9 +52,14 @@ struct NavigationBarView: View {
         }
         .onChange(of: smartBoards) { _, boards in
             appState.orderedSmartBoards = boards
-            // Its last clip went, or the setting was turned off: the tab is gone.
+            // Its last clip went, or the setting was turned off: the tab is gone. `selectTab` does nothing while the
+            // panel is hidden (turned off in Settings), so the next opening shows History.
             if let board = appState.selectedTab.smartBoard, !boards.contains(board) {
-                appState.panelController.selectTab(.history)
+                if appState.panelController.isVisible {
+                    appState.panelController.selectTab(.history)
+                } else {
+                    appState.selectedTab = .history
+                }
             }
         }
         .alert("Create Pinboard", isPresented: $isAddingPinboard) {

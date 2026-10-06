@@ -1,4 +1,5 @@
 import AppKit
+import SwiftData
 import XCTest
 
 /// Review focus 3: transforms never crash on odd input (empty, emoji, CRLF, giant or deep JSON).
@@ -199,6 +200,22 @@ final class TextTransformTests: XCTestCase {
         XCTAssertEqual(TextTransform.markdown.result(text: "Hi there", type: .richText, data: rtf)?.text, "**Hi** there")
         XCTAssertNil(TextTransform.markdown.result(text: "Hi there", type: .richText, data: Data("not rtf".utf8)))
         XCTAssertNil(TextTransform.markdown.result(text: "Hi there", type: .plainText, data: Data("Hi there".utf8)))
+    }
+
+    /// "Copy as → Markdown" on both platforms reads the clip's data in a context of its own, off the main thread: a clip
+    /// gone meanwhile gives no data, and so no Markdown.
+    func testMarkdownDataIsReadInAContextOfItsOwn() throws {
+        let schema = Schema(StoreSchema.models)
+        let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let html = Data("<b>Hi</b> there".utf8)
+        let clip = ClipboardItem(contentType: .html, rawData: html, textContent: "Hi there", contentHash: "h")
+        context.insert(clip)
+        try context.save()
+        XCTAssertEqual(ClipboardItem.rawData(of: clip.id, in: container), html)
+        XCTAssertEqual(ClipboardItem.rawData(of: UUID(), in: container), Data())
+        XCTAssertNil(TextTransform.markdown.result(text: "Hi there", type: .richText,
+                                                   data: ClipboardItem.rawData(of: UUID(), in: container)))
     }
 
     /// RTF for apps that take formatting, and the formatted text without its Markdown for the rest.

@@ -128,6 +128,24 @@ final class AppIdentitySyncTests: XCTestCase {
         XCTAssertEqual(out.touched, [id])
     }
 
+    /// The iPhone redraws its app icons only after an apply that changed an identity.
+    func testOutcomeSaysWhenIdentitiesChanged() throws {
+        let clip = ClipSnapshot(id: UUID(), contentType: ContentType.plainText.rawValue, rawData: Data("x".utf8),
+                                textContent: "x", userTitle: nil, sourceAppName: nil, sourceAppBundleId: nil,
+                                contentHash: "h", copiedAt: t0, isPinned: false)
+        XCTAssertFalse(applier.apply(clips: [clip], pinboards: [], entries: [], deletions: [], systemFields: [:])
+            .identitiesChanged, "clips only")
+        let s = snapshot()
+        XCTAssertTrue(applier.apply(clips: [], pinboards: [], entries: [], identities: [s], deletions: [], systemFields: [:])
+            .identitiesChanged)
+        try context.save()
+        XCTAssertFalse(applier.apply(clips: [], pinboards: [], entries: [], identities: [s], deletions: [], systemFields: [:])
+            .identitiesChanged, "the same identity again")
+        let id = try XCTUnwrap(try identities().first?.id)
+        XCTAssertTrue(applier.apply(clips: [], pinboards: [], entries: [], deletions: [id], systemFields: [:])
+            .identitiesChanged)
+    }
+
     // MARK: Re-queue, reset and wipe
 
     func testUploadableRecordIDsIncludeIdentities() throws {

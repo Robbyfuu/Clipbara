@@ -10,13 +10,20 @@ enum TopicPlan {
         SmartKinds.isEnabled && SecretDetector.settings.object(forKey: enabledDefaultsKey) as? Bool ?? true
     }
 
-    /// The `version` the clips marked done without a topic were asked under. An unavailable answer stores 0, so once the
-    /// model answers again, those clips are asked again. Bump `version` to ask every clip with no topic again.
+    /// The `version` the clips marked done without a topic were asked under. Bump `version` to ask every clip with no
+    /// topic again.
     static let versionDefaultsKey = "smartTopicsVersion"
     static let version = 1
 
-    /// The fill pass looks at this many of the newest clips, `batchSize` at a time.
-    static let window = 1000
+    /// The fill pass looks at this many of the newest clips, `batchSize` at a time. Fewer on the iPhone, where the model
+    /// runs only in the foreground, and slower.
+    #if os(iOS)
+    static let window = phoneWindow
+    #else
+    static let window = macWindow
+    #endif
+    static let macWindow = 1000
+    static let phoneWindow = 300
     static let batchSize = 10
     /// The model reads at most this many characters of a clip.
     static let previewLimit = 300
@@ -38,12 +45,17 @@ enum TopicPlan {
         lowPower || thermal == .serious || thermal == .critical || busy
     }
 
-    /// The model's answer for one clip. `topic`, `other` and `unavailable` are final: stored with `topicDone`.
-    /// `failed` leaves the clip for the next fill.
+    /// The model's answer for one clip. `topic` and `other` are final: stored with `topicDone`. `unavailable` ends the
+    /// pass and leaves the clip unmarked until the model is back; `failed` leaves it for the next fill.
     enum Outcome: Equatable, Sendable {
         case topic(SmartBoard), other, unavailable, failed
 
-        var isDone: Bool { self != .failed }
+        var isDone: Bool {
+            switch self {
+            case .topic, .other: true
+            case .unavailable, .failed: false
+            }
+        }
         var topicRaw: String? { if case .topic(let board) = self { board.rawValue } else { nil } }
     }
 

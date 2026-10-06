@@ -24,7 +24,8 @@ import SwiftData
     }
 
     private let container: ModelContainer
-    private let onRemoteChanges: @MainActor () -> Void
+    /// After remote changes landed; true when one was an app identity.
+    private let onRemoteChanges: @MainActor (_ identitiesChanged: Bool) -> Void
     private let stateURL: URL?
     private let assetDirectory = FileManager.default.temporaryDirectory
         .appendingPathComponent("CopydSyncAssets", isDirectory: true)
@@ -62,7 +63,7 @@ import SwiftData
 
     private var modelContext: ModelContext { container.mainContext }
 
-    init(container: ModelContainer, onRemoteChanges: @escaping @MainActor () -> Void) {
+    init(container: ModelContainer, onRemoteChanges: @escaping @MainActor (_ identitiesChanged: Bool) -> Void) {
         self.container = container
         self.onRemoteChanges = onRemoteChanges
         if let config = container.configurations.first, !config.isStoredInMemoryOnly {
@@ -515,7 +516,7 @@ import SwiftData
         save(suppressing: out.touched)
         engine.state.add(pendingRecordZoneChanges: out.saves.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) }
             + out.deletes.map { .deleteRecord(SyncRecordMapper.recordID(for: $0)) })
-        if !out.touched.isEmpty { onRemoteChanges() }
+        if !out.touched.isEmpty { onRemoteChanges(out.identitiesChanged) }
         return out
     }
 

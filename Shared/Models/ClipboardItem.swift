@@ -60,6 +60,14 @@ final class ClipboardItem {
         fileManifestData.flatMap { try? JSONDecoder().decode([FileManifestEntry].self, from: $0) }
     }
 
+    /// One clip's data, read in a context of its own, so off the main actor: "Paste as" and "Copy as → Markdown". Empty
+    /// when the clip is gone.
+    nonisolated static func rawData(of id: UUID, in container: ModelContainer) -> Data {
+        var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+        fetch.fetchLimit = 1
+        return (try? ModelContext(container).fetch(fetch).first?.rawData) ?? Data()
+    }
+
     init(
         contentType: ContentType,
         rawData: Data,

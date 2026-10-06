@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import SwiftData
 
@@ -109,10 +110,16 @@ struct CardGridView: View {
             }
         }
         .onChange(of: appState.panelPresentationID) { _, _ in
-            if appState.selectedTab == .history {
-                updateFilteredItems(from: items)
-                appState.initialSelectedIndex = appState.searchState.selectedIndex
-            }
+            // An automatic pinboard may have gained clips while the panel was hidden.
+            guard appState.selectedTab.showsHistoryGrid else { return }
+            updateFilteredItems(from: items)
+            if appState.selectedTab == .history { appState.initialSelectedIndex = appState.searchState.selectedIndex }
+        }
+        // A clip sorted into the open automatic pinboard: the sort passes save fields `items` never compares. One
+        // rebuild once the saves pause, as the tab bar does.
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in
+            if appState.selectedTab.smartBoard != nil, appState.panelController.isVisible { updateKeepingFocus() }
         }
         .onChange(of: appState.searchState.debouncedSearchText) { _, _ in
             if appState.selectedTab.showsHistoryGrid {

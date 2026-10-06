@@ -104,7 +104,7 @@ final class AppState {
         setupHotkey()
         sweepSecrets()
 
-        let engine = CloudSyncEngine(container: modelContainer) { [weak self] in
+        let engine = CloudSyncEngine(container: modelContainer) { [weak self] _ in
             AppIconProvider.forgetLooks()  // an identity synced for an app not installed here
             self?.clipboardMonitor.refreshLatestItems()
             self?.imageText?.fill()
@@ -133,9 +133,11 @@ final class AppState {
         let smartKinds = SmartKindsQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
         self.smartKinds = smartKinds
         smartKinds.fill()
-        // Nor do the topics: each device asks its own model. Never while the panel is open: its suggestions share the
-        // model. The pass picks up once the panel is gone, and retries the clips it failed on when Copyd is active again.
-        let topics = TopicQueue(container: modelContainer, shouldPause: { [weak self] in
+        // Nor do the topics: each device asks its own model, once the type boards are done (ruling R7). Never while the
+        // panel is open: its suggestions share the model. The pass picks up once the panel is gone, and retries the
+        // clips it failed on when Copyd is active again.
+        let topics = TopicQueue(container: modelContainer, waitsFor: { [weak smartKinds] in [smartKinds?.task] },
+                                shouldPause: { [weak self] in
             TopicPlan.shouldPause(busy: self?.panelController.isVisible ?? false)
         }) { [weak engine] ids in engine?.saveLocalOnly(ids) }
         self.topics = topics
@@ -255,19 +257,12 @@ final class AppState {
         let container = transform == .markdown ? modelContainer : nil
         pasteAsTask = Task {
             let result = await Task.detached(priority: .userInitiated) {
-                transform.result(text: text, type: type, data: container.map { Self.rawData(of: id, in: $0) } ?? Data())
+                transform.result(text: text, type: type, data: container.map { ClipboardItem.rawData(of: id, in: $0) } ?? Data())
             }.value
             guard !Task.isCancelled else { return }
             guard let result, !item.isGone else { return NSSound.beep() }
             paste(item, text: result.text, rtf: result.rtf)
         }
-    }
-
-    /// One clip's data, read in a context of its own, off the main actor.
-    nonisolated private static func rawData(of id: UUID, in container: ModelContainer) -> Data {
-        var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
-        fetch.fetchLimit = 1
-        return (try? ModelContext(container).fetch(fetch).first?.rawData) ?? Data()
     }
 
     /// "Paste text" and ⌥Return: the text read in an image, as plain text, through the pick funnel, so the monitor

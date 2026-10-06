@@ -59,10 +59,10 @@ final class AppModel {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
         // Shares a quit or crash left behind. Before any share can start, so none is removed mid-way.
         try? FileManager.default.removeItem(at: Self.shareDirectory)
-        // Every save in the app refreshes the widget: Save Clipboard, Save Text, pin, unpin, delete, the seed,
-        // and the sync engine's own saves. Any context, so the seed's separate context counts too.
+        // Every save in the app refreshes the widget and the Live Activity: Save Clipboard, Save Text, pin, unpin,
+        // delete, the seed, and the sync engine's own saves. Any context, so the seed's separate context counts too.
         _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { Self.reloadWidgets() }
+            MainActor.assumeIsolated { Self.savesLanded() }
         }
         let schema = Schema(StoreSchema.models)
         var inMemory = false
@@ -90,7 +90,7 @@ final class AppModel {
         #endif
         // Before the engine starts, so the saves of its first fetch are indexed.
         spotlight = SpotlightIndexer(container: container)
-        sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied() }
+        sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied(identitiesChanged: $0) }
         // The text read in an image never syncs, so its save queues no upload.
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         // Link previews never sync either.
@@ -98,10 +98,16 @@ final class AppModel {
             sync.saveLocalOnly(ids)
             Self.shared.topics.fill()  // a link is asked about its topic once its title is in
         }
-        // Nor do the automatic pinboards: each device sorts its own clips.
-        smartKinds = SmartKindsQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
-        // Nor do the topics: each device asks its own model.
-        topics = TopicQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
+        // Nor do the automatic pinboards: each device sorts its own clips. Spotlight never shows them, so their saves
+        // never reindex.
+        smartKinds = SmartKindsQueue(container: container) { [sync, spotlight] ids in
+            spotlight.ignoring(ids) { sync.saveLocalOnly(ids) }
+        }
+        // Nor do the topics: each device asks its own model. Only once the type boards and the image text are done
+        // (ruling R7), so the model never runs beside them.
+        topics = TopicQueue(container: container, waitsFor: { [smartKinds, imageText] in [smartKinds.task, imageText.task] }) {
+            [sync, spotlight] ids in spotlight.ignoring(ids) { sync.saveLocalOnly(ids) }
+        }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         sync.onMirrorWiped = { [weak self] in
             self?.spotlight.removeAll()
@@ -125,10 +131,21 @@ final class AppModel {
         spotlight.checkIfRequested()
         continueSpotlightIfRequested()
         #endif
-        // Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the
-        // sync engine's applied remote changes, foreground or a background push wake.
-        _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.updateLiveActivity() }
+    }
+
+    /// The reload after the last save, waiting for saves to pause.
+    private static var savesRefresh: Task<Void, Never>?
+
+    /// Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the sync
+    /// engine's applied remote changes, foreground or a background push wake. The widget and the Live Activity follow
+    /// once saves pause for a second, so a pass that saves every batch (types, topics, image text) costs one reload.
+    private static func savesLanded() {
+        savesRefresh?.cancel()
+        savesRefresh = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            reloadWidgets()
+            shared.updateLiveActivity()
         }
     }
 
@@ -271,17 +288,17 @@ final class AppModel {
         return true
     }
 
-    /// "Copy as…". Worked out off the main actor: Markdown may decode the clip's RTF. Nothing is copied when the
-    /// transform no longer applies, or the clip went meanwhile.
+    /// "Copy as…". Worked out off the main actor, where Markdown reads and decodes the clip's RTF or HTML. "Couldn't
+    /// copy" when the transform no longer applies, or the clip went meanwhile.
     func copy(_ item: ClipboardItem, as transform: TextTransform) {
         guard !item.isGone, let text = item.textContent else { return }
-        let type = item.contentType
-        let data = transform == .markdown ? item.rawData : Data()
+        let id = item.id, type = item.contentType
+        let container = transform == .markdown ? container : nil
         Task {
             let result = await Task.detached(priority: .userInitiated) {
-                transform.result(text: text, type: type, data: data)
+                transform.result(text: text, type: type, data: container.map { ClipboardItem.rawData(of: id, in: $0) } ?? Data())
             }.value
-            guard let result, !item.isGone else { return }
+            guard let result, !item.isGone else { return flash("Couldn't copy") }
             copy(item, text: result.text, rtf: result.rtf)
         }
     }
@@ -336,12 +353,12 @@ final class AppModel {
     }
 
     /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.
-    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read and the new links
-    /// fetched. A background push wake does neither; the next return to the foreground does. Called by the engine after
-    /// `shared` exists.
-    private static func remoteChangesApplied() {
+    /// A fetch brought changes: the widget reloads, the app icons too when an identity changed, and in the foreground the
+    /// new images are read and the new links fetched. A background push wake does neither; the next return to the
+    /// foreground does. Called by the engine after `shared` exists.
+    private static func remoteChangesApplied(identitiesChanged: Bool) {
         reloadWidgets()
-        shared.reloadAppLooks()
+        if identitiesChanged { shared.reloadAppLooks() }
         guard UIApplication.shared.applicationState == .active else { return }
         shared.imageText.fill()
         shared.linkPreviews.fill()

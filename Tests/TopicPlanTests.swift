@@ -29,6 +29,17 @@ final class TopicPlanTests: XCTestCase {
         XCTAssertEqual(TopicPlan.nextBatch(clips: newestDone, skipping: []), [], "past the newest 1,000, never asked")
     }
 
+    /// The iPhone runs the model in the foreground only, and slower: its backlog stops at the newest 300.
+    func testWindowIs1000OnTheMacAnd300OnTheIPhone() {
+        XCTAssertEqual(TopicPlan.macWindow, 1000)
+        XCTAssertEqual(TopicPlan.phoneWindow, 300)
+        XCTAssertEqual(TopicPlan.window, TopicPlan.macWindow, "this test target is macOS")
+        let clips = (0..<400).map { candidate(.plainText, $0) }
+        let newestDone = clips.enumerated().map { $0.offset < 300 ? candidate(.plainText, $0.offset, done: true) : $0.element }
+        XCTAssertEqual(TopicPlan.nextBatch(clips: newestDone, window: TopicPlan.phoneWindow, skipping: []), [],
+                       "past the newest 300, never asked on the iPhone")
+    }
+
     /// A clip the model failed on in this pass waits for the next fill.
     func testBatchSkipsThePassFailures() {
         let a = candidate(.plainText, 0), b = candidate(.plainText, 1)
@@ -133,7 +144,7 @@ final class TopicPlanTests: XCTestCase {
         XCTAssertEqual(TopicPlan.Outcome.topic(.work).topicRaw, "work")
         XCTAssertTrue(TopicPlan.Outcome.other.isDone)
         XCTAssertNil(TopicPlan.Outcome.other.topicRaw)
-        XCTAssertTrue(TopicPlan.Outcome.unavailable.isDone)
+        XCTAssertFalse(TopicPlan.Outcome.unavailable.isDone, "left unmarked until the model is back")
         XCTAssertNil(TopicPlan.Outcome.unavailable.topicRaw)
         XCTAssertFalse(TopicPlan.Outcome.failed.isDone, "a failure is asked again by the next fill")
     }
@@ -206,10 +217,11 @@ final class TopicQueueTests: XCTestCase {
 
     private let paused = Flag()
 
-    private func makeQueue(_ model: Model) -> TopicQueue {
+    private func makeQueue(_ model: Model,
+                           waitsFor: @escaping @MainActor () -> [Task<Void, Never>?] = { [] }) -> TopicQueue {
         let paused = paused
-        return TopicQueue(container: container, isEnabled: { true }, shouldPause: { paused.on }, pause: .zero,
-                   defaults: defaults, classify: { await model.classify($0) }) { [unowned self] ids in
+        return TopicQueue(container: container, isEnabled: { true }, waitsFor: waitsFor, shouldPause: { paused.on },
+                          pause: .zero, defaults: defaults, classify: { await model.classify($0) }) { [unowned self] ids in
             saves.append(ids)
             try? container.mainContext.save()
         }
@@ -331,23 +343,44 @@ final class TopicQueueTests: XCTestCase {
         XCTAssertEqual(model.asked.count, 1, "never asked again")
     }
 
-    /// Unavailable marks the clip done with no topic and ends the pass; once the model answers again, the version key
-    /// resets those clips so they are asked again.
-    func testUnavailableIsDoneUntilTheModelIsBack() async throws {
-        let a = try insert(.plainText, "Flight AA 100 to Lisbon", dt: 1)
-        let b = try insert(.plainText, "Gym at 7", dt: 0)
-        let gone = makeQueue(Model { _, _ in .unavailable })
+    /// Unavailable ends the pass and leaves the clip unmarked, so it is asked once the model is back. The answers before
+    /// it are kept, and the version key stays as it was.
+    func testUnavailableLeavesTheClipUntilTheModelIsBack() async throws {
+        let a = try insert(.plainText, "Flight AA 100 to Lisbon", dt: 2)
+        let b = try insert(.plainText, "Gym at 7", dt: 1)
+        let c = try insert(.plainText, "Dentist on Monday", dt: 0)
+        let gone = makeQueue(Model { _, call in call == 1 ? .topic(.travel) : .unavailable })
         gone.fill()
         await finish(gone)
-        XCTAssertTrue(a.topicDone)
-        XCTAssertNil(a.topicRaw)
-        XCTAssertFalse(b.topicDone, "the pass ends at the first unavailable answer")
-        let back = makeQueue(Model { _, _ in .topic(.travel) })
-        back.fill()
-        await finish(back)
-        XCTAssertEqual(a.topicRaw, "travel", "asked again")
-        XCTAssertEqual(b.topicRaw, "travel")
-        XCTAssertEqual(defaults.integer(forKey: TopicPlan.versionDefaultsKey), TopicPlan.version)
+        XCTAssertEqual(a.topicRaw, "travel", "the answer before it is kept")
+        XCTAssertFalse(b.topicDone, "never marked done")
+        XCTAssertNil(b.topicRaw)
+        XCTAssertFalse(c.topicDone, "the pass ends at the first unavailable answer")
+        XCTAssertEqual(saves, [[a.id]])
+        XCTAssertEqual(defaults.integer(forKey: TopicPlan.versionDefaultsKey), TopicPlan.version, "never reset")
+        let back = Model { _, _ in .topic(.personal) }
+        let queue = makeQueue(back)
+        queue.fill()
+        await finish(queue)
+        XCTAssertEqual(back.asked, ["Gym at 7", "Dentist on Monday"], "only the clips left unmarked")
+        XCTAssertEqual(b.topicRaw, "personal")
+        XCTAssertEqual(c.topicRaw, "personal")
+    }
+
+    /// Ruling R7: the pass starts only once the passes before it (the type boards; on the iPhone, image text too) are
+    /// done, so the model never runs beside them.
+    func testPassWaitsForThePassesBeforeIt() async throws {
+        let clip = try insert(.plainText, "Flight LA 800 to Lisbon")
+        let gate = Flag()
+        let before = Task { while !gate.on { try? await Task.sleep(for: .milliseconds(5)) } }
+        let model = Model { _, _ in .topic(.travel) }
+        let queue = makeQueue(model, waitsFor: { [before] })
+        queue.fill()
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(model.asked, [], "not while the pass before it runs")
+        gate.on = true
+        await finish(queue)
+        XCTAssertEqual(clip.topicRaw, "travel")
     }
 
     /// An answer never lands on a clip edited, or made a secret, while the model ran.
