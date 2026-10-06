@@ -17,6 +17,8 @@ struct SettingsView: View {
     private var deleteSecretsAfter = SecretSweeper.defaultMinutes
     /// In the App Group, so the keyboard and the widget show link titles only while it is on.
     @AppStorage(LinkPreviewPlan.enabledDefaultsKey, store: SharedDefaults.store) private var linkPreviewsEnabled = true
+    @AppStorage(SmartKinds.enabledDefaultsKey, store: SharedDefaults.store) private var smartBoardsEnabled = true
+    @AppStorage(TopicPlan.enabledDefaultsKey, store: SharedDefaults.store) private var smartTopicsEnabled = true
     @AppStorage(SpotlightIndexer.enabledDefaultsKey, store: SharedDefaults.store) private var spotlightEnabled = true
     /// Live Activities can be turned off for Copyd in Settings; re-read on every return to the app.
     @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
@@ -101,6 +103,14 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     toggleRow("Link previews", symbol: "link", isOn: $linkPreviewsEnabled)
                     Divider().overlay(DesignTokens.Brand.line)
+                    toggleRow("Automatic pinboards", symbol: "sparkles", isOn: $smartBoardsEnabled)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    if TopicClassifier.isSupported {
+                        toggleRow("Group by topic with Apple Intelligence", symbol: "apple.intelligence",
+                                  isOn: $smartTopicsEnabled)
+                            .disabled(!smartBoardsEnabled)
+                        Divider().overlay(DesignTokens.Brand.line)
+                    }
                     toggleRow("Show in Spotlight", symbol: "magnifyingglass", isOn: $spotlightEnabled)
                 }
                 .padding(.horizontal, 16)
@@ -227,6 +237,13 @@ struct SettingsView: View {
             if on { model.linkPreviews.fill() } else { model.linkPreviews.stop() }
             AppModel.reloadWidgets()  // the widget shows a link's title only while this is on
             model.spotlight.rebuild()  // and Spotlight its title and image
+        }
+        .onChange(of: smartBoardsEnabled) { _, on in
+            if on { model.smartKinds.fill() } else { model.smartKinds.stop() }
+            if on { model.topics.fill() } else { model.topics.stop() }
+        }
+        .onChange(of: smartTopicsEnabled) { _, on in
+            if on { model.topics.fill() } else { model.topics.stop() }
         }
         .onChange(of: spotlightEnabled) { _, on in
             if on { model.spotlight.rebuild() } else { model.spotlight.removeAll() }

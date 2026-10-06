@@ -27,6 +27,8 @@ final class PanelController {
     /// The app in front when the panel opened. It gets focus back when the panel hides.
     private(set) var focusReturnApp: NSRunningApplication?
     var onPanelWillHide: (() -> Void)?
+    /// Once the panel is gone and `isVisible` is false.
+    var onPanelDidHide: (() -> Void)?
     weak var appState: AppState?
     /// Over the selected card, set by the card itself: where ⇧⌥Return opens the "Paste as…" menu.
     @ObservationIgnored weak var cardMenuAnchor: CardMenuAnchorView?
@@ -205,6 +207,7 @@ final class PanelController {
                 self?.contentHost?.frame.origin.y = 0
                 self?.presentedScreen = nil
                 self?.isVisible = false
+                self?.onPanelDidHide?()
             }
         })
     }
@@ -440,7 +443,8 @@ final class PanelController {
                 // Missing tabs are a no-op, not a shortcut for the frontmost app.
                 if let index = PanelTabShortcut.index(keyCode: keyCode, modifiers: event.modifierFlags) {
                     if let appState = self.appState,
-                       let tab = PanelTabShortcut.target(at: index, pinboardIDs: appState.orderedPinboardIDs) {
+                       let tab = PanelTabShortcut.target(at: index, pinboardIDs: appState.orderedPinboardIDs,
+                                                         smartBoards: appState.orderedSmartBoards) {
                         self.selectTab(tab)
                     }
                     return true

@@ -17,9 +17,13 @@ struct TextCardContent: View {
 
     var body: some View {
         let preview = previewText
-        // A secret shows its mask, never code colors. The search highlight goes on top of the colors.
+        // A secret shows its mask, never code colors nor Markdown. Code wins over Markdown. The search highlight goes on
+        // top, matched in the text as shown: Markdown drops its marks.
         let code = item.isSensitive ? nil : CodeStyle.attributed(preview, key: item.contentHash)
-        Text(TextHighlighter.highlight(preview, query: searchText, over: code))
+        let markdown = item.isSensitive || code != nil
+            ? nil : MarkdownStyle.attributed(preview, key: item.contentHash, size: 13)
+        Text(TextHighlighter.highlight(markdown.map { String($0.characters) } ?? preview, query: searchText,
+                                       over: markdown ?? code))
             .font(.system(size: 13, design: code == nil ? .default : .monospaced))
             .lineSpacing(3)
             .multilineTextAlignment(.leading)

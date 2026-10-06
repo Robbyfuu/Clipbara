@@ -127,6 +127,13 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.sourceAppName), ["Safari", nil])
     }
 
+    /// The card's corner icon is looked up by bundle id, so the feed carries it (already in `cardFields`).
+    func testFeedCarriesSourceBundleID() throws {
+        add("a", dt: 1).sourceAppBundleId = "com.apple.Safari"
+        add("b", dt: 0)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.sourceAppBundleId), ["com.apple.Safari", nil])
+    }
+
     @discardableResult
     private func board(_ name: String, order: Int) -> Pinboard {
         let b = Pinboard(name: name, displayOrder: order)
@@ -197,6 +204,45 @@ final class KeyboardFeedTests: XCTestCase {
 
     // MARK: Insert as…
 
+    // MARK: Automatic pinboards
+
+    @discardableResult
+    private func addSorted(_ text: String, _ kinds: SmartBoard..., type: ContentType = .plainText, dt: TimeInterval,
+                           secret: Bool = false) -> ClipboardItem {
+        let item = add(text, type: type, dt: dt)
+        item.smartKinds = kinds.reduce(0) { $0 | $1.bit }
+        item.isSensitive = secret
+        return item
+    }
+
+    /// Newest first, like Recent, and only the board's clips: one clip can be in several boards.
+    func testSmartModeListsTheBoardsClipsNewestFirst() throws {
+        addSorted("old code", .code, dt: 0)
+        addSorted("link", .links, type: .url, dt: 1)
+        addSorted("new code and phone", .code, .contacts, dt: 2)
+        add("none", dt: 3)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .smart(.code)).map(\.preview), ["new code and phone", "old code"])
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .smart(.contacts)).map(\.preview), ["new code and phone"])
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .smart(.colors)), [])
+    }
+
+    func testSmartModeLimitIs60() throws {
+        for i in 0..<70 { addSorted("t\(i)", .code, dt: TimeInterval(i)) }
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .smart(.code)).count, 60)
+    }
+
+    /// Only boards with a clip the keyboard can show: never Files, never a board holding only secrets.
+    func testSmartBoardsAreTheNonEmptyTypeBoardsInOrder() throws {
+        XCTAssertEqual(try KeyboardFeed.smartBoards(in: context), [])
+        addSorted("a.pdf", .files, type: .files, dt: 0)
+        addSorted("secret", .code, dt: 1, secret: true)
+        addSorted("#F8D14F", .colors, type: .color, dt: 2)
+        addSorted("link", .links, type: .url, dt: 3)
+        XCTAssertEqual(try KeyboardFeed.smartBoards(in: context), [.links, .colors])
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .smart(.code)), [], "secrets stay out")
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .smart(.files)), [], "file clips stay out")
+    }
+
     /// Worked out for the one long-pressed card, from the text the controller fetches for it.
     func testInsertAsMenuForOneCard() throws {
         add("[1, 2]", dt: 2)
@@ -218,6 +264,20 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(KeyboardFeed.menu(for: clips[1], text: fetch("a")), [])
         XCTAssertEqual(fetches, 0)
         XCTAssertEqual(KeyboardFeed.menu(for: clips[2], text: fetch("a")), [.upper, .title])
+    }
+
+    /// Ruling R5: neither Markdown transform in the keyboard. "Formatted text" can't be inserted, and Markdown would
+    /// decode a clip's RTF or HTML in the keyboard's memory; the app's "Copy as → Markdown" covers it.
+    func testInsertAsNeverOffersMarkdownTransforms() throws {
+        let markdown = "# Notes\n\n- milk\n- eggs"
+        add(markdown, dt: 1)
+        add("Hello", type: .html, dt: 0, raw: Data("<b>Hello</b>".utf8))
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        XCTAssertTrue(TextTransform.applicable(to: markdown, type: .plainText).contains(.richText), "the apps offer it")
+        XCTAssertFalse(KeyboardFeed.menu(for: clips[0], text: markdown).contains(.richText))
+        XCTAssertTrue(TextTransform.applicable(to: "Hello", type: .html).contains(.markdown), "the apps offer it")
+        XCTAssertFalse(KeyboardFeed.menu(for: clips[1], text: "Hello").contains(.markdown))
+        XCTAssertFalse(KeyboardFeed.menu(for: clips[1], text: "Hello").contains(.richText))
     }
 
     /// The menu comes from the real text, not the masked preview.

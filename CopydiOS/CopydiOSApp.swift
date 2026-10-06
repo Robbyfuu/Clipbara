@@ -114,6 +114,8 @@ struct CopydiOSApp: App {
                 if phase == .background {
                     model.imageText.stop()
                     model.linkPreviews.stop()
+                    model.smartKinds.stop()
+                    model.topics.stop()
                 }
                 guard phase == .active else { return }
                 model.drainInbox()
@@ -123,6 +125,9 @@ struct CopydiOSApp: App {
                 // After the drain and the capture, so their new images are read first.
                 model.imageText.fill()
                 model.linkPreviews.fill()
+                model.smartKinds.fill()
+                model.topics.fill(retryingFailures: true)  // back in front: the clips the model failed on too
+                model.reloadAppLooksIfStale()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()
             }
@@ -195,6 +200,7 @@ private struct KeyboardPreviewHarness: View {
         case "noFullAccess": model.state = .noFullAccess
         case "noStore": model.state = .noStore
         case "error": model.state = .error
+        case "needsApp": model.state = .needsApp
         default:
             let items = (try? KeyboardFeed.items(in: context, mode: model.mode)) ?? []
             let card = d.string(forKey: "CopydKeyboardPreviewClipboard").flatMap(ClipCapture.text)

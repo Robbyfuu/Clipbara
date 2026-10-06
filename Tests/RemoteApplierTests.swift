@@ -403,6 +403,34 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertFalse(local.linkPreviewDone, "the new link is fetched again")
     }
 
+    /// The automatic pinboards are local: a rename keeps them, new content is sorted again.
+    func testRemoteUpdateKeepsTheAutomaticPinboardsUntilTheContentChanges() throws {
+        try apply(clips: [clip(1, data: Data("Call (415) 555-0132".utf8))])
+        let local = try XCTUnwrap(try clips().first)
+        local.smartKinds = SmartBoard.contacts.bit
+        local.smartKindsVersion = SmartKinds.version
+        try apply(clips: [clip(1, title: "renamed", data: Data("Call (415) 555-0132".utf8))])
+        XCTAssertEqual(local.smartKinds, SmartBoard.contacts.bit)
+        XCTAssertEqual(local.smartKindsVersion, SmartKinds.version)
+        try apply(clips: [clip(1, hash: "h2", data: Data("func greet() {}".utf8))])
+        XCTAssertEqual(local.smartKinds, 0)
+        XCTAssertEqual(local.smartKindsVersion, 0, "the new content is sorted again")
+    }
+
+    /// The topic is local too: a rename keeps it, new content is asked about again.
+    func testRemoteUpdateKeepsTheTopicUntilTheContentChanges() throws {
+        try apply(clips: [clip(1, data: Data("Flight AA 100 to Lisbon".utf8))])
+        let local = try XCTUnwrap(try clips().first)
+        local.topicRaw = SmartBoard.travel.rawValue
+        local.topicDone = true
+        try apply(clips: [clip(1, title: "renamed", data: Data("Flight AA 100 to Lisbon".utf8))])
+        XCTAssertEqual(local.topicRaw, "travel")
+        XCTAssertTrue(local.topicDone)
+        try apply(clips: [clip(1, hash: "h2", data: Data("Invoice 2026-114".utf8))])
+        XCTAssertNil(local.topicRaw)
+        XCTAssertFalse(local.topicDone, "the new content is asked about again")
+    }
+
     func testNoMergeAt61Seconds() throws {
         try apply(clips: [clip(1)])
         let out = try apply(clips: [clip(2, dt: 61)])

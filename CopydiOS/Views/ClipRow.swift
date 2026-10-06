@@ -6,6 +6,7 @@ import SwiftData
 struct ClipRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     let item: ClipboardItem
     var onDelete: (() -> Void)?
     @State private var editing = false
@@ -148,6 +149,9 @@ struct ClipRow: View {
                 if title == nil, let code = codePreview {
                     Text(code).brandFont(14, design: .monospaced).lineSpacing(3).lineLimit(4)
                         .foregroundStyle(DesignTokens.Brand.ink)
+                } else if title == nil, let markdown = markdownPreview {
+                    Text(markdown).brandFont(16).lineSpacing(3).lineLimit(4)
+                        .foregroundStyle(DesignTokens.Brand.ink)
                 } else {
                     mainLine(title ?? item.textContent ?? "")
                 }
@@ -162,6 +166,12 @@ struct ClipRow: View {
     private var codePreview: AttributedString? {
         guard let text = item.textContent else { return nil }
         return CodeStyle.attributed(String(text.prefix(2048)), key: item.contentHash)
+    }
+
+    /// The text formatted when it is Markdown and not code; nil otherwise. Same 2 KB and cache as `codePreview`.
+    private var markdownPreview: AttributedString? {
+        guard let text = item.textContent else { return nil }
+        return MarkdownStyle.attributed(String(text.prefix(2048)), key: item.contentHash, size: 16)
     }
 
     private func mainLine(_ text: String) -> some View {
@@ -216,12 +226,30 @@ struct ClipRow: View {
         }
     }
 
-    /// "Source · age" on the left; a lock for a secret, and "Pinned" when pinned, on the right.
+    /// The source app's icon (the type's symbol when no identity is synced), the type over "Source · age" on the
+    /// left; a lock for a secret, and "Pinned" when pinned, on the right. A secret still shows its app.
     private var meta: some View {
-        HStack(spacing: 8) {
-            Text("\(item.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: item.copiedAt, now: Date()))")
-                .foregroundStyle(DesignTokens.Brand.ink2)
-                .lineLimit(1)
+        let look = item.sourceAppBundleId.flatMap { model.appLooks[$0] }
+        return HStack(spacing: 8) {
+            Group {
+                if let look {
+                    Image(uiImage: look.icon).resizable().scaledToFit()
+                } else {
+                    Image(systemName: item.contentType.systemImage).font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(DesignTokens.Brand.ink2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 7))
+                }
+            }
+            .frame(width: 28, height: 28)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.contentType.displayName).fontWeight(.semibold)
+                    .foregroundStyle(typeColor(look?.color))
+                Text("\(item.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: item.copiedAt, now: Date()))")
+                    .foregroundStyle(DesignTokens.Brand.ink2)
+            }
+            .lineLimit(1)
             Spacer(minLength: 0)
             if item.recognizedText != nil {
                 Text(verbatim: "Aa")
@@ -246,6 +274,17 @@ struct ClipRow: View {
             }
         }
         .brandFont(13, relativeTo: .footnote)
+    }
+
+    /// The app's color when it reads at 3:1 or better on the row's `card` ground in this appearance, else `ink2`.
+    private func typeColor(_ app: RGB?) -> Color {
+        guard let app else { return DesignTokens.Brand.ink2 }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(DesignTokens.Brand.card)
+            .resolvedColor(with: UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light))
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        guard ContrastPicker.ratio(app, RGB(r: r, g: g, b: b)) >= 3 else { return DesignTokens.Brand.ink2 }
+        return Color(red: app.r, green: app.g, blue: app.b)
     }
 
     @ViewBuilder private var thumbnail: some View {
@@ -283,11 +322,7 @@ private struct CopyAsMenu: View {
         if !transforms.isEmpty {
             Menu("Copy as…") {
                 ForEach(transforms, id: \.self) { transform in
-                    Button(transform.label()) {
-                        // The sweep or a sync may have deleted the clip while the menu was open.
-                        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return }
-                        model.copy(item, text: text)
-                    }
+                    Button(transform.label()) { model.copy(item, as: transform) }
                 }
             }
         }
@@ -334,8 +369,12 @@ private struct EditClipSheet: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             // The sweep or a sync may have deleted the clip meanwhile. A secret edit deletes it.
-                            if !item.isGone, item.saveEdit(text, in: modelContext), !item.isGone, item.contentType == .url {
-                                model.linkPreviews.fill()  // the new link's preview
+                            if !item.isGone, item.saveEdit(text, in: modelContext) {
+                                model.smartKinds.fill()  // the new text's automatic pinboards
+                                model.topics.fill()  // and its topic
+                                if !item.isGone, item.contentType == .url {
+                                    model.linkPreviews.fill()  // the new link's preview
+                                }
                             }
                             dismiss()
                         }

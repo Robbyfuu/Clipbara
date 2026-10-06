@@ -20,6 +20,10 @@ final class AppModel {
     let imageText: ImageTextQueue
     /// Fetches link titles and images, foreground only like `imageText`.
     let linkPreviews: LinkPreviewQueue
+    /// Sorts clips into the automatic pinboards, foreground only like `imageText`.
+    let smartKinds: SmartKindsQueue
+    /// Asks Apple Intelligence for the topic boards, foreground only like `imageText`.
+    let topics: TopicQueue
     /// Keeps the clips in Spotlight, following every main-context save.
     let spotlight: SpotlightIndexer
     /// True when the App Group container was unavailable and the store lives in memory only.
@@ -28,6 +32,17 @@ final class AppModel {
     var toastText = String(localized: "Copied")
     /// A quick action or `copyd://` link the root view has not handled yet. Set before any view exists on a cold launch.
     var pendingRoute: QuickRoute?
+    /// Each app's icon and header color, from the identities the Mac synced (`AppIdentity`), by bundle id.
+    private(set) var appLooks: [String: AppLook] = [:]
+    @ObservationIgnored private var looksTask: Task<Void, Never>?
+    /// A reload was asked for in the background: it runs on the next return to the foreground.
+    @ObservationIgnored private var looksStale = false
+
+    struct AppLook: Sendable {
+        /// Decoded for a 28 pt row icon.
+        let icon: UIImage
+        let color: RGB?
+    }
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var isDraining = false
     /// The last Live Activity change. Each waits for the one before, so an older state never lands last.
@@ -44,12 +59,12 @@ final class AppModel {
         UserDefaults.standard.register(defaults: [CloudSyncEngine.enabledDefaultsKey: true])
         // Shares a quit or crash left behind. Before any share can start, so none is removed mid-way.
         try? FileManager.default.removeItem(at: Self.shareDirectory)
-        // Every save in the app refreshes the widget: Save Clipboard, Save Text, pin, unpin, delete, the seed,
-        // and the sync engine's own saves. Any context, so the seed's separate context counts too.
+        // Every save in the app refreshes the widget and the Live Activity: Save Clipboard, Save Text, pin, unpin,
+        // delete, the seed, and the sync engine's own saves. Any context, so the seed's separate context counts too.
         _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { Self.reloadWidgets() }
+            MainActor.assumeIsolated { Self.savesLanded() }
         }
-        let schema = Schema([ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self])
+        let schema = Schema(StoreSchema.models)
         var inMemory = false
         let configuration: ModelConfiguration
         if let group = SharedStore.groupContainer {
@@ -67,17 +82,38 @@ final class AppModel {
         Self.seedLinkClipIfRequested(container)
         Self.seedSecretClipIfRequested(container)
         Self.seedCodeClipsIfRequested(container)
+        Self.seedAppIdentityIfRequested(container)
+        Self.seedSmartClipsIfRequested(container)
+        Self.seedTopicClipsIfRequested(container)
+        Self.seedMarkdownClipIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         // Before the engine starts, so the saves of its first fetch are indexed.
         spotlight = SpotlightIndexer(container: container)
-        sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied() }
+        sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied(identitiesChanged: $0) }
         // The text read in an image never syncs, so its save queues no upload.
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         // Link previews never sync either.
-        linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
+        linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in
+            sync.saveLocalOnly(ids)
+            Self.shared.topics.fill()  // a link is asked about its topic once its title is in
+        }
+        // Nor do the automatic pinboards: each device sorts its own clips. Spotlight never shows them, so their saves
+        // never reindex.
+        smartKinds = SmartKindsQueue(container: container) { [sync, spotlight] ids in
+            spotlight.ignoring(ids) { sync.saveLocalOnly(ids) }
+        }
+        // Nor do the topics: each device asks its own model. Only once the type boards and the image text are done
+        // (ruling R7), so the model never runs beside them.
+        topics = TopicQueue(container: container, waitsFor: { [smartKinds, imageText] in [smartKinds.task, imageText.task] }) {
+            [sync, spotlight] ids in spotlight.ignoring(ids) { sync.saveLocalOnly(ids) }
+        }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
-        sync.onMirrorWiped = { [weak self] in self?.spotlight.removeAll() }
+        sync.onMirrorWiped = { [weak self] in
+            self?.spotlight.removeAll()
+            self?.reloadAppLooks()  // the old account's icons go with its clips
+        }
+        reloadAppLooks()
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
         Self.writeSampleInboxIfRequested()
@@ -95,10 +131,21 @@ final class AppModel {
         spotlight.checkIfRequested()
         continueSpotlightIfRequested()
         #endif
-        // Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the
-        // sync engine's applied remote changes, foreground or a background push wake.
-        _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.updateLiveActivity() }
+    }
+
+    /// The reload after the last save, waiting for saves to pause.
+    private static var savesRefresh: Task<Void, Never>?
+
+    /// Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the sync
+    /// engine's applied remote changes, foreground or a background push wake. The widget and the Live Activity follow
+    /// once saves pause for a second, so a pass that saves every batch (types, topics, image text) costs one reload.
+    private static func savesLanded() {
+        savesRefresh?.cancel()
+        savesRefresh = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            reloadWidgets()
+            shared.updateLiveActivity()
         }
     }
 
@@ -219,8 +266,9 @@ final class AppModel {
     /// Returns false, with no toast, when there was nothing to write, or the clip is gone (the sweep or a remote delete
     /// landed while a menu was open).
     /// - Parameter transformed: A "Copy as…" result, copied in place of the clip's own content.
+    /// - Parameter rtf: Copied beside `transformed`: "Copy as → Formatted text".
     @discardableResult
-    func copy(_ item: ClipboardItem, text transformed: String? = nil) -> Bool {
+    func copy(_ item: ClipboardItem, text transformed: String? = nil, rtf: Data? = nil) -> Bool {
         guard !item.isGone else { return false }
         switch item.contentType {
         case .image where transformed == nil:
@@ -228,12 +276,31 @@ final class AppModel {
             UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
         default:
             guard let text = transformed ?? item.textContent, !text.isEmpty else { return false }
-            UIPasteboard.general.string = text
+            if let rtf {
+                UIPasteboard.general.items = [["public.rtf": rtf, "public.utf8-plain-text": text]]
+            } else {
+                UIPasteboard.general.string = text
+            }
         }
         // Covers a row tap, the widget's `copy` route and Copy Latest Clip: all of them copy through here.
         PasteboardCapture.markHandled()
         flash("Copied")
         return true
+    }
+
+    /// "Copy as…". Worked out off the main actor, where Markdown reads and decodes the clip's RTF or HTML. "Couldn't
+    /// copy" when the transform no longer applies, or the clip went meanwhile.
+    func copy(_ item: ClipboardItem, as transform: TextTransform) {
+        guard !item.isGone, let text = item.textContent else { return }
+        let id = item.id, type = item.contentType
+        let container = transform == .markdown ? container : nil
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                transform.result(text: text, type: type, data: container.map { ClipboardItem.rawData(of: id, in: $0) } ?? Data())
+            }.value
+            guard let result, !item.isGone else { return flash("Couldn't copy") }
+            copy(item, text: result.text, rtf: result.rtf)
+        }
     }
 
     /// Where `share` writes a file clip's files, one `<clip-id>` folder per share.
@@ -286,14 +353,44 @@ final class AppModel {
     }
 
     /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.
-    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read and the new links
-    /// fetched. A background push wake does neither; the next return to the foreground does. Called by the engine after
-    /// `shared` exists.
-    private static func remoteChangesApplied() {
+    /// A fetch brought changes: the widget reloads, the app icons too when an identity changed, and in the foreground the
+    /// new images are read and the new links fetched. A background push wake does neither; the next return to the
+    /// foreground does. Called by the engine after `shared` exists.
+    private static func remoteChangesApplied(identitiesChanged: Bool) {
         reloadWidgets()
+        if identitiesChanged { shared.reloadAppLooks() }
         guard UIApplication.shared.applicationState == .active else { return }
         shared.imageText.fill()
         shared.linkPreviews.fill()
+        shared.smartKinds.fill()
+        shared.topics.fill()
+    }
+
+    /// Reads every identity and decodes its icon at 84 px (28 pt at 3x), all off the main thread. There is one per
+    /// app the Mac copied from, so dozens at most. A newer reload supersedes a running one; in the background it waits
+    /// for `reloadAppLooksIfStale` on the next return.
+    func reloadAppLooks() {
+        guard UIApplication.shared.applicationState != .background else { return looksStale = true }
+        looksStale = false
+        looksTask?.cancel()
+        let container = container
+        looksTask = Task {
+            let looks = await ImageTextQueue.offMain {
+                let identities = (try? ModelContext(container).fetch(FetchDescriptor<AppIdentity>())) ?? []
+                var looks: [String: AppLook] = [:]
+                for m in identities {
+                    guard let icon = Thumbnail.image(from: m.iconPNG, maxPixels: 84) else { continue }
+                    looks[m.bundleId] = AppLook(icon: UIImage(cgImage: icon), color: RGB(hex: m.colorHex))
+                }
+                return looks
+            }
+            guard !Task.isCancelled else { return }
+            appLooks = looks
+        }
+    }
+
+    func reloadAppLooksIfStale() {
+        if looksStale { reloadAppLooks() }
     }
 
     static func reloadWidgets() {
@@ -347,6 +444,8 @@ final class AppModel {
         try? context.save()
         // Only the foreground app reads the pasteboard, so this runs in the foreground.
         if item.contentType == .url { linkPreviews.fill() }
+        smartKinds.fill()
+        topics.fill()
     }
 
     /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.
@@ -387,15 +486,22 @@ final class AppModel {
               !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage"),
               !UserDefaults.standard.bool(forKey: "CopydSeedLinkClip"),
               !UserDefaults.standard.bool(forKey: "CopydSeedSecretClip"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedSmartClips"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedTopicClips"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedMarkdownClip") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
+        let seedApp = seedAppBundleID
+        let apps = (try? context.fetch(FetchDescriptor<AppIdentity>(predicate: #Predicate { $0.bundleId == seedApp }))) ?? []
+        apps.forEach(context.delete)
         // Pinboards have no contentHash; the seed board is recognised by its fixed id. Deleting it cascades its entries.
         let seedBoardID = Self.seedBoardID
         let boards = (try? context.fetch(FetchDescriptor<Pinboard>(
             predicate: #Predicate { $0.id == seedBoardID }))) ?? []
-        guard !seeds.isEmpty || !boards.isEmpty else { return }
+        guard !seeds.isEmpty || !boards.isEmpty || !apps.isEmpty else { return }
         seeds.forEach(context.delete)
         boards.forEach(context.delete)
         try? context.save()
@@ -403,6 +509,98 @@ final class AppModel {
     }
 
     private static let seedBoardID = UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!
+    private static let seedAppBundleID = "com.example.copyd-seed.atlas"
+
+    /// `-CopydSeedAppIdentity YES`: inserts an app identity, as the Mac would sync it, and one clip copied from that
+    /// app, for the row's icon and app color. Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch
+    /// without any seed flag deletes both.
+    private static func seedAppIdentityIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        guard (try? AppIdentity.find(seedAppBundleID, in: context)) == nil else { return }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let icon = UIGraphicsImageRenderer(size: CGSize(width: 128, height: 128), format: format).pngData { ctx in
+            UIColor(red: 0x2F / 255, green: 0x6B / 255, blue: 0xDB / 255, alpha: 1).setFill()
+            UIBezierPath(roundedRect: CGRect(x: 12, y: 12, width: 104, height: 104), cornerRadius: 24).fill()
+            UIColor.white.setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 40, y: 40, width: 48, height: 48))
+        }
+        context.insert(AppIdentity(bundleId: seedAppBundleID, name: "Atlas", iconPNG: icon, colorHex: "#2F6BDB"))
+        let text = "Meet at the north entrance, 10:30"
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text,
+                                     sourceAppName: "Atlas", sourceAppBundleId: seedAppBundleID, contentHash: "seed-app"))
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedSmartClips YES`: inserts an address, a sentence with a phone number, an email and a files clip, for
+    /// the Automatic section; with `-CopydSeedSampleClips YES -CopydSeedCodeClips YES` every type board has a clip.
+    /// The fill pass sorts them. Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without any seed
+    /// flag deletes them.
+    private static func seedSmartClipsIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedSmartClips"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentHash == "seed-smart-address" }))) ?? 0) == 0 else { return }
+        for (hash, text) in [("seed-smart-address", "1 Infinite Loop, Cupertino, CA 95014"),
+                             ("seed-smart-phone", "Call me at (415) 555-0132 tomorrow"),
+                             ("seed-smart-email", "Write to ana@example.com")] {
+            context.insert(ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text, contentHash: hash))
+        }
+        if let bundle = try? FileBundle.encode([(name: "Notes.txt", data: Data("Copyd".utf8), uti: "public.plain-text")]) {
+            let files = ClipboardItem(contentType: .files, rawData: bundle, textContent: "Notes.txt", contentHash: "seed-smart-files")
+            files.fileManifestData = FileBundle.manifestJSON(bundle)
+            context.insert(files)
+        }
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedTopicClips YES`: inserts text clips whose topic is already set, as the model would set it, so the
+    /// topic boards fill the Automatic section without waiting for the model. They show only where Apple Intelligence
+    /// is supported (`TopicClassifier.isSupported`). Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A
+    /// launch without any seed flag deletes them.
+    private static func seedTopicClipsIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedTopicClips"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentHash.starts(with: "seed-topic-") }))) ?? 0) == 0 else { return }
+        for (topic, text) in [(SmartBoard.work, "Move the design review to Thursday 3 pm"),
+                              (.work, "Q4 roadmap: ship topic boards, then Markdown"),
+                              (.shopping, "Order: 2x oat milk, coffee beans, AA batteries"),
+                              (.travel, "Flight LA 800, gate 14, boarding 9:40"),
+                              (.finance, "Invoice 2026-114: $1,240 due Friday"),
+                              (.study, "Chapter 6 notes: Swift concurrency and actors"),
+                              (.social, "Ana's birthday dinner, Saturday 8 pm"),
+                              (.personal, "Dentist appointment Tuesday at 10")] {
+            let clip = ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text,
+                                     contentHash: "seed-topic-\(UUID().uuidString)")
+            clip.topicRaw = topic.rawValue
+            clip.topicDone = true
+            context.insert(clip)
+        }
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedMarkdownClip YES`: inserts one Markdown text clip, for the row that renders it. Refuses to run unless
+    /// sync is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes it.
+    private static func seedMarkdownClipIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedMarkdownClip"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-markdown"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let text = "# Groceries\n- **Oat milk**, 2 cartons\n- Beans from [Café Altura](https://example.com)\n- *Ripe* avocados, `x3`"
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text, contentHash: hash))
+        try? context.save()
+        invalidateSpotlight()
+    }
 
     /// The seeds write through their own context, before the indexer exists, so it never sees them: dropping the stored
     /// index version makes it rebuild when it starts.

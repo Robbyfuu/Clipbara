@@ -3,7 +3,7 @@ import CloudKit
 /// Chooses which pending changes go into one upload batch, and in what order.
 enum SyncBatchPlanner {
     enum Kind: Int, Comparable {
-        case clip, pinboard, entry
+        case clip, pinboard, entry, appIdentity
         static func < (l: Kind, r: Kind) -> Bool { l.rawValue < r.rawValue }
     }
 
@@ -14,7 +14,7 @@ enum SyncBatchPlanner {
         let byteCount: Int
     }
 
-    /// Deletes first, then saves ordered clip, pinboard, entry. Returns a prefix of that order:
+    /// Deletes first, then saves ordered clip, pinboard, entry, app identity. Returns a prefix of that order:
     /// the first candidate is always taken, then it stops before exceeding either cap.
     static func select(
         _ candidates: [Candidate], maxRecords: Int = 100, maxBytes: Int = 52_428_800

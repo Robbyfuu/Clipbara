@@ -32,7 +32,8 @@ Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPh
   - The script still holds upstream's `TEAM_ID` and certificate names. Switch them to team `TQC76W2BKK`.
   - Create the provisioning profile "Copyd Mac App Store" for `com.robbyfuu.copyd`.
   - Create the in-app purchases `com.robbyfuu.copyd.trial7day` and `com.robbyfuu.copyd.lifetime`.
-  - Deploy the CloudKit schema to Production and set `aps-environment` to `production`.
+  - Deploy the CloudKit schema to Production, including the `AppIdentity` record type and the clip fields `fileManifest` and `fromUniversalClipboard`, and set `aps-environment` to `production`.
+  - Add a one-time `AppIdentity` backfill, so a device that updates after the Mac published still gets icons right away. Until then, the 7-day refresh heals it.
   - Resolve the GPL-3.0 licensing with upstream. The App Store build cannot ship until this is settled.
 - Version numbers live in `Copyd/Info.plist` (`CFBundleShortVersionString`, `CFBundleVersion`).
 
@@ -51,7 +52,7 @@ Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPh
 **Never rename these.** Existing history depends on them:
 - The `StoreManager` store constants `com.minsang.PasteClip`, `PasteClip.store` and `.PasteClip_SUPPORT`. The store lives at that path inside the sandbox container.
 - UserDefaults keys (`historyLimit`, `iCloudSyncEnabled`, …).
-- The CloudKit zone `Clipboard` and the record types `Clip`, `Pinboard` and `PinboardEntry`.
+- The CloudKit zone `Clipboard` and the record types `Clip`, `Pinboard`, `PinboardEntry` and `AppIdentity`.
 
 ## iCloud sync (`Shared/Sync/`)
 
@@ -131,6 +132,21 @@ Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPh
 - **The keyboard feed** must use `propertiesToFetch` (`KeyboardFeed.cardFields`). Never load `rawData` or `linkImageData` there.
 - **Code highlighting** uses `CodeDetector` and `SyntaxHighlighter` on the first 2 KB, with tokens cached by `contentHash`. The code colors are WCAG ≥ 4.5:1 on `chip` and `card`.
 - **Spanish strings:** `python3 scripts/check_es.py` must report `0 missing`.
+
+## Card headers, automatic pinboards and Markdown (spec: `docs/superpowers/specs/2026-10-06-cards-smartboards-markdown-design.md`)
+
+- **One schema.** Every target opens the store through `StoreSchema`. Add new models there, never per target.
+- **`AppIdentity`** holds an app's name, a 128 px icon and a color.
+  - Only the Mac publishes it. iOS reads it and never uploads it.
+  - Record names are random UUIDs, and duplicates are collapsed by `bundleId` (newest wins).
+  - It refreshes after 7 days.
+- **Automatic pinboards** are virtual filters over the local-only `smartKinds` and `topicRaw`. Secrets are never classified.
+  - Predicates never capture a `Bool`. Branch in Swift instead, because captured Bools are unreliable on macOS 14 and iOS 17.
+  - The topic pass runs at utility priority. It pauses on Low Power Mode, under thermal pressure, and while the panel is open.
+  - It starts only after the smart-kinds pass has finished, and on iOS also after OCR.
+  - Its window is 300 clips on iOS and 1000 on the Mac.
+- **FoundationModels** is weak-linked in both apps (`-weak_framework` in `project.yml`) and never in an extension.
+- **Markdown.** "Paste as → Markdown" and "Formatted text" are app-only, never in the keyboard. The HTML converter is bounded for deep nesting and unclosed tags.
 
 ## Project rules
 

@@ -7,10 +7,14 @@ import SwiftData
     private let context: ModelContext
     private let onChanges: @MainActor ([CKSyncEngine.PendingRecordZoneChange]) -> Void
     private var suppressed: Set<UUID> = []
+    /// False on the iPhone, which only reads identities (`AppIdentityPublisher.publishesHere`).
+    private let uploadsIdentities: Bool
     nonisolated(unsafe) private var token: NSObjectProtocol?  // only touched in init and deinit
 
-    init(context: ModelContext, onChanges: @escaping @MainActor ([CKSyncEngine.PendingRecordZoneChange]) -> Void) {
+    init(context: ModelContext, uploadsIdentities: Bool = AppIdentityPublisher.publishesHere,
+         onChanges: @escaping @MainActor ([CKSyncEngine.PendingRecordZoneChange]) -> Void) {
         self.context = context
+        self.uploadsIdentities = uploadsIdentities
         self.onChanges = onChanges
         token = NotificationCenter.default.addObserver(forName: ModelContext.willSave, object: context, queue: nil) { [weak self] _ in
             MainActor.assumeIsolated { self?.willSave() }
@@ -54,6 +58,7 @@ import SwiftData
             case let entry as PinboardEntry
                 where entry.clipboardItem?.contentTypeRaw != "fileURL" && entry.clipboardItem?.isSensitive != true:
                 add(entry.id, delete: true)
+            case let app as AppIdentity where uploadsIdentities: add(app.id, delete: true)
             default: break
             }
         }
@@ -65,6 +70,7 @@ import SwiftData
             case let board as Pinboard: add(board.id, delete: false)
             case let entry as PinboardEntry where entry.clipboardItem?.isSyncEligible == true && entry.pinboard != nil:
                 add(entry.id, delete: false)
+            case let app as AppIdentity where uploadsIdentities: add(app.id, delete: false)
             default: break
             }
         }
@@ -76,6 +82,7 @@ import SwiftData
         case let m as ClipboardItem: m.id
         case let m as Pinboard: m.id
         case let m as PinboardEntry: m.id
+        case let m as AppIdentity: m.id
         default: nil
         }
     }

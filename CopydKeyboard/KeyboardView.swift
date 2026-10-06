@@ -2,7 +2,8 @@ import SwiftUI
 import UIKit
 
 enum KeyboardState: Equatable {
-    case noFullAccess, noStore, error, loaded([KeyboardClip])
+    /// `needsApp`: the store wouldn't open, usually because the updated app hasn't migrated it yet.
+    case noFullAccess, noStore, needsApp, error, loaded([KeyboardClip])
 }
 
 /// State and actions the controller hands to the SwiftUI keyboard.
@@ -11,7 +12,11 @@ final class KeyboardModel {
     var state = KeyboardState.noStore
     var mode = KeyboardFeed.Mode.recent
     var boards: [KeyboardBoard] = []
+    /// The automatic pinboards with a clip to show, after `boards`.
+    var smartBoards: [SmartBoard] = []
     var lastSync: Date?
+    /// Source app icons by bundle id, at most 42 px, filled as cards need them.
+    var icons: [String: UIImage] = [:]
     var toast: String?
     var showsGlobe = false
 
@@ -126,6 +131,9 @@ struct KeyboardView: View {
                     ForEach(model.boards) { board in
                         chip(board.name, .pinboard(board.id), dot: DesignTokens.pinboardDots[board.colorIndex])
                     }
+                    ForEach(model.smartBoards, id: \.self) { board in
+                        chip(board.title, .smart(board), symbol: "sparkles")
+                    }
                 }
                 .padding(.horizontal, 3)
             }
@@ -137,7 +145,7 @@ struct KeyboardView: View {
         .frame(minHeight: 44)
     }
 
-    private func chip(_ title: String, _ mode: KeyboardFeed.Mode, dot: Color? = nil) -> some View {
+    private func chip(_ title: String, _ mode: KeyboardFeed.Mode, dot: Color? = nil, symbol: String? = nil) -> some View {
         let active = model.mode == mode
         return Button {
             guard model.mode != mode else { return }
@@ -146,6 +154,7 @@ struct KeyboardView: View {
         } label: {
             HStack(spacing: 6) {
                 if let dot { Circle().fill(dot).frame(width: 8, height: 8).accessibilityHidden(true) }
+                if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).accessibilityHidden(true) }
                 Text(title).lineLimit(1)
             }
             .font(.system(size: 14, weight: active ? .bold : .semibold))
@@ -189,6 +198,7 @@ struct KeyboardView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .noStore: message("Open Copyd once to connect your history.", symbol: "iphone")
+        case .needsApp: message("Open Copyd to update your history.", symbol: "arrow.triangle.2.circlepath")
         case .error: message("Couldn't load your history.", symbol: "exclamationmark.triangle")
         case .loaded(let clips):
             if clips.isEmpty { message("Copy something on your Mac.", symbol: "clipboard") } else { grid(clips) }
@@ -233,7 +243,8 @@ struct KeyboardView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     cardBody(clip)
                     Spacer(minLength: 0)
-                    Group {
+                    HStack(spacing: 4) {
+                        appIcon(clip)
                         if clip.isClipboard {
                             Text("Clipboard")
                         } else {
@@ -248,9 +259,11 @@ struct KeyboardView: View {
             }
         }
         .frame(height: 84)
-        // An image card has no meta line, so its "Clipboard" label sits on the thumbnail.
+        // An image card has no meta line, so its "Clipboard" label, or its app icon, sits on the thumbnail.
         .overlay(alignment: .bottomLeading) {
-            if clip.isClipboard, clip.contentType == .image {
+            if clip.contentType == .image, !clip.isClipboard {
+                appIcon(clip).padding(6)
+            } else if clip.isClipboard, clip.contentType == .image {
                 Text("Clipboard").font(.system(size: 11, weight: .semibold)).foregroundStyle(DesignTokens.Brand.ink)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(DesignTokens.Brand.keyCap, in: Capsule())
@@ -260,6 +273,13 @@ struct KeyboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .keyCap(in: RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// The source app's 14 pt icon in the card's bottom corner, when the Mac synced one.
+    @ViewBuilder private func appIcon(_ clip: KeyboardClip) -> some View {
+        if let icon = clip.sourceAppBundleId.flatMap({ model.icons[$0] }) {
+            Image(uiImage: icon).resizable().frame(width: 14, height: 14).accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder private func cardBody(_ clip: KeyboardClip) -> some View {

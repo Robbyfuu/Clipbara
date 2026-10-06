@@ -33,6 +33,15 @@ struct EntrySnapshot: Equatable, Sendable {
     var addedAt: Date
 }
 
+struct AppIdentitySnapshot: Equatable, Sendable {
+    var id: UUID
+    var bundleId: String
+    var name: String
+    var iconPNG: Data
+    var colorHex: String
+    var updatedAt: Date
+}
+
 /// Converts value snapshots to and from CKRecords. Every content field is stored in
 /// `encryptedValues`; only the entry references and the (already sealed) asset are plain.
 enum SyncRecordMapper {
@@ -43,13 +52,32 @@ enum SyncRecordMapper {
     static let clipType = "Clip"
     static let pinboardType = "Pinboard"
     static let entryType = "PinboardEntry"
+    static let appIdentityType = "AppIdentity"
     static let inlineLimit = 262_144
     static let maxClipBytes = 20_971_520
 
-    enum DecodeError: Error { case missingField(String) }
+    enum DecodeError: Error {
+        case missingField(String)
+    }
+
+    /// A fetched record, decoded by its type.
+    enum Fetched: Equatable {
+        case clip(ClipSnapshot), pinboard(PinboardSnapshot), entry(EntrySnapshot), appIdentity(AppIdentitySnapshot)
+    }
 
     static func recordID(for id: UUID) -> CKRecord.ID {
-        CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
+        recordID(named: id.uuidString)
+    }
+
+    /// In the default zone: a server record ID can carry the real owner name instead of the default one.
+    static func recordID(named name: String) -> CKRecord.ID {
+        CKRecord.ID(recordName: name, zoneID: zoneID)
+    }
+
+    /// The local id behind a record name: every record, an app identity's too, is named by its UUID. Nil for any other
+    /// name.
+    static func localID(_ recordName: String) -> UUID? {
+        UUID(uuidString: recordName)
     }
 
     /// `fileURL` clips hold a local path and never sync. A `files` bundle may hold up to `FileBundle.maxFiles`
@@ -135,6 +163,16 @@ enum SyncRecordMapper {
         record["pinboard"] = CKRecord.Reference(recordID: recordID(for: entry.pinboardID), action: .deleteSelf)
         record.encryptedValues["displayOrder"] = Int64(entry.displayOrder)
         record.encryptedValues["addedAt"] = entry.addedAt
+    }
+
+    /// The icon goes inline (encrypted): a 128 px PNG is far under `inlineLimit`.
+    static func populate(_ record: CKRecord, from identity: AppIdentitySnapshot) {
+        let values = record.encryptedValues
+        values["bundleId"] = identity.bundleId
+        values["name"] = identity.name
+        values["iconPNG"] = identity.iconPNG
+        values["colorHex"] = identity.colorHex
+        values["updatedAt"] = identity.updatedAt
     }
 
     // MARK: - System fields
@@ -232,6 +270,24 @@ enum SyncRecordMapper {
         return EntrySnapshot(
             id: try id(of: record), clipID: clipID, pinboardID: boardID,
             displayOrder: Int(order), addedAt: try required(record, "addedAt"))
+    }
+
+    static func appIdentity(from record: CKRecord) throws -> AppIdentitySnapshot {
+        AppIdentitySnapshot(
+            id: try id(of: record), bundleId: try required(record, "bundleId"), name: try required(record, "name"),
+            iconPNG: try required(record, "iconPNG"), colorHex: try required(record, "colorHex"),
+            updatedAt: try required(record, "updatedAt"))
+    }
+
+    /// Nil for a record type this version doesn't know: the engine skips it, as older versions skip `AppIdentity`.
+    static func decode(_ record: CKRecord) throws -> Fetched? {
+        switch record.recordType {
+        case clipType: .clip(try clip(from: record))
+        case pinboardType: .pinboard(try pinboard(from: record))
+        case entryType: .entry(try entry(from: record))
+        case appIdentityType: .appIdentity(try appIdentity(from: record))
+        default: nil
+        }
     }
 }
 

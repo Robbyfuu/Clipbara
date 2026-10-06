@@ -14,6 +14,8 @@ struct GeneralSettingsTab: View {
     @AppStorage(SecretDetector.protectDefaultsKey) private var protectSecrets: Bool = true
     @AppStorage(SecretSweeper.deleteAfterDefaultsKey) private var deleteSecretsAfter: Int = SecretSweeper.defaultMinutes
     @AppStorage(LinkPreviewPlan.enabledDefaultsKey) private var linkPreviews: Bool = true
+    @AppStorage(SmartKinds.enabledDefaultsKey) private var smartBoards: Bool = true
+    @AppStorage(TopicPlan.enabledDefaultsKey) private var smartTopics: Bool = true
     /// Re-read whenever Copyd comes back to the front, e.g. from System Settings.
     @State private var hasPasteAccess = CGPreflightPostEventAccess()
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
@@ -64,6 +66,22 @@ struct GeneralSettingsTab: View {
                 .onChange(of: linkPreviews) { _, on in
                     if on { appState.linkPreviews?.fill() } else { appState.linkPreviews?.stop() }
                 }
+
+            // Off: the automatic pinboards leave the top bar, and no clip is sorted.
+            Toggle("Automatic pinboards", isOn: $smartBoards)
+                .onChange(of: smartBoards) { _, on in
+                    if on { appState.smartKinds?.fill() } else { appState.smartKinds?.stop() }
+                    if on { appState.topics?.fill() } else { appState.topics?.stop() }
+                }
+            // Off: the topic boards leave the top bar, and no clip goes to the model.
+            if TopicClassifier.isSupported {
+                Toggle("Group by topic with Apple Intelligence", isOn: $smartTopics)
+                    .padding(.leading, 20)
+                    .disabled(!smartBoards)
+                    .onChange(of: smartTopics) { _, on in
+                        if on { appState.topics?.fill() } else { appState.topics?.stop() }
+                    }
+            }
 
             Section("Pasting") {
                 VStack(alignment: .leading, spacing: 4) {

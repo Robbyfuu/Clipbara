@@ -41,6 +41,12 @@ import UniformTypeIdentifiers
         }
     }
 
+    /// Saves inside `save` never reindex `ids`: the type and topic passes store fields Spotlight never shows.
+    func ignoring(_ ids: Set<UUID>, _ save: () -> Void) {
+        guard let observer else { return save() }
+        observer.ignoring(ids, save)
+    }
+
     /// Every entry again, from the store: on a new index version, when "Show in Spotlight" is turned back on, and when
     /// "Link previews" changes what a link shows. Nothing while "Show in Spotlight" is off.
     func rebuild() {

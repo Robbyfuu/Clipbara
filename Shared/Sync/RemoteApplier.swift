@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import OSLog
 import SwiftData
@@ -8,6 +9,9 @@ import SwiftData
 @MainActor
 struct RemoteApplier {
     let context: ModelContext
+    /// Two records for one app: the loser is deleted here and, on the Mac, queued for deletion in iCloud (`deletes`).
+    /// The iPhone never uploads an identity, so it only drops its copy.
+    var deletesLosingIdentities = AppIdentityPublisher.publishesHere
     let hasPendingSave: (UUID) -> Bool
 
     struct Outcome: Equatable {
@@ -21,6 +25,8 @@ struct RemoteApplier {
         /// Both sides of every merge in which one side is a copy this device already had and announced (an existing
         /// clip not from Universal Clipboard), or had itself merged with one.
         var mergedWithExisting: Set<UUID> = []
+        /// An app identity was inserted, updated or deleted: the iPhone redraws its app icons.
+        var identitiesChanged = false
         /// New clips that stayed new: what the iPhone announces. Two new copies that merge with each other give one.
         var arrivals: Set<UUID> { inserted.subtracting(deletes).subtracting(mergedWithExisting) }
     }
@@ -28,7 +34,7 @@ struct RemoteApplier {
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
 
     func apply(clips: [ClipSnapshot], pinboards: [PinboardSnapshot], entries: [EntrySnapshot],
-               deletions: [UUID], systemFields: [UUID: Data]) -> Outcome {
+               identities: [AppIdentitySnapshot] = [], deletions: [UUID], systemFields: [UUID: Data]) -> Outcome {
         var out = Outcome()
         for s in clips {
             do { try upsert(s, &out) } catch { Self.log.error("Clip \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
@@ -38,6 +44,9 @@ struct RemoteApplier {
         }
         for s in entries {
             do { try upsert(s, &out) } catch { Self.log.error("Entry \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
+        }
+        for s in identities {
+            do { try upsert(s, &out) } catch { Self.log.error("App identity \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
         }
         // After entries, so a same-batch entry of a losing clip is moved to the survivor, not orphaned.
         for s in clips {
@@ -55,6 +64,8 @@ struct RemoteApplier {
                     m.syncSystemFields = data
                 } else if let m = try entry(id) {
                     m.syncSystemFields = data
+                } else if let m = try identity(id) {
+                    m.syncSystemFields = data
                 } else {
                     continue
                 }
@@ -70,6 +81,7 @@ struct RemoteApplier {
             for m in try context.fetch(FetchDescriptor<ClipboardItem>()) { m.syncSystemFields = nil }
             for m in try context.fetch(FetchDescriptor<Pinboard>()) { m.syncSystemFields = nil }
             for m in try context.fetch(FetchDescriptor<PinboardEntry>()) { m.syncSystemFields = nil }
+            for m in try context.fetch(FetchDescriptor<AppIdentity>()) { m.syncSystemFields = nil }
         } catch { log.error("clearSystemFields failed: \(error.syncLogDescription, privacy: .public)") }
     }
 
@@ -90,7 +102,19 @@ struct RemoteApplier {
         return clips + boards + entries
     }
 
-    /// Deletes every clip, pinboard and entry and returns their ids. Does not save: the caller saves
+    /// `uploadableIDs` as record IDs, plus on the Mac every app identity. The iPhone only reads identities, so it never
+    /// re-queues one.
+    static func uploadableRecordIDs(in context: ModelContext, onlyUnconfirmed: Bool,
+                                    includingIdentities: Bool = AppIdentityPublisher.publishesHere) throws -> [CKRecord.ID] {
+        let records = try uploadableIDs(in: context, onlyUnconfirmed: onlyUnconfirmed).map(SyncRecordMapper.recordID(for:))
+        guard includingIdentities else { return records }
+        let identities = try context.fetch(FetchDescriptor<AppIdentity>())
+            .filter { !onlyUnconfirmed || $0.syncSystemFields == nil }
+            .map { SyncRecordMapper.recordID(for: $0.id) }
+        return records + identities
+    }
+
+    /// Deletes every clip, pinboard, entry and app identity and returns their ids. Does not save: the caller saves
     /// inside `tracker.suppressing` over the returned ids.
     static func deleteAll(in context: ModelContext) -> Set<UUID> {
         var ids: Set<UUID> = []
@@ -98,6 +122,7 @@ struct RemoteApplier {
             for m in try context.fetch(FetchDescriptor<PinboardEntry>()) { ids.insert(m.id); context.delete(m) }
             for m in try context.fetch(FetchDescriptor<Pinboard>()) { ids.insert(m.id); context.delete(m) }
             for m in try context.fetch(FetchDescriptor<ClipboardItem>()) { ids.insert(m.id); context.delete(m) }
+            for m in try context.fetch(FetchDescriptor<AppIdentity>()) { ids.insert(m.id); context.delete(m) }
         } catch { log.error("deleteAll failed: \(error.syncLogDescription, privacy: .public)") }
         return ids
     }
@@ -118,6 +143,12 @@ struct RemoteApplier {
 
     private func entry(_ id: UUID) throws -> PinboardEntry? {
         var d = FetchDescriptor<PinboardEntry>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+
+    private func identity(_ id: UUID) throws -> AppIdentity? {
+        var d = FetchDescriptor<AppIdentity>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
         return try context.fetch(d).first
     }
@@ -185,6 +216,32 @@ struct RemoteApplier {
         }
     }
 
+    /// Newest wins. No pending-save check: a local publish is newer, and if it is older the pending upload resends what
+    /// this wrote. Two Macs may publish one app, each under its own random name (ruling R6): one record per app survives
+    /// on every device (`AppIdentityPublisher.wins`), and the other is deleted.
+    private func upsert(_ s: AppIdentitySnapshot, _ out: inout Outcome) throws {
+        if let m = try identity(s.id) {
+            guard s.updatedAt > m.updatedAt else { return }
+            m.update(from: s)
+        } else {
+            let bundleId = s.bundleId
+            let rivals = try context.fetch(FetchDescriptor<AppIdentity>(predicate: #Predicate { $0.bundleId == bundleId }))
+            if rivals.contains(where: { AppIdentityPublisher.wins(($0.updatedAt, $0.id), over: (s.updatedAt, s.id)) }) {
+                if deletesLosingIdentities { out.deletes.insert(s.id) }
+                return
+            }
+            for rival in rivals {
+                context.delete(rival)
+                out.touched.insert(rival.id)
+                if deletesLosingIdentities { out.deletes.insert(rival.id) }
+            }
+            context.insert(AppIdentity(id: s.id, bundleId: s.bundleId, name: s.name, iconPNG: s.iconPNG,
+                                       colorHex: s.colorHex, updatedAt: s.updatedAt))
+        }
+        out.touched.insert(s.id)
+        out.identitiesChanged = true
+    }
+
     // MARK: Duplicates (spec section 10)
 
     /// A secret never merges: either side of the merge would queue a save or a delete of its id. It stays on this
@@ -248,6 +305,9 @@ struct RemoteApplier {
         } else if let e = try entry(id) {
             if let pid = e.pinboard?.id { out.touched.insert(pid) }
             context.delete(e)
+        } else if let a = try identity(id) {
+            context.delete(a)
+            out.identitiesChanged = true
         } else {
             return
         }

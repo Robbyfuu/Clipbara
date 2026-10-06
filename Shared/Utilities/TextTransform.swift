@@ -2,8 +2,9 @@ import Foundation
 import SwiftData
 
 /// "Paste as…" / "Copy as…" / "Insert as…": a different form of a clip's text, made at paste time. The clip stays as it is.
+/// `markdown` is made from a formatted clip's data and `richText` gives RTF, so both go through `result`, never `apply`.
 enum TextTransform: CaseIterable {
-    case plain, upper, lower, title, trim, cleanLink, prettyJSON, compactJSON
+    case plain, markdown, richText, upper, lower, title, trim, cleanLink, prettyJSON, compactJSON
 
     /// Clips whose text is the content. Colors, files and unknown data are not offered transforms or editing.
     static let textTypes: Set<ContentType> = [.plainText, .richText, .html, .url]
@@ -17,12 +18,13 @@ enum TextTransform: CaseIterable {
 
     /// The transformed text, or nil when the transform doesn't apply: empty text, nothing would change, nothing would
     /// be left, invalid JSON, or no tracking parameter to remove. `plain` returns the text as is: what it removes is
-    /// the formatting, which only the clip has.
+    /// the formatting, which only the clip has. Nil for `markdown` and `richText`, which need more than the text.
     func apply(to text: String) -> String? {
         guard !text.isEmpty else { return nil }
         let result: String?
         switch self {
         case .plain: return text
+        case .markdown, .richText: return nil
         case .upper: result = text.uppercased()
         case .lower: result = text.lowercased()
         case .title: result = text.capitalized
@@ -36,13 +38,20 @@ enum TextTransform: CaseIterable {
     }
 
     /// The transforms that change this clip's text, in menu order, judged from its first `menuProbeLimit` bytes.
-    /// `plain` only for formatted text. Longer JSON is offered when it starts like an object or an array.
+    /// `plain` and `markdown` only for formatted text, by its type alone: its data is read only when picked.
+    /// `richText` for plain text that reads as Markdown and not as code, as cards show it. Longer JSON is offered when it
+    /// starts like an object or an array.
     static func applicable(to text: String, type: ContentType) -> [TextTransform] {
         guard textTypes.contains(type) else { return [] }
         let probe = menuProbe(text)
         let cut = probe.utf8.count < text.utf8.count
+        let formatted = type == .richText || type == .html
         return allCases.filter { transform in
-            guard transform != .plain || type == .richText || type == .html else { return false }
+            switch transform {
+            case .plain, .markdown: return formatted && !text.isEmpty
+            case .richText: return type == .plainText && MarkdownDetector.isMarkdown(probe) && !CodeDetector.isCode(probe)
+            default: break
+            }
             if cut, transform == .prettyJSON || transform == .compactJSON {
                 return probe.utf8.first { !isJSONWhitespace($0) }.map { $0 == UInt8(ascii: "{") || $0 == UInt8(ascii: "[") } ?? false
             }
@@ -62,9 +71,31 @@ enum TextTransform: CaseIterable {
         return String(probe)
     }
 
+    /// What a pick pastes: text, plus RTF for `richText`. `data` is the clip's `rawData`, read for `markdown` only.
+    /// Nil when nothing would be pasted. Runs off the main actor: it may decode RTF or parse a long Markdown text.
+    func result(text: String, type: ContentType, data: Data) -> (text: String, rtf: Data?)? {
+        switch self {
+        case .markdown:
+            let markdown = switch type {
+            case .html: MarkdownConverter.markdown(fromHTML: String(decoding: data, as: UTF8.self))
+            case .richText: MarkdownConverter.markdown(fromRTF: data)
+            default: String?.none
+            }
+            // Pasted even when it equals the text: it is the Markdown that was asked for.
+            return markdown.flatMap { $0.isEmpty ? nil : ($0, nil) }
+        case .richText:
+            return MarkdownConverter.formattedText(fromMarkdown: text).map { ($0.text, $0.rtf) }
+        default:
+            return apply(to: text).map { ($0, nil) }
+        }
+    }
+
     func label(bundle: Bundle = .main) -> String {
         switch self {
         case .plain: String(localized: "Plain text", bundle: bundle, comment: "Paste or copy as: no formatting")
+        case .markdown: String(localized: "Markdown", bundle: bundle, comment: "Paste or copy as: Markdown made from the formatting")
+        case .richText: String(localized: "Formatted text", bundle: bundle,
+                               comment: "Paste or copy as: Markdown shown as bold, headings, lists and links")
         case .upper: String(localized: "UPPERCASE", bundle: bundle, comment: "Paste or copy as: all capitals")
         case .lower: String(localized: "lowercase", bundle: bundle, comment: "Paste or copy as: no capitals")
         case .title: String(localized: "Title Case", bundle: bundle, comment: "Paste or copy as: each word capitalized")
@@ -242,6 +273,11 @@ extension ClipboardItem {
             linkTitle = nil
             linkImageData = nil
             linkPreviewDone = false
+            // So were the automatic pinboards and the topic: the next fills sort the new text.
+            smartKinds = 0
+            smartKindsVersion = 0
+            topicRaw = nil
+            topicDone = false
         }
         try? context.save()
         return true

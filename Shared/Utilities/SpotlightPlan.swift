@@ -141,6 +141,8 @@ enum SpotlightPlan {
         private let context: ModelContext
         private let onSave: @MainActor (_ saved: Set<UUID>, _ deleted: Set<UUID>) -> Void
         private var saved: Set<UUID> = [], deleted: Set<UUID> = []
+        /// Saved inside `ignoring`: changes to them are not handed over.
+        private var ignored: Set<UUID> = []
         nonisolated(unsafe) private var tokens: [NSObjectProtocol] = []  // only touched in init and deinit
 
         init(context: ModelContext, onSave: @escaping @MainActor (_ saved: Set<UUID>, _ deleted: Set<UUID>) -> Void) {
@@ -161,11 +163,21 @@ enum SpotlightPlan {
             tokens.forEach(NotificationCenter.default.removeObserver)
         }
 
+        /// Changes to `ids` made by saves inside `save` are not handed over: the type and topic passes store fields
+        /// Spotlight never shows. A delete always is.
+        func ignoring(_ ids: Set<UUID>, _ save: () throws -> Void) rethrows {
+            let previous = ignored
+            ignored.formUnion(ids)
+            defer { ignored = previous }
+            try save()
+        }
+
         private func collect() {
             saved = []
             deleted = []
             for case let clip as ClipboardItem in context.deletedModelsArray { deleted.insert(clip.id) }
-            for case let clip as ClipboardItem in context.insertedModelsArray + context.changedModelsArray {
+            for case let clip as ClipboardItem in context.insertedModelsArray + context.changedModelsArray
+            where !ignored.contains(clip.id) {
                 saved.insert(clip.id)
             }
         }

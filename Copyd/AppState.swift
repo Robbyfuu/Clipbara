@@ -26,6 +26,8 @@ final class AppState {
     var selectedTab: PanelTab = .history
     /// Published by NavigationBarView so shortcuts follow its exact display order.
     var orderedPinboardIDs: [UUID] = []
+    /// The automatic pinboards shown after them, also published by NavigationBarView.
+    var orderedSmartBoards: [SmartBoard] = []
     var previewItem: ClipboardItem?
     var panelToast: PanelToast?
     var panelPresentationID = 0
@@ -33,6 +35,8 @@ final class AppState {
     var firstVisibleIndex: Int = 0
     var isCommandHeld: Bool = false
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    /// A "Paste as…" pick being worked out. Another pick or the panel hiding cancels it.
+    @ObservationIgnored private var pasteAsTask: Task<Void, Never>?
     private(set) var modelContainer: ModelContainer?
 
     /// Cached filtered items for keyboard navigation (updated by CardGridView)
@@ -53,6 +57,11 @@ final class AppState {
     @ObservationIgnored private var imageText: ImageTextQueue?
     /// Fetches link titles and images: right after a link is captured, at launch, after a sync, and when turned on.
     @ObservationIgnored private(set) var linkPreviews: LinkPreviewQueue?
+    /// Sorts clips into the automatic pinboards: right after a capture or an edit, at launch, after a sync, and when
+    /// turned on.
+    @ObservationIgnored private(set) var smartKinds: SmartKindsQueue?
+    /// Asks Apple Intelligence for the topic boards, at the same moments, while the model is available.
+    @ObservationIgnored private(set) var topics: TopicQueue?
 
     @ObservationIgnored private var hasStarted = false
 
@@ -61,6 +70,7 @@ final class AppState {
         guard !hasStarted else { return }
         hasStarted = true
         self.modelContainer = modelContainer
+        AppIconProvider.store = modelContext  // synced icons, for apps not installed here
         clipboardMonitor.start(modelContext: modelContext)
         PasteService.removeFilesOnDelete(in: modelContext)
         PasteService.removeOrphanFiles(in: modelContainer)
@@ -68,6 +78,8 @@ final class AppState {
         pasteStack.appState = self
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)
+            self?.smartKinds?.fill()
+            self?.topics?.fill()
         }
         // Every pick in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) comes through here, right
         // before the clip is written. It ends Paste Stack, then pastes into the app the user was in once
@@ -80,6 +92,7 @@ final class AppState {
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()
         panelController.onPanelWillHide = { [weak self] in
+            self?.pasteAsTask?.cancel()
             self?.searchState.reset()
             self?.previewItem = nil
             self?.suggestionModel.cancel()
@@ -91,10 +104,13 @@ final class AppState {
         setupHotkey()
         sweepSecrets()
 
-        let engine = CloudSyncEngine(container: modelContainer) { [weak self] in
+        let engine = CloudSyncEngine(container: modelContainer) { [weak self] _ in
+            AppIconProvider.forgetLooks()  // an identity synced for an app not installed here
             self?.clipboardMonitor.refreshLatestItems()
             self?.imageText?.fill()
             self?.linkPreviews?.fill()
+            self?.smartKinds?.fill()
+            self?.topics?.fill()
         }
         cloudSync = engine
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) {
@@ -105,11 +121,32 @@ final class AppState {
         self.imageText = imageText
         clipboardMonitor.onNewImage = { [weak imageText] in imageText?.fill() }
         imageText.fill()
-        // Link previews never sync either.
-        let linkPreviews = LinkPreviewQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        // Link previews never sync either. A link is asked about its topic once its title is in.
+        let linkPreviews = LinkPreviewQueue(container: modelContainer) { [weak engine, weak self] ids in
+            engine?.saveLocalOnly(ids)
+            self?.topics?.fill()
+        }
         self.linkPreviews = linkPreviews
         clipboardMonitor.onNewLink = { [weak linkPreviews] in linkPreviews?.fill() }
         linkPreviews.fill()
+        // Nor do the automatic pinboards: each device sorts its own clips.
+        let smartKinds = SmartKindsQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        self.smartKinds = smartKinds
+        smartKinds.fill()
+        // Nor do the topics: each device asks its own model, once the type boards are done (ruling R7). Never while the
+        // panel is open: its suggestions share the model. The pass picks up once the panel is gone, and retries the
+        // clips it failed on when Copyd is active again.
+        let topics = TopicQueue(container: modelContainer, waitsFor: { [weak smartKinds] in [smartKinds?.task] },
+                                shouldPause: { [weak self] in
+            TopicPlan.shouldPause(busy: self?.panelController.isVisible ?? false)
+        }) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        self.topics = topics
+        topics.fill()
+        panelController.onPanelDidHide = { [weak topics] in topics?.fill() }
+        _ = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                                   queue: .main) { [weak topics] _ in
+            MainActor.assumeIsolated { topics?.fill(retryingFailures: true) }
+        }
 
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in
@@ -196,23 +233,36 @@ final class AppState {
     /// - Parameter text: Plain text written in place of the clip: a "Paste as…" result, or an image's "Paste text".
     ///   Direct paste and the focus hand-back run as usual; the paste history counts the clip only when the text is
     ///   its own (`MultiPaste.pickedIDs`), so an image's text never counts as a pick of the image.
-    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil) {
+    /// - Parameter rtf: Written beside `text`: "Paste as → Formatted text".
+    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil, rtf: Data? = nil) {
         // The sweep or a remote delete may land while a menu is open.
         guard !item.isGone else { return NSSound.beep() }
         clipboardMonitor.skipNextChange(picking: text == nil ? [item.id] : MultiPaste.pickedIDs([item]))
         if let text {
             ReviewPrompter.recordPaste()
-            pasteService.pastePlainText(text)
+            pasteService.pastePlainText(text, rtf: rtf)
         } else {
             pasteService.paste(item: item, asPlainText: asPlainText)
         }
         hidePanel()
     }
 
-    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Beeps if the transform no longer applies.
+    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Worked out off the main actor, where
+    /// Markdown reads and decodes the clip's RTF or HTML. Another pick, or the panel hiding, cancels it. Beeps if the
+    /// transform no longer applies, or the clip went meanwhile.
     func paste(_ item: ClipboardItem, as transform: TextTransform) {
-        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return NSSound.beep() }
-        paste(item, text: text)
+        pasteAsTask?.cancel()
+        guard !item.isGone, let text = item.textContent else { return NSSound.beep() }
+        let id = item.id, type = item.contentType
+        let container = transform == .markdown ? modelContainer : nil
+        pasteAsTask = Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                transform.result(text: text, type: type, data: container.map { ClipboardItem.rawData(of: id, in: $0) } ?? Data())
+            }.value
+            guard !Task.isCancelled else { return }
+            guard let result, !item.isGone else { return NSSound.beep() }
+            paste(item, text: result.text, rtf: result.rtf)
+        }
     }
 
     /// "Paste text" and ⌥Return: the text read in an image, as plain text, through the pick funnel, so the monitor
@@ -229,7 +279,11 @@ final class AppState {
         guard item.isEditable, let context = modelContainer?.mainContext else { return NSSound.beep() }
         let app = panelController.focusReturnApp
         hidePanel()
-        EditClipWindowController.shared.show(item, in: context, returnTo: app) { [weak self] in self?.linkPreviews?.fill() }
+        EditClipWindowController.shared.show(item, in: context, returnTo: app) { [weak self] in
+            self?.linkPreviews?.fill()
+            self?.smartKinds?.fill()
+            self?.topics?.fill()
+        }
     }
 
     /// ⌘-click: adds or removes a card from the multi-selection.
@@ -268,7 +322,7 @@ final class AppState {
     /// monitor's next change and hides the panel. Live Shift decides plain text
     /// exactly as it does for Return. No-op when no card is there.
     func quickPaste(number: Int) {
-        if selectedTab == .history, searchState.searchText != currentFilteredQuery { return }
+        if selectedTab.showsHistoryGrid, searchState.searchText != currentFilteredQuery { return }
         guard let index = QuickPasteShortcut.itemIndex(
             number: number,
             firstVisibleIndex: max(firstVisibleIndex, 0),

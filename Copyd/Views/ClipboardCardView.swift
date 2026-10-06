@@ -126,14 +126,16 @@ struct ClipboardCardView: View {
 
     private var cardSurface: some View {
         let shape = RoundedRectangle(cornerRadius: DesignTokens.Card.cornerRadius, style: .continuous)
-        return VStack(spacing: 8) {
+        return VStack(spacing: 0) {
             headerView
 
-            contentView
+            VStack(spacing: 8) {
+                contentView
 
-            footerView
+                footerView
+            }
+            .padding(DesignTokens.Card.padding)
         }
-        .padding(DesignTokens.Card.padding)
         .frame(width: DesignTokens.Card.width, height: DesignTokens.Card.height)
         .background(DesignTokens.Brand.card)
         .clipShape(shape)
@@ -242,47 +244,65 @@ struct ClipboardCardView: View {
 
     // MARK: - Header View
 
+    /// Paste-style: the source app's color, the type (or title) over "App · time", and the app's icon on the right
+    /// edge, clipped by the card corner. Butter and the Copyd mark when the app is unknown here. A secret keeps this
+    /// header; only its body is masked.
     private var headerView: some View {
-        HStack(alignment: .center, spacing: 6) {
-            Image(systemName: item.contentType.systemImage)
-                .foregroundStyle(DesignTokens.typeTint(for: item.contentType, itemColor: item.textContent))
-            if item.isSensitive {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(DesignTokens.Brand.butterInk)
-                    .help("Secret, kept on this device")
-                    .accessibilityLabel("Secret, kept on this device")
-            }
-            if item.recognizedText != nil {
-                TextFoundBadge()
-            }
-            if isSuggested {
-                Text("Suggested")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(DesignTokens.Brand.onButter)
-                    .lineLimit(1)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(DesignTokens.Brand.butter, in: Capsule())
-            } else {
-                Text(item.userTitle ?? item.contentType.displayName)
+        let look = AppIconProvider.look(for: item.sourceAppBundleId)
+        let fill = look.map { Color(red: $0.color.r, green: $0.color.g, blue: $0.color.b) } ?? DesignTokens.Brand.butter
+        let ink = look.map { ContrastPicker.textColor(on: $0.color) } == .light ? DesignTokens.Brand.onDark : DesignTokens.Brand.onButter
+        return HStack(alignment: .center, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    if item.isSensitive {
+                        Image(systemName: "lock.fill")
+                            .help("Secret, kept on this device")
+                            .accessibilityLabel("Secret, kept on this device")
+                    }
+                    if item.recognizedText != nil {
+                        TextFoundBadge()
+                    }
+                    if isSuggested {
+                        // On the butter fallback header a butter chip would vanish, so it takes the card and its ink
+                        // (which turns light in dark mode, as the card turns dark).
+                        Text("Suggested")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(look == nil ? DesignTokens.Brand.ink : DesignTokens.Brand.onButter)
+                            .lineLimit(1)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(look == nil ? DesignTokens.Brand.card : DesignTokens.Brand.butter, in: Capsule())
+                    } else {
+                        Text(item.userTitle ?? item.contentType.displayName)
+                            .font(.system(size: 13, weight: .bold))
+                            .lineLimit(1)
+                    }
+                }
+                Text(verbatim: "\(item.sourceAppName ?? "Copyd") \u{00b7} \(RelativeTimeFormatter.string(for: item.copiedAt))")
+                    .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
             }
 
             Spacer(minLength: 4)
 
-            Text(RelativeTimeFormatter.string(for: item.copiedAt))
-                .lineLimit(1)
-
-            if let bundleId = item.sourceAppBundleId {
-                Image(nsImage: AppIconProvider.icon(for: bundleId, size: 40))
-                    .resizable()
-                    .frame(width: 16, height: 16)
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            Group {
+                if let look {
+                    Image(nsImage: look.icon).resizable().interpolation(.high)
+                } else {
+                    CopydMark(size: 26)
+                        .frame(width: 36, height: 36)
+                        .background(DesignTokens.Brand.card, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
             }
+            .frame(width: 36, height: 36)
+            // Past the top-right edge: the card's rounded corner clips it.
+            .offset(x: 6, y: -5)
+            .accessibilityHidden(true)
         }
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(DesignTokens.Brand.ink2)
-        .frame(maxWidth: .infinity)
+        .foregroundStyle(ink)
+        .padding(.leading, DesignTokens.Card.padding)
+        .frame(maxWidth: .infinity, minHeight: 46)
+        .background(fill)
     }
 
     // MARK: - Footer View

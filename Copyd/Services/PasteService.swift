@@ -153,10 +153,12 @@ struct PasteService {
         pastePlainText(text)
     }
 
-    func pastePlainText(_ text: String) {
+    /// - Parameter rtf: "Paste as → Formatted text": its RTF, written beside the plain text for apps that take formatting.
+    func pastePlainText(_ text: String, rtf: Data? = nil) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        if let rtf { pasteboard.setData(rtf, forType: .rtf) }
     }
 
     /// 오래된 임시 파일 정리 (1시간 이상)

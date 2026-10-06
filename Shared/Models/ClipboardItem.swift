@@ -36,6 +36,16 @@ final class ClipboardItem {
     @Attribute(.externalStorage) var linkImageData: Data?
     /// The fetch finished, with a preview or none, so a dead link is never fetched again. Local only.
     var linkPreviewDone: Bool = false
+    /// The type boards the clip shows in (`SmartBoard.bit`), sorted by `SmartKindsQueue`. Local only, like `ocrText`:
+    /// each device sorts its own. Additive, so existing stores migrate lightweight.
+    var smartKinds: Int = 0
+    /// The `SmartKinds.version` that sorted `smartKinds`; 0 until sorted. Local only.
+    var smartKindsVersion: Int = 0
+    /// The topic board (`SmartBoard.rawValue`) Apple Intelligence put the clip in, by `TopicQueue`; nil for none.
+    /// Local only, like `smartKinds`: each device asks its own model. Additive, so existing stores migrate lightweight.
+    var topicRaw: String?
+    /// The model answered, with a topic or none, so the clip is never asked again. Local only.
+    var topicDone: Bool = false
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }
@@ -48,6 +58,14 @@ final class ClipboardItem {
 
     var fileManifest: [FileManifestEntry]? {
         fileManifestData.flatMap { try? JSONDecoder().decode([FileManifestEntry].self, from: $0) }
+    }
+
+    /// One clip's data, read in a context of its own, so off the main actor: "Paste as" and "Copy as → Markdown". Empty
+    /// when the clip is gone.
+    nonisolated static func rawData(of id: UUID, in container: ModelContainer) -> Data {
+        var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+        fetch.fetchLimit = 1
+        return (try? ModelContext(container).fetch(fetch).first?.rawData) ?? Data()
     }
 
     init(

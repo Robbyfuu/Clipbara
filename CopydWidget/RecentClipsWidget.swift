@@ -51,13 +51,15 @@ struct RecentClipsProvider: TimelineProvider {
             return RecentClipsEntry(date: .now, state: .noStore)
         }
         do {
+            // The app's own schema: a read-only open of a store holding an entity it lacks can fail.
             let container = try ModelContainer(
-                for: ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self,
+                for: Schema(StoreSchema.models),
                 configurations: ModelConfiguration(
                     url: SharedStore.url(groupContainer: group), allowsSave: false, cloudKitDatabase: .none))
             return RecentClipsEntry(date: .now, state: .load(ModelContext(container)))
         } catch {
-            return RecentClipsEntry(date: .now, state: .error)
+            // Usually a store the updated app hasn't migrated yet: opening the app fixes it.
+            return RecentClipsEntry(date: .now, state: .noStore)
         }
     }
 }

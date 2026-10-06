@@ -9,6 +9,8 @@ struct SelectableTextView: NSViewRepresentable {
     var contentInsets: NSEdgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
     /// Code colors, as UTF-16 ranges of `text`.
     var codeRanges: [(range: NSRange, kind: CodeTokenKind)] = []
+    /// Shown in place of `text` with its own fonts and links: Markdown formatted. Colors and spacing are this view's.
+    var formatted: NSAttributedString?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -85,7 +87,14 @@ struct SelectableTextView: NSViewRepresentable {
             .paragraphStyle: paragraph
         ]
 
-        let attributed = NSMutableAttributedString(string: text, attributes: attributes)
+        let attributed: NSMutableAttributedString
+        if let formatted {
+            attributed = NSMutableAttributedString(attributedString: formatted)
+            attributed.addAttributes([.foregroundColor: textColor, .paragraphStyle: paragraph],
+                                     range: NSRange(location: 0, length: attributed.length))
+        } else {
+            attributed = NSMutableAttributedString(string: text, attributes: attributes)
+        }
         for (range, kind) in codeRanges where NSMaxRange(range) <= attributed.length {
             attributed.addAttribute(.foregroundColor, value: NSColor(DesignTokens.Brand.code(kind)), range: range)
         }

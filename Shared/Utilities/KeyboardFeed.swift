@@ -15,6 +15,8 @@ struct KeyboardClip: Identifiable, Equatable {
     var isClipboard = false
     /// A link shown by its page title: the host, for the line under it. Nil otherwise.
     var linkHost: String? = nil
+    /// For the card's corner icon, looked up once per app (`AppIdentity.icons`).
+    var sourceAppBundleId: String? = nil
 }
 
 extension KeyboardClip {
@@ -44,7 +46,7 @@ struct KeyboardBoard: Identifiable, Equatable {
 }
 
 enum KeyboardFeed {
-    enum Mode: Equatable { case recent, pinned, pinboard(UUID) }
+    enum Mode: Equatable { case recent, pinned, pinboard(UUID), smart(SmartBoard) }
     static let limit = 60, previewLimit = 300
 
     /// `linkTitles`: a link shows its fetched page title in place of the URL, never its image (memory).
@@ -73,6 +75,8 @@ enum KeyboardFeed {
                     && $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isSensitive == false
             })).map { ($0.persistentModelID, $0) }, uniquingKeysWith: { first, _ in first })
             return ids.compactMap { byID[$0] }.prefix(limit).map { clip($0, linkTitles: linkTitles) }
+        case .smart(let board):
+            predicate = SmartKinds.predicate(for: board, excluding: [.fileURL, .files], includesSecrets: false)
         }
         var descriptor = cardFields(predicate)
         descriptor.sortBy = [SortDescriptor(\.copiedAt, order: .reverse)]
@@ -86,6 +90,12 @@ enum KeyboardFeed {
         descriptor.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.thumbnailData, \.isPinned, \.copiedAt,
                                         \.sourceAppName, \.sourceAppBundleId, \.isSensitive, \.linkTitle]
         return descriptor
+    }
+
+    /// The type boards with a clip the keyboard can show (never a file clip nor a secret), after the user's pinboards.
+    @MainActor
+    static func smartBoards(in context: ModelContext) throws -> [SmartBoard] {
+        try SmartKinds.counts(in: context, excluding: [.fileURL, .files], includesSecrets: false, limit: 1).map(\.board)
     }
 
     @MainActor
@@ -116,15 +126,18 @@ enum KeyboardFeed {
             id: item.id, contentType: type, preview: title ?? preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
-            sourceAppName: item.sourceAppName, linkHost: title == nil ? nil : text.flatMap(LinkParts.split)?.host)
+            sourceAppName: item.sourceAppName, linkHost: title == nil ? nil : text.flatMap(LinkParts.split)?.host,
+            sourceAppBundleId: item.sourceAppBundleId)
     }
 
     /// "Insert as…" for one card, worked out when it is long-pressed, never for the whole feed. `text` is the clip's
     /// whole text, fetched only for a text clip short enough to insert: a longer one is copied instead.
+    /// Neither Markdown transform (ruling R5): "Formatted text" can't be inserted, and Markdown would decode the clip's
+    /// RTF or HTML in the keyboard's memory. The app's "Copy as → Markdown" covers it.
     static func menu(for clip: KeyboardClip, text: @autoclosure () -> String?) -> [TextTransform] {
         guard TextTransform.textTypes.contains(clip.contentType), clip.textByteCount <= PasteAction.insertByteLimit,
               let text = text() else { return [] }
-        return TextTransform.applicable(to: text, type: clip.contentType)
+        return TextTransform.applicable(to: text, type: clip.contentType).filter { $0 != .richText && $0 != .markdown }
     }
 
     private static func preview(_ type: ContentType, _ text: String?) -> String {

@@ -224,6 +224,28 @@ final class SpotlightPlanTests: XCTestCase {
         XCTAssertEqual(saved, [], "an empty save hands over nothing")
     }
 
+    /// The type and topic passes save through `ignoring`: what they store never shows in Spotlight, so their saves never
+    /// reindex. Another clip in the same save still goes, and so does a delete.
+    func testIgnoredSavesAreNotHandedOver() throws {
+        let context = try makeContext()
+        let sorted = text("sorted"), edited = text("edited"), gone = text("gone")
+        [sorted, edited, gone].forEach(context.insert)
+        try context.save()
+        collect(context)
+        sorted.smartKinds = 1
+        edited.isPinned = true
+        try observer?.ignoring([sorted.id, gone.id]) {
+            context.delete(gone)
+            try context.save()
+        }
+        XCTAssertEqual(saved, [edited.id])
+        XCTAssertEqual(deleted, [gone.id], "a delete is never ignored")
+        saved = []
+        sorted.isPinned = true
+        try context.save()
+        XCTAssertEqual(saved, [sorted.id], "only the saves inside `ignoring`")
+    }
+
     // MARK: The indexer's bookkeeping
 
     func testSameRecordIndexesOnce() {
