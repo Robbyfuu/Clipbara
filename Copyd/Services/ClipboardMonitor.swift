@@ -142,8 +142,9 @@ final class ClipboardMonitor {
     }
 
     /// Publishes the source app's name, icon and color for the iPhone and other Macs (`AppIdentity`): once per app,
-    /// again after 30 days, never for Copyd or a secret. The icon renders off the main thread; the save uploads through
-    /// the tracker.
+    /// again after 7 days, never for Copyd or a secret. Over the identity this Mac has for the app, synced or its own, so
+    /// one Mac never adds a second record for it. The icon renders off the main thread; the save uploads through the
+    /// tracker.
     private func publishIdentity(bundleId: String?, name: String?, isSensitive: Bool) {
         guard let bundleId, let modelContext, !publishing.contains(bundleId) else { return }
         let existing = try? AppIdentity.find(bundleId, in: modelContext)

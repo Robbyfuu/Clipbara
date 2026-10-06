@@ -26,14 +26,14 @@ final class AppIdentitySyncTests: XCTestCase {
                     updatedAt: t0.addingTimeInterval(dt))
     }
 
-    private func snapshot(_ bundleId: String = "com.apple.Safari", name: String = "Safari", dt: TimeInterval = 0) -> AppIdentitySnapshot {
-        AppIdentitySnapshot(bundleId: bundleId, name: name, iconPNG: Data([4, 5]), colorHex: "#FFCC00",
+    /// A record another Mac published: its own random id.
+    private func snapshot(_ bundleId: String = "com.apple.Safari", name: String = "Safari", dt: TimeInterval = 0,
+                          id: UUID = UUID()) -> AppIdentitySnapshot {
+        AppIdentitySnapshot(id: id, bundleId: bundleId, name: name, iconPNG: Data([4, 5]), colorHex: "#FFCC00",
                             updatedAt: t0.addingTimeInterval(dt))
     }
 
-    private func recordID(_ bundleId: String = "com.apple.Safari") -> CKRecord.ID {
-        SyncRecordMapper.recordID(named: AppIdentity.recordName(for: bundleId))
-    }
+    private func recordID(_ m: AppIdentity) -> CKRecord.ID { SyncRecordMapper.recordID(for: m.id) }
 
     private func identities() throws -> [AppIdentity] { try context.fetch(FetchDescriptor<AppIdentity>()) }
 
@@ -41,10 +41,12 @@ final class AppIdentitySyncTests: XCTestCase {
 
     // MARK: Tracker
 
-    func testPublishQueuesASaveUnderTheStableName() throws {
-        context.insert(identity())
+    /// Ruling R6: under its random id, like a clip, never a name derived from the bundle id.
+    func testPublishQueuesASaveUnderItsRandomID() throws {
+        let m = identity()
+        context.insert(m)
         try context.save()
-        XCTAssertEqual(changes, [.saveRecord(recordID())])
+        XCTAssertEqual(changes, [.saveRecord(SyncRecordMapper.recordID(named: m.id.uuidString))])
     }
 
     func testRefreshQueuesASave() throws {
@@ -54,7 +56,7 @@ final class AppIdentitySyncTests: XCTestCase {
         changes = []
         m.colorHex = "#000000"
         try context.save()
-        XCTAssertEqual(changes, [.saveRecord(recordID())])
+        XCTAssertEqual(changes, [.saveRecord(recordID(m))])
     }
 
     func testDeleteQueuesADelete() throws {
@@ -64,13 +66,13 @@ final class AppIdentitySyncTests: XCTestCase {
         changes = []
         context.delete(m)
         try context.save()
-        XCTAssertEqual(changes, [.deleteRecord(recordID())])
+        XCTAssertEqual(changes, [.deleteRecord(recordID(m))])
     }
 
     func testSyncWritesAreSuppressedByLocalID() throws {
         let m = identity()
         context.insert(m)
-        try tracker.suppressing([AppIdentity.id(for: "com.apple.Safari")]) { try context.save() }
+        try tracker.suppressing([m.id]) { try context.save() }
         XCTAssertEqual(changes, [])
     }
 
@@ -94,31 +96,33 @@ final class AppIdentitySyncTests: XCTestCase {
     // MARK: Applier
 
     func testApplyInsertsAFetchedIdentity() throws {
-        let out = applier.apply(clips: [], pinboards: [], entries: [], identities: [snapshot()], deletions: [], systemFields: [:])
+        let s = snapshot()
+        let out = applier.apply(clips: [], pinboards: [], entries: [], identities: [s], deletions: [], systemFields: [:])
         try context.save()
         let m = try XCTUnwrap(try identities().first)
-        XCTAssertEqual(m.snapshot, snapshot())
-        XCTAssertEqual(m.id, AppIdentity.id(for: "com.apple.Safari"))
+        XCTAssertEqual(m.snapshot, s)
+        XCTAssertEqual(m.id, s.id, "the record's id, kept as the local one")
         XCTAssertEqual(out.touched, [m.id])
         XCTAssertEqual(out.saves, [], "an identity never merges, so it queues nothing")
     }
 
-    /// Two Macs may publish one app: the newer one wins, whichever arrives last.
-    func testNewerIdentityWins() throws {
-        context.insert(identity(dt: 100))
+    /// The same record again: only a newer copy overwrites it.
+    func testNewerCopyOfTheSameRecordWins() throws {
+        let m = identity(dt: 100)
+        context.insert(m)
         try context.save()
-        _ = applier.apply(clips: [], pinboards: [], entries: [], identities: [snapshot(name: "Older", dt: 50)],
+        _ = applier.apply(clips: [], pinboards: [], entries: [], identities: [snapshot(name: "Older", dt: 50, id: m.id)],
                           deletions: [], systemFields: [:])
         XCTAssertEqual(try identities().first?.name, "Safari")
-        _ = applier.apply(clips: [], pinboards: [], entries: [], identities: [snapshot(name: "Newer", dt: 150)],
+        _ = applier.apply(clips: [], pinboards: [], entries: [], identities: [snapshot(name: "Newer", dt: 150, id: m.id)],
                           deletions: [], systemFields: [:])
         XCTAssertEqual(try identities().first?.name, "Newer")
         XCTAssertEqual(try identities().count, 1)
     }
 
     func testApplyStoresSystemFieldsAndDeletes() throws {
-        let id = AppIdentity.id(for: "com.apple.Safari")
-        _ = applier.apply(clips: [], pinboards: [], entries: [], identities: [snapshot()], deletions: [],
+        let s = snapshot(), id = s.id
+        _ = applier.apply(clips: [], pinboards: [], entries: [], identities: [s], deletions: [],
                           systemFields: [id: Data([9])])
         try context.save()
         XCTAssertEqual(try identities().first?.syncSystemFields, Data([9]))
@@ -146,20 +150,83 @@ final class AppIdentitySyncTests: XCTestCase {
             .identitiesChanged)
     }
 
+    // MARK: One identity per app (ruling R6)
+
+    /// Two Macs published one app, each under its own random name: the newest survives, and the Mac deletes the other.
+    func testANewerRecordForTheSameAppReplacesTheLocalOne() throws {
+        let local = identity(dt: 0)
+        context.insert(local)
+        try context.save()
+        let newer = snapshot(name: "Newer", dt: 100)
+        let out = applier.apply(clips: [], pinboards: [], entries: [], identities: [newer], deletions: [],
+                                systemFields: [newer.id: Data([7])])
+        try context.save()
+        XCTAssertEqual(try identities().map(\.id), [newer.id])
+        XCTAssertEqual(try identities().first?.name, "Newer")
+        XCTAssertEqual(try identities().first?.syncSystemFields, Data([7]))
+        XCTAssertEqual(out.deletes, [local.id], "the Mac queues the loser's delete")
+        XCTAssertTrue(out.touched.isSuperset(of: [local.id, newer.id]))
+        XCTAssertTrue(out.identitiesChanged)
+    }
+
+    func testAnOlderRecordForTheSameAppIsDeleted() throws {
+        let local = identity(dt: 100)
+        context.insert(local)
+        try context.save()
+        let older = snapshot(name: "Older", dt: 0)
+        let out = applier.apply(clips: [], pinboards: [], entries: [], identities: [older], deletions: [],
+                                systemFields: [older.id: Data([7])])
+        try context.save()
+        XCTAssertEqual(try identities().map(\.id), [local.id])
+        XCTAssertEqual(try identities().first?.name, "Safari")
+        XCTAssertNil(try identities().first?.syncSystemFields, "the loser's fields never land on the survivor")
+        XCTAssertEqual(out.deletes, [older.id], "the Mac queues the loser's delete")
+        XCTAssertFalse(out.identitiesChanged)
+    }
+
+    /// The iPhone never uploads an identity, so it only drops its copy of the loser.
+    func testThePhoneDropsTheLoserWithoutQueueingADelete() throws {
+        let local = identity(dt: 0)
+        context.insert(local)
+        try context.save()
+        let phone = RemoteApplier(context: context, deletesLosingIdentities: false) { _ in false }
+        let newer = snapshot(name: "Newer", dt: 100), older = snapshot(name: "Older", dt: -100)
+        let out = phone.apply(clips: [], pinboards: [], entries: [], identities: [newer, older], deletions: [],
+                              systemFields: [:])
+        try context.save()
+        XCTAssertEqual(try identities().map(\.id), [newer.id])
+        XCTAssertEqual(out.deletes, [])
+    }
+
+    /// Two records for one app in one fetch, in either order, and a tie: every device keeps the same one.
+    func testATieKeepsTheSameRecordOnEveryDevice() throws {
+        let low = snapshot(name: "Low", id: try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001")))
+        let high = snapshot(name: "High", id: try XCTUnwrap(UUID(uuidString: "FFFFFFFF-0000-0000-0000-000000000000")))
+        for order in [[low, high], [high, low]] {
+            _ = RemoteApplier.deleteAll(in: context)
+            try context.save()
+            let out = applier.apply(clips: [], pinboards: [], entries: [], identities: order, deletions: [], systemFields: [:])
+            try context.save()
+            XCTAssertEqual(try identities().map(\.id), [low.id], "order \(order.map(\.name))")
+            XCTAssertEqual(out.deletes, [high.id], "order \(order.map(\.name))")
+        }
+    }
+
     // MARK: Re-queue, reset and wipe
 
     func testUploadableRecordIDsIncludeIdentities() throws {
         let confirmed = identity("com.apple.Notes")
         confirmed.syncSystemFields = Data([1])
         context.insert(confirmed)
-        context.insert(identity())
+        let unconfirmed = identity()
+        context.insert(unconfirmed)
         let clip = ClipboardItem(contentType: .plainText, rawData: Data("x".utf8), textContent: "x", contentHash: "h")
         context.insert(clip)
         try context.save()
         XCTAssertEqual(Set(try RemoteApplier.uploadableRecordIDs(in: context, onlyUnconfirmed: true)),
-                       [recordID(), SyncRecordMapper.recordID(for: clip.id)])
+                       [recordID(unconfirmed), SyncRecordMapper.recordID(for: clip.id)])
         XCTAssertEqual(Set(try RemoteApplier.uploadableRecordIDs(in: context, onlyUnconfirmed: false)),
-                       [recordID(), recordID("com.apple.Notes"), SyncRecordMapper.recordID(for: clip.id)])
+                       [recordID(unconfirmed), recordID(confirmed), SyncRecordMapper.recordID(for: clip.id)])
         // The iPhone re-queues only its clips, pinboards and entries.
         XCTAssertEqual(try RemoteApplier.uploadableRecordIDs(in: context, onlyUnconfirmed: false, includingIdentities: false),
                        [SyncRecordMapper.recordID(for: clip.id)])
@@ -172,7 +239,7 @@ final class AppIdentitySyncTests: XCTestCase {
         try context.save()
         RemoteApplier.clearSystemFields(in: context)
         XCTAssertNil(m.syncSystemFields)
-        XCTAssertEqual(RemoteApplier.deleteAll(in: context), [AppIdentity.id(for: "com.apple.Safari")])
+        XCTAssertEqual(RemoteApplier.deleteAll(in: context), [m.id])
         try context.save()
         XCTAssertEqual(try identities().count, 0)
     }

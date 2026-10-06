@@ -9,6 +9,9 @@ import SwiftData
 @MainActor
 struct RemoteApplier {
     let context: ModelContext
+    /// Two records for one app: the loser is deleted here and, on the Mac, queued for deletion in iCloud (`deletes`).
+    /// The iPhone never uploads an identity, so it only drops its copy.
+    var deletesLosingIdentities = AppIdentityPublisher.publishesHere
     let hasPendingSave: (UUID) -> Bool
 
     struct Outcome: Equatable {
@@ -99,15 +102,15 @@ struct RemoteApplier {
         return clips + boards + entries
     }
 
-    /// `uploadableIDs` as record IDs, plus on the Mac every app identity (an `app-` name, not a UUID). The iPhone only
-    /// reads identities, so it never re-queues one.
+    /// `uploadableIDs` as record IDs, plus on the Mac every app identity. The iPhone only reads identities, so it never
+    /// re-queues one.
     static func uploadableRecordIDs(in context: ModelContext, onlyUnconfirmed: Bool,
                                     includingIdentities: Bool = AppIdentityPublisher.publishesHere) throws -> [CKRecord.ID] {
         let records = try uploadableIDs(in: context, onlyUnconfirmed: onlyUnconfirmed).map(SyncRecordMapper.recordID(for:))
         guard includingIdentities else { return records }
         let identities = try context.fetch(FetchDescriptor<AppIdentity>())
             .filter { !onlyUnconfirmed || $0.syncSystemFields == nil }
-            .map { SyncRecordMapper.recordID(named: AppIdentity.recordName(for: $0.bundleId)) }
+            .map { SyncRecordMapper.recordID(for: $0.id) }
         return records + identities
     }
 
@@ -213,15 +216,27 @@ struct RemoteApplier {
         }
     }
 
-    /// Newest wins: two Macs may publish one app. No pending-save check: a local publish is newer, and if it is
-    /// older the pending upload resends what this wrote.
+    /// Newest wins. No pending-save check: a local publish is newer, and if it is older the pending upload resends what
+    /// this wrote. Two Macs may publish one app, each under its own random name (ruling R6): one record per app survives
+    /// on every device (`AppIdentityPublisher.wins`), and the other is deleted.
     private func upsert(_ s: AppIdentitySnapshot, _ out: inout Outcome) throws {
         if let m = try identity(s.id) {
             guard s.updatedAt > m.updatedAt else { return }
             m.update(from: s)
         } else {
-            context.insert(AppIdentity(bundleId: s.bundleId, name: s.name, iconPNG: s.iconPNG, colorHex: s.colorHex,
-                                       updatedAt: s.updatedAt))
+            let bundleId = s.bundleId
+            let rivals = try context.fetch(FetchDescriptor<AppIdentity>(predicate: #Predicate { $0.bundleId == bundleId }))
+            if rivals.contains(where: { AppIdentityPublisher.wins(($0.updatedAt, $0.id), over: (s.updatedAt, s.id)) }) {
+                if deletesLosingIdentities { out.deletes.insert(s.id) }
+                return
+            }
+            for rival in rivals {
+                context.delete(rival)
+                out.touched.insert(rival.id)
+                if deletesLosingIdentities { out.deletes.insert(rival.id) }
+            }
+            context.insert(AppIdentity(id: s.id, bundleId: s.bundleId, name: s.name, iconPNG: s.iconPNG,
+                                       colorHex: s.colorHex, updatedAt: s.updatedAt))
         }
         out.touched.insert(s.id)
         out.identitiesChanged = true

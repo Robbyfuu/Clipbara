@@ -3,16 +3,17 @@ import XCTest
 
 final class AppIdentityMapperTests: XCTestCase {
     private let snapshot = AppIdentitySnapshot(
-        bundleId: "com.apple.Safari", name: "Safari", iconPNG: Data([0x89, 0x50, 0x4E, 0x47, 1, 2, 3]),
+        id: UUID(), bundleId: "com.apple.Safari", name: "Safari", iconPNG: Data([0x89, 0x50, 0x4E, 0x47, 1, 2, 3]),
         colorHex: "#1E90FF", updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
 
     private func record(_ s: AppIdentitySnapshot) -> CKRecord {
-        CKRecord(recordType: SyncRecordMapper.appIdentityType, recordID: SyncRecordMapper.recordID(for: s))
+        CKRecord(recordType: SyncRecordMapper.appIdentityType, recordID: SyncRecordMapper.recordID(for: s.id))
     }
 
-    func testRecordIDIsTheStableNameInTheClipboardZone() {
-        let rid = SyncRecordMapper.recordID(for: snapshot)
-        XCTAssertEqual(rid.recordName, AppIdentity.recordName(for: "com.apple.Safari"))
+    /// Ruling R6: the record is named by its random id, never by anything derived from the bundle id.
+    func testRecordIsNamedByItsIDInTheClipboardZone() {
+        let rid = SyncRecordMapper.recordID(for: snapshot.id)
+        XCTAssertEqual(rid.recordName, snapshot.id.uuidString)
         XCTAssertEqual(rid.zoneID.zoneName, "Clipboard")
         XCTAssertEqual(SyncRecordMapper.appIdentityType, "AppIdentity")
     }
@@ -34,14 +35,13 @@ final class AppIdentityMapperTests: XCTestCase {
         XCTAssertEqual(rec.encryptedValues["iconPNG"] as Data?, snapshot.iconPNG)
     }
 
-    /// A record whose name is not its bundle id's would store its system fields on another app's identity.
-    func testRejectsARecordNamedForAnotherApp() {
-        let other = AppIdentitySnapshot(bundleId: "com.apple.Notes", name: "Notes", iconPNG: Data([1]),
-                                        colorHex: "#FFCC00", updatedAt: snapshot.updatedAt)
-        let rec = record(snapshot)
-        SyncRecordMapper.populate(rec, from: other)
+    /// A record not named by a UUID has no local id to store its system fields on.
+    func testRejectsARecordNotNamedByAUUID() {
+        let rec = CKRecord(recordType: SyncRecordMapper.appIdentityType,
+                           recordID: SyncRecordMapper.recordID(named: "app-7cd9df4fce2816bcb43439ff7638726c"))
+        SyncRecordMapper.populate(rec, from: snapshot)
         XCTAssertThrowsError(try SyncRecordMapper.appIdentity(from: rec)) { error in
-            guard case SyncRecordMapper.DecodeError.recordNameMismatch = error else { return XCTFail("\(error)") }
+            guard case SyncRecordMapper.DecodeError.missingField("recordName") = error else { return XCTFail("\(error)") }
         }
     }
 

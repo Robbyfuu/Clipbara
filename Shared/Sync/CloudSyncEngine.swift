@@ -508,8 +508,7 @@ import SwiftData
                              engine: CKSyncEngine) -> RemoteApplier.Outcome {
         // One snapshot of the pending list: it cannot change during apply, and reading it per record is O(n).
         let pending = Set(engine.state.pendingRecordZoneChanges)
-        // `hasPendingSave`, `out.saves` and `out.deletes` are UUID-named: identities never reach them (newest wins,
-        // and they never merge), so `recordID(for:)` is right for every id they hold.
+        // Every record is named by its UUID, an app identity's too, so `recordID(for:)` is right for every id here.
         let applier = RemoteApplier(context: modelContext) { pending.contains(.saveRecord(SyncRecordMapper.recordID(for: $0))) }
         let out = applier.apply(clips: clips, pinboards: pinboards, entries: entries, identities: identities,
                                 deletions: deletions, systemFields: fields)

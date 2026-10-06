@@ -37,10 +37,9 @@ import SwiftData
         var out: [CKSyncEngine.PendingRecordZoneChange] = []
         var seen: Set<UUID> = []
 
-        /// `name` is the record name when it is not the id (an app identity's `app-` name).
-        func add(_ id: UUID, delete: Bool, name: String? = nil) {
+        func add(_ id: UUID, delete: Bool) {
             guard !suppressed.contains(id), seen.insert(id).inserted else { return }
-            let rid = SyncRecordMapper.recordID(named: name ?? id.uuidString)
+            let rid = SyncRecordMapper.recordID(for: id)
             out.append(delete ? .deleteRecord(rid) : .saveRecord(rid))
         }
 
@@ -59,8 +58,7 @@ import SwiftData
             case let entry as PinboardEntry
                 where entry.clipboardItem?.contentTypeRaw != "fileURL" && entry.clipboardItem?.isSensitive != true:
                 add(entry.id, delete: true)
-            case let app as AppIdentity where uploadsIdentities:
-                add(app.id, delete: true, name: AppIdentity.recordName(for: app.bundleId))
+            case let app as AppIdentity where uploadsIdentities: add(app.id, delete: true)
             default: break
             }
         }
@@ -72,8 +70,7 @@ import SwiftData
             case let board as Pinboard: add(board.id, delete: false)
             case let entry as PinboardEntry where entry.clipboardItem?.isSyncEligible == true && entry.pinboard != nil:
                 add(entry.id, delete: false)
-            case let app as AppIdentity where uploadsIdentities:
-                add(app.id, delete: false, name: AppIdentity.recordName(for: app.bundleId))
+            case let app as AppIdentity where uploadsIdentities: add(app.id, delete: false)
             default: break
             }
         }

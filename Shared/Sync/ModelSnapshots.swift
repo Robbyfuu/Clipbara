@@ -69,7 +69,7 @@ extension PinboardEntry {
 
 extension AppIdentity {
     var snapshot: AppIdentitySnapshot {
-        AppIdentitySnapshot(bundleId: bundleId, name: name, iconPNG: iconPNG, colorHex: colorHex, updatedAt: updatedAt)
+        AppIdentitySnapshot(id: id, bundleId: bundleId, name: name, iconPNG: iconPNG, colorHex: colorHex, updatedAt: updatedAt)
     }
 
     /// Every synced field; `id` follows from `bundleId`, which never changes for one record.

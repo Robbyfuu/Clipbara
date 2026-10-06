@@ -57,11 +57,13 @@
   | `syncSystemFields` | `Data?` |
 
 - **New CloudKit record type `AppIdentity`.** It lives in the existing `Clipboard` zone.
-  - Record name: `app-` plus a SHA-256 hex of the bundle id.
+  - Record name: a random UUID, which is also the model's local `id`. Record names are not encrypted, and a name derived from the bundle id (even hashed) would show which apps the user copies from (ruling R6).
+  - One record per app: two Macs may each publish one. On apply, the newest `updatedAt` wins (a tie keeps the lower record name), so every device keeps the same one. The Mac deletes the loser's record; the iPhone, which never uploads, drops its copy.
   - Fields: encrypted `bundleId`, `name` and `colorHex`; `iconPNG` as an encrypted value, since it is under 256 KB.
   - Older app versions already skip unknown record types (`CloudSyncEngine` logs "Skipped record of unknown type"), so this is backward compatible.
 - **Mac publish rule.**
-  - When a clip is captured from a bundle id with no `AppIdentity`, or one with `updatedAt` older than 30 days, render the icon at 128 px, compute the color, and upsert the identity.
+  - When a clip is captured from a bundle id with no `AppIdentity`, or one with `updatedAt` older than 7 days, render the icon at 128 px, compute the color, and upsert the identity. The Mac looks the identity up by bundle id first, so it updates the one it has.
+  - A device updated after a Mac published gets the icons within 7 days, through that refresh. The App Store build should add a one-time backfill later.
   - The tracker uploads it like any other local save.
   - Never create one for Copyd's own bundle id.
 - **Pruning.** Identities are never deleted automatically. They are tiny, and they stay useful for clips on other devices.
@@ -160,8 +162,8 @@
 - **Unit tests:**
   - `IconColor` with solid, two-tone and transparent fixtures.
   - `ContrastPicker`.
-  - `AppIdentity` mapper round-trip, plus record-name stability.
-  - The publish rule: once per bundle, refresh after 30 days, never Copyd itself.
+  - `AppIdentity` mapper round-trip, a random record name, and one identity per app after apply.
+  - The publish rule: once per bundle, refresh after 7 days, never Copyd itself.
   - `SmartKinds` classification for each kind, and the version bump.
   - Topic plan selection: secrets, images and files skipped; retry on failure.
   - The mapper never sees the smart or topic fields.

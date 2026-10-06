@@ -1,16 +1,16 @@
 import CoreGraphics
-import CryptoKit
 import Foundation
 import SwiftData
 
 /// A source app's name, icon and header color, published by the Mac that has the app so the iPhone (which can't read
-/// other apps' icons) and other Macs can show it. Synced as the CloudKit record type `AppIdentity`, one per bundle id.
+/// other apps' icons) and other Macs can show it. Synced as the CloudKit record type `AppIdentity`.
 @Model
 final class AppIdentity {
-    /// The sync layer's local key (tracker suppression, system fields): the first 16 bytes of the record name's hash,
-    /// so every device gives one app the same id. Never synced: it follows from `bundleId`.
+    /// Random, and the record's name, like a clip's (ruling R6): record names are not encrypted, so they must never say
+    /// which apps the user copies from. A fetched record keeps its own.
     var id: UUID
-    /// Unique by code: one record name per bundle id, and the applier upserts by it.
+    /// Unique by code: the Mac publishes over the identity it has, and the applier keeps the newest of two records for
+    /// one app (`AppIdentityPublisher.wins`).
     var bundleId: String
     var name: String
     /// A 128×128 PNG.
@@ -20,23 +20,13 @@ final class AppIdentity {
     var updatedAt: Date
     var syncSystemFields: Data?
 
-    init(bundleId: String, name: String, iconPNG: Data, colorHex: String, updatedAt: Date = .now) {
-        self.id = Self.id(for: bundleId)
+    init(id: UUID = UUID(), bundleId: String, name: String, iconPNG: Data, colorHex: String, updatedAt: Date = .now) {
+        self.id = id
         self.bundleId = bundleId
         self.name = name
         self.iconPNG = iconPNG
         self.colorHex = colorHex
         self.updatedAt = updatedAt
-    }
-
-    /// `app-` plus the SHA-256 hex of the bundle id. Never change it: every device would upload a second record.
-    static func recordName(for bundleId: String) -> String {
-        "app-" + SHA256.hash(data: Data(bundleId.utf8)).map { String(format: "%02x", $0) }.joined()
-    }
-
-    static func id(for bundleId: String) -> UUID {
-        let b = Array(SHA256.hash(data: Data(bundleId.utf8)))
-        return UUID(uuid: (b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]))
     }
 
     static func find(_ bundleId: String, in context: ModelContext) throws -> AppIdentity? {
@@ -60,7 +50,9 @@ final class AppIdentity {
 
 /// When the Mac (re)publishes an app's identity on capture.
 enum AppIdentityPublisher {
-    static let refreshAfter: TimeInterval = 30 * 86_400
+    /// A device updated after the Mac published gets the icons within this. ponytail: the App Store build should add a
+    /// one-time backfill (publish every app in the history) instead of waiting for the refresh.
+    static let refreshAfter: TimeInterval = 7 * 86_400
 
     /// Only the Mac uploads identities. The iPhone can't read other apps' icons, so it only reads the Mac's: its
     /// tracker and re-queue skip them, and a stale copy on the phone can never overwrite a newer one.
@@ -70,7 +62,7 @@ enum AppIdentityPublisher {
     static let publishesHere = false
     #endif
 
-    /// None yet, or older than 30 days. Never Copyd itself, and never from a secret: it stays on this Mac, and so does
+    /// None yet, or older than 7 days. Never Copyd itself, and never from a secret: it stays on this Mac, and so does
     /// the app it came from.
     static func needsPublish(existing: Date?, now: Date, bundleId: String, ownBundleId: String,
                              isSensitive: Bool = false) -> Bool {
@@ -82,5 +74,11 @@ enum AppIdentityPublisher {
     /// A Mac's upload met another Mac's copy on the server: the newest wins, and a tie keeps the server's.
     static func serverWins(server: Date, local: Date) -> Bool {
         server >= local
+    }
+
+    /// Two records for one app (two Macs published it, each under its own name): every device keeps `a` over `b` when
+    /// it is newer, and on a tie when its name sorts first.
+    static func wins(_ a: (updatedAt: Date, id: UUID), over b: (updatedAt: Date, id: UUID)) -> Bool {
+        a.updatedAt != b.updatedAt ? a.updatedAt > b.updatedAt : a.id.uuidString < b.id.uuidString
     }
 }
