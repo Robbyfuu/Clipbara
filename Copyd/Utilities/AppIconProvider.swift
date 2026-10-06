@@ -44,6 +44,8 @@ struct AppIconProvider {
     struct Look {
         let icon: NSImage
         let color: RGB
+        /// From an identity synced from another Mac, not the app installed here.
+        var isSynced = false
     }
 
     /// Per bundle id; nil when the app is unknown here. Cleared after a sync applies, so a newly synced identity shows.
@@ -60,7 +62,7 @@ struct AppIconProvider {
             look = Look(icon: live, color: art.color)
         } else if let synced = synced(bundleId), let image = NSImage(data: synced.iconPNG),
                   let color = RGB(hex: synced.colorHex) {
-            look = Look(icon: image, color: color)
+            look = Look(icon: image, color: color, isSynced: true)
         } else {
             look = nil
         }
@@ -68,8 +70,12 @@ struct AppIconProvider {
         return look
     }
 
-    /// After a sync: only apps still unknown here are looked up again.
-    @MainActor static func forgetLooks() { looks = looks.filter { $0.value != nil } }
+    /// After a sync: apps still unknown here, and those shown with a synced icon (refreshed, or now installed), are
+    /// looked up again. The icon cache is emptied for the same reason; installed icons cost one NSWorkspace read each.
+    @MainActor static func forgetLooks() {
+        looks = looks.filter { $0.value.map { !$0.isSynced } ?? false }
+        cache.removeAllObjects()
+    }
 
     /// The installed app's icon as a 128×128 PNG, with its `IconColor.dominant`: what the Mac publishes as an
     /// `AppIdentity`. Nil when the app isn't installed. Safe off the main thread.

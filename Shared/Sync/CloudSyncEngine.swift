@@ -401,8 +401,9 @@ import SwiftData
         var fields: [UUID: Data?] = [:]  // a nil value clears the stored system fields
         var requeue: [CKSyncEngine.PendingRecordZoneChange] = []
         var remoteDeleted: [(id: UUID, save: CKSyncEngine.PendingRecordZoneChange)] = []
-        // Another Mac's newer (or equal) identity: applied here instead of overwritten.
+        // Another Mac's newer (or equal) identity: applied here instead of overwritten, and its failed save dropped.
         var serverIdentities: [AppIdentitySnapshot] = [], serverIdentityFields: [UUID: Data] = [:]
+        var serverIdentitySaves: [CKSyncEngine.PendingRecordZoneChange] = []
         var zoneMissing = false
         func resendLater(_ change: CKSyncEngine.PendingRecordZoneChange, _ id: UUID) {
             deferred.insert(id)
@@ -428,6 +429,7 @@ import SwiftData
                    AppIdentityPublisher.serverWins(server: remote.updatedAt, local: local.updatedAt) {
                     serverIdentities.append(remote)
                     serverIdentityFields[id] = SyncRecordMapper.archive(server)
+                    serverIdentitySaves.append(save)
                 } else if let server = f.error.serverRecord {
                     fields[id] = SyncRecordMapper.archive(server)
                     requeue.append(save)
@@ -482,6 +484,8 @@ import SwiftData
 
         storeSystemFields(fields)
         if !serverIdentities.isEmpty {
+            // As for remoteDeleted: the failed save is still pending, and would resend the losing copy.
+            engine.state.remove(pendingRecordZoneChanges: serverIdentitySaves)
             applyRemote(identities: serverIdentities, fields: serverIdentityFields, engine: engine)
         }
         if !remoteDeleted.isEmpty {
