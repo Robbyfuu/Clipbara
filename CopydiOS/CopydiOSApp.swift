@@ -1,3 +1,4 @@
+import CoreSpotlight
 import SwiftUI
 import SwiftData
 import UIKit
@@ -117,6 +118,12 @@ struct CopydiOSApp: App {
                 // A link that only foregrounds the app still runs auto-capture behind the iOS prompt.
                 // A link must never read the pasteboard: only the quick action and the intents may save the clipboard.
                 if let route = QuickRoute(url: url), QuickRoute.allowsURL(route) { model.pendingRoute = route }
+            }
+            // A tapped Spotlight result copies its clip, as a widget row does.
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                guard let id = (activity.userInfo?[CSSearchableItemActivityIdentifier] as? String)
+                    .flatMap(UUID.init(uuidString:)) else { return }
+                model.pendingRoute = .copy(id)
             }
             // `initial` picks up a quick action the scene delegate stored before this view existed.
             .onChange(of: model.pendingRoute, initial: true) { _, route in

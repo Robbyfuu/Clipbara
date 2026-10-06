@@ -269,6 +269,7 @@ targets:
       - path: Shared/Services/ImageTextRecognizer.swift
       - path: Shared/Utilities/LinkPreviewPlan.swift
       - path: Shared/Services/LinkPreviewFetcher.swift
+      - path: Shared/Utilities/SpotlightPlan.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

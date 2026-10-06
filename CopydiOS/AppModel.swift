@@ -20,6 +20,8 @@ final class AppModel {
     let imageText: ImageTextQueue
     /// Fetches link titles and images, foreground only like `imageText`.
     let linkPreviews: LinkPreviewQueue
+    /// Keeps the clips in Spotlight, following every main-context save.
+    let spotlight: SpotlightIndexer
     /// True when the App Group container was unavailable and the store lives in memory only.
     let isInMemory: Bool
     var toastVisible = false
@@ -63,14 +65,18 @@ final class AppModel {
         Self.seedSampleClipsIfRequested(container)
         Self.seedOCRImageIfRequested(container)
         Self.seedLinkClipIfRequested(container)
+        Self.seedSecretClipIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
+        // Before the engine starts, so the saves of its first fetch are indexed.
+        spotlight = SpotlightIndexer(container: container)
         sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied() }
         // The text read in an image never syncs, so its save queues no upload.
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         // Link previews never sync either.
         linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
+        sync.onMirrorWiped = { [weak self] in self?.spotlight.removeAll() }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
         Self.writeSampleInboxIfRequested()
@@ -85,6 +91,7 @@ final class AppModel {
         sweepTimer.tolerance = SecretSweeper.tolerance
         #if DEBUG
         applyDebugRoute()
+        spotlight.checkIfRequested()
         #endif
         // Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the
         // sync engine's applied remote changes, foreground or a background push wake.
@@ -371,7 +378,8 @@ final class AppModel {
     private static func removeSeedClipsUnlessSeeding(_ container: ModelContainer) {
         guard !UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),
               !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedLinkClip") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedLinkClip"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedSecretClip") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
@@ -426,6 +434,22 @@ final class AppModel {
         else { return }
         let link = "https://www.apple.com"
         context.insert(ClipboardItem(contentType: .url, rawData: Data(link.utf8), textContent: link, contentHash: hash))
+        try? context.save()
+    }
+
+    /// `-CopydSeedSecretClip YES`: inserts one secret, as a detected capture would, for the Spotlight check to miss.
+    /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes it.
+    private static func seedSecretClipIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedSecretClip"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-secret"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let secret = "sk" + "_live_" + "4eC39HqLyjWDarjtT1zdp7dc"  // split, so secret scanners skip this sample
+        let clip = ClipboardItem(contentType: .plainText, rawData: Data(secret.utf8), textContent: secret, contentHash: hash)
+        clip.isSensitive = true
+        context.insert(clip)
         try? context.save()
     }
 

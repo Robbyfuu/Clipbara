@@ -2136,6 +2136,22 @@
         }
       }
     },
+    "Show in Spotlight" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Spotlight"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar en Spotlight"
+          }
+        }
+      }
+    },
     "Show latest clip on Lock Screen" : {
       "localizations" : {
         "en" : {

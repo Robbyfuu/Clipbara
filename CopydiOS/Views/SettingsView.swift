@@ -17,6 +17,7 @@ struct SettingsView: View {
     private var deleteSecretsAfter = SecretSweeper.defaultMinutes
     /// In the App Group, so the keyboard and the widget show link titles only while it is on.
     @AppStorage(LinkPreviewPlan.enabledDefaultsKey, store: SharedDefaults.store) private var linkPreviewsEnabled = true
+    @AppStorage(SpotlightIndexer.enabledDefaultsKey, store: SharedDefaults.store) private var spotlightEnabled = true
     /// Live Activities can be turned off for Copyd in Settings; re-read on every return to the app.
     @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var notificationsDenied = false
@@ -97,11 +98,15 @@ struct SettingsView: View {
                 .padding(.bottom, 24)
 
                 sectionLabel("History")
-                toggleRow("Link previews", symbol: "link", isOn: $linkPreviewsEnabled)
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .brandCard()
-                    .padding(.bottom, 24)
+                VStack(alignment: .leading, spacing: 0) {
+                    toggleRow("Link previews", symbol: "link", isOn: $linkPreviewsEnabled)
+                    Divider().overlay(DesignTokens.Brand.line)
+                    toggleRow("Show in Spotlight", symbol: "magnifyingglass", isOn: $spotlightEnabled)
+                }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .brandCard()
+                .padding(.bottom, 24)
 
                 sectionLabel("Secrets")
                 VStack(alignment: .leading, spacing: 0) {
@@ -221,6 +226,10 @@ struct SettingsView: View {
         .onChange(of: linkPreviewsEnabled) { _, on in
             if on { model.linkPreviews.fill() } else { model.linkPreviews.stop() }
             AppModel.reloadWidgets()  // the widget shows a link's title only while this is on
+            model.spotlight.rebuild()  // and Spotlight its title and image
+        }
+        .onChange(of: spotlightEnabled) { _, on in
+            if on { model.spotlight.rebuild() } else { model.spotlight.removeAll() }
         }
         .onChange(of: arrivalNotificationsEnabled) { _, on in
             guard on else { return }
