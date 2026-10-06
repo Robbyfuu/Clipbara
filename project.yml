@@ -152,12 +152,16 @@ targets:
           - Sync/CloudSyncEngine.swift
           # Vision text recognition runs in the app only, never in an extension's memory budget.
           - Services/ImageTextRecognizer.swift
+      # Controls and the Lock Screen button run these intents. The system opens the app only when an intent is a
+      # member of both targets; WIDGET_EXTENSION compiles out the app-only `perform` body.
+      - path: CopydiOS/Intents/OpenAppIntents.swift
     resources:
       - CopydWidget/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.robbyfuu.copyd.widget
         PRODUCT_NAME: CopydWidget
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: TQC76W2BKK
         CODE_SIGN_STYLE: Automatic

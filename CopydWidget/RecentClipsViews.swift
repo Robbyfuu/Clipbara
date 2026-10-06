@@ -1,6 +1,8 @@
+import AppIntents
 import SwiftData
 import SwiftUI
 import UIKit
+import WidgetKit
 
 // Shared with the app, whose DEBUG -CopydWidgetPreview harness renders these views without WidgetKit.
 
@@ -158,6 +160,34 @@ struct RecentClipsAccessory: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+}
+
+/// Lock Screen inline: the newest clip on one line beside the date. The system draws it in its own style.
+struct RecentClipsInline: View {
+    let state: RecentClipsState
+
+    var body: some View {
+        if let clip = state.clips.first {
+            Label { Text(clip.summary).privacySensitive() } icon: { Image(systemName: "doc.on.clipboard") }
+        } else {
+            Text(state.message)
+        }
+    }
+}
+
+/// Lock Screen circular: runs the save intent, which opens Copyd. System styles only, so it works in the
+/// vibrant rendering mode.
+struct LockScreenSaveView: View {
+    var body: some View {
+        Button(intent: SaveClipboardIntent()) {
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "doc.on.clipboard").font(.system(size: 22, weight: .semibold))
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Save Clipboard")
     }
 }
 

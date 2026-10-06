@@ -13,6 +13,10 @@ enum QuickRoute: Equatable {
         "history": .history,
     ]
 
+    /// A `copyd://` link may open any route but save: a web page must never make Copyd read the pasteboard.
+    /// Save is reachable only in process, from the quick action and the App Intents.
+    static func allowsURL(_ route: QuickRoute) -> Bool { route != .saveClipboard }
+
     static func copyURL(_ id: UUID) -> URL {
         URL(string: "copyd://copy/\(id.uuidString)")!  // a UUID string is always a valid path
     }

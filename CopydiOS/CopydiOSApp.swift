@@ -110,8 +110,8 @@ struct CopydiOSApp: App {
             }
             .onOpenURL { url in
                 // A link that only foregrounds the app still runs auto-capture behind the iOS prompt.
-                // A link must never read the pasteboard: only the Home Screen quick action may save the clipboard.
-                if let route = QuickRoute(url: url), route != .saveClipboard { model.pendingRoute = route }
+                // A link must never read the pasteboard: only the quick action and the intents may save the clipboard.
+                if let route = QuickRoute(url: url), QuickRoute.allowsURL(route) { model.pendingRoute = route }
             }
             // `initial` picks up a quick action the scene delegate stored before this view existed.
             .onChange(of: model.pendingRoute, initial: true) { _, route in
@@ -186,8 +186,8 @@ private struct KeyboardPreviewHarness: View {
     }
 }
 
-/// `-CopydWidgetPreview` shows the three widget families at iPhone widget sizes, fed by the widget's own loader.
-/// Medium rows are real links, so tapping one runs the `copy` route.
+/// `-CopydWidgetPreview` shows the widget families at iPhone widget sizes, fed by the widget's own loader.
+/// Medium rows are real links, so tapping one runs the `copy` route; the circular button runs the save intent.
 private struct WidgetPreviewHarness: View {
     let container: ModelContainer
     @State private var state: RecentClipsState?
@@ -205,6 +205,13 @@ private struct WidgetPreviewHarness: View {
                             RecentClipsSmall(state: smalls[i], now: .now).widgetFrame(width: 158, height: 158)
                         }
                         RecentClipsAccessory(state: state, now: .now).frame(width: 160, height: 72)
+                    }
+                    // The Lock Screen circular and inline families.
+                    HStack(spacing: 18) {
+                        // `AccessoryWidgetBackground` draws nothing outside WidgetKit; the material stands in for it.
+                        LockScreenSaveView().frame(width: 76, height: 76).background(.ultraThinMaterial, in: Circle())
+                        RecentClipsInline(state: state).font(.system(size: 15, weight: .semibold)).lineLimit(1)
+                            .frame(width: 240, alignment: .leading)
                     }
                 }
             }

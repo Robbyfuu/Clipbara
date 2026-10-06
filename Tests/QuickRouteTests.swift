@@ -37,6 +37,14 @@ final class QuickRouteTests: XCTestCase {
         XCTAssertNil(QuickRoute(shortcutType: "com.robbyfuu.copyd.copy"), "a quick action cannot carry a clip")
     }
 
+    /// A web page must never make Copyd read the pasteboard, so a link may open every route except save.
+    func testSaveClipboardURLIsRejectedByAppPolicy() throws {
+        XCTAssertFalse(QuickRoute.allowsURL(.saveClipboard))
+        XCTAssertTrue(QuickRoute.allowsURL(.search), "the search control and links may focus search")
+        XCTAssertTrue(QuickRoute.allowsURL(.history))
+        XCTAssertTrue(QuickRoute.allowsURL(.copy(UUID())), "the widget's copy links still work")
+    }
+
     func testRejectsOtherSchemeAndUnknownRoute() throws {
         XCTAssertNil(try route("https://search"))
         XCTAssertNil(try route("copyd://nope"))

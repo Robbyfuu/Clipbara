@@ -2,19 +2,7 @@ import AppIntents
 
 // These intents live in the app target, so they run in the app's process and use `AppModel.shared`'s main
 // context: the context the sync tracker observes, so their saves upload like any other local save.
-
-/// iOS only lets the foreground app read the pasteboard, so this opens Copyd and hands the save to the
-/// same route the Home Screen quick action uses. iOS shows its paste prompt.
-struct SaveClipboardIntent: AppIntent {
-    static let title: LocalizedStringResource = "Save Clipboard"
-    static let openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        AppModel.shared.pendingRoute = .saveClipboard
-        return .result()
-    }
-}
+// `SaveClipboardIntent` and `OpenSearchIntent` are in `OpenAppIntents.swift`, shared with the widget extension.
 
 /// Silent capture: Shortcuts' own "Get Clipboard" feeds the text in, so the app never reads the pasteboard.
 struct SaveTextIntent: AppIntent {

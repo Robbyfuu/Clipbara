@@ -1990,6 +1990,22 @@
         }
       }
     },
+    "Search Copyd" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Copyd"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar en Copyd"
+          }
+        }
+      }
+    },
     "Secret, kept on this device" : {
       "comment" : "Lock badge on a secret clip, read by VoiceOver and shown on hover",
       "localizations" : {
