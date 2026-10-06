@@ -9,6 +9,8 @@ struct ClipRow: View {
     let item: ClipboardItem
     var onDelete: (() -> Void)?
     @State private var editing = false
+    /// The link's fetched image, decoded once per preview by `.task(id:)`, never in `body`.
+    @State private var linkImage: UIImage?
     @AppStorage(LinkPreviewPlan.enabledDefaultsKey, store: SharedDefaults.store) private var linkPreviewsOn = true
 
     var body: some View {
@@ -139,6 +141,8 @@ struct ClipRow: View {
             }
             .padding(image == nil ? EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16)
                                   : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
+            // Again when a preview lands, or an edit clears it.
+            .task(id: "\(item.id) \(item.linkPreviewDone)") { linkImage = await loadLinkImage() }
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 if title == nil, let code = codePreview {
@@ -196,10 +200,11 @@ struct ClipRow: View {
         }
     }
 
-    /// A link's fetched image, decoded by ImageIO at the 60 pt thumbnail's pixel size, never the full 640 px.
-    private var linkImage: UIImage? {
-        guard item.contentType == .url, !item.isSensitive, let data = item.linkImageData else { return nil }
-        return Thumbnail.image(from: data, maxPixels: 180).map(UIImage.init(cgImage:))
+    /// A link's fetched image, decoded off the main thread by ImageIO at the 60 pt thumbnail's pixel size, never the
+    /// full 640 px.
+    private func loadLinkImage() async -> UIImage? {
+        guard !item.isGone, item.contentType == .url, !item.isSensitive, let data = item.linkImageData else { return nil }
+        return await ImageTextQueue.offMain { Thumbnail.image(from: data, maxPixels: 180).map(UIImage.init(cgImage:)) }
     }
 
     /// Link clips, and text clips that are nothing but one http(s) URL, render as the link card.
@@ -293,6 +298,7 @@ private struct CopyAsMenu: View {
 private struct EditClipSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppModel.self) private var model
     let item: ClipboardItem
     @State private var text: String
     @FocusState private var focused: Bool
@@ -327,8 +333,10 @@ private struct EditClipSheet: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
-                            // The sweep or a sync may have deleted the clip meanwhile.
-                            if !item.isGone { item.saveEdit(text, in: modelContext) }
+                            // The sweep or a sync may have deleted the clip meanwhile. A secret edit deletes it.
+                            if !item.isGone, item.saveEdit(text, in: modelContext), !item.isGone, item.contentType == .url {
+                                model.linkPreviews.fill()  // the new link's preview
+                            }
                             dismiss()
                         }
                         .disabled(text.isEmpty)

@@ -32,24 +32,6 @@ enum RecentClipsState {
     }
 }
 
-extension KeyboardClip {
-    /// Same rule as the app's `ClipRow`: link clips, and text clips that are one bare http(s) URL.
-    var linkParts: (host: String, rest: String)? {
-        switch contentType {
-        case .url: LinkParts.split(preview)
-        case .plainText, .richText, .html: LinkParts.bareLink(preview)
-        default: nil
-        }
-    }
-
-    /// One line of text for the compact layouts.
-    var summary: String {
-        if contentType == .image { return String(localized: "Image") }
-        if let parts = linkParts { return parts.host + parts.rest }
-        return preview
-    }
-}
-
 /// Home Screen small: the wordmark, then the newest clip's card.
 struct RecentClipsSmall: View {
     let state: RecentClipsState
@@ -122,7 +104,7 @@ struct RecentClipsMedium: View {
             if clip.contentType == .image {
                 RecentClipThumbnail(data: clip.thumbnail).frame(width: 28, height: 28)
             }
-            Text(clip.summary).font(.system(size: 13, weight: clip.linkParts == nil ? .regular : .semibold))
+            Text(clip.summary).font(.system(size: 13, weight: clip.linkParts == nil && clip.linkHost == nil ? .regular : .semibold))
                 .lineLimit(2).multilineTextAlignment(.leading).foregroundStyle(DesignTokens.Brand.ink)
                 .privacySensitive()
             Spacer(minLength: 4)

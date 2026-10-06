@@ -56,7 +56,8 @@ struct ClipboardQuickLookView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
             }
         }
-        .task(id: item.id) {
+        // A link's preview may land while Quick Look shows it: the fetch marks the link done, which runs this again.
+        .task(id: "\(item.id) \(item.linkPreviewDone)") {
             isRevealed = false
             if item.contentType == .image {
                 let image = cachedImage ?? NSImage(data: item.rawData)

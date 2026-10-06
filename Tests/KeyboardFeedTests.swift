@@ -87,6 +87,15 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(off.map(\.linkHost), [nil, nil])
     }
 
+    /// The widget's one-line summary (medium, inline): a link shown by its page title reads "title · host".
+    func testSummaryOfATitledLinkAddsItsHost() throws {
+        let link = add("https://www.apple.com/iphone", type: .url, dt: 1)
+        link.linkTitle = "Apple"
+        add("https://copyd.app/docs", type: .url, dt: 0)
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        XCTAssertEqual(clips.map(\.summary), ["Apple \u{00b7} apple.com", "copyd.app/docs"])
+    }
+
     func testClipboardCardFromCapturedText() throws {
         let text = "  " + String(repeating: "a", count: 500) + "\n"
         let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(text)), now: t0)

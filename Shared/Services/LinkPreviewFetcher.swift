@@ -7,14 +7,28 @@ import UniformTypeIdentifiers
 /// `project.yml` keeps it out of the keyboard, widget and Share extensions, which never fetch.
 enum LinkPreviewFetcher {
     /// `preview` is final: the page's title and image, either or both nil when it has none or the fetch failed for
-    /// good. `retry` is offline or timed out, worth another try later.
+    /// good. `retry` is timed out, worth another try later. `offline` ends the pass.
     enum Outcome: Equatable, Sendable {
         case preview(title: String?, image: Data?)
         case retry
+        case offline
     }
 
-    /// One fetch, `LinkPreviewPlan.timeout` at most. The image is the page's, else its icon, downsampled off the
-    /// cooperative pool. Never call it with a secret's URL: `LinkPreviewPlan.nextBatch` leaves them out.
+    /// `operation`'s value, or nil once `seconds` pass or the caller is cancelled. Either way `operation` is cancelled,
+    /// and never waited for: one that ignores cancellation finishes on its own, its value dropped.
+    static func withDeadline<T: Sendable>(_ seconds: TimeInterval,
+                                          _ operation: @escaping @Sendable () async -> T) async -> T? {
+        let (answers, answer) = AsyncStream.makeStream(of: T.self)
+        let work = Task { answer.yield(await operation()); answer.finish() }
+        let timer = Task { try? await Task.sleep(for: .seconds(seconds)); answer.finish() }
+        defer { work.cancel(); timer.cancel() }
+        // The first answer wins. A deadline or a cancelled caller ends the stream with none.
+        for await value in answers { return value }
+        return nil
+    }
+
+    /// One fetch: the page's metadata, then its image or icon, `LinkPreviewPlan.timeout` each at most. The image is
+    /// downsampled off the cooperative pool. Never call it with a secret's URL: `LinkPreviewPlan.nextBatch` leaves them out.
     static func fetch(_ url: URL) async -> Outcome {
         let provider = LPMetadataProvider()
         provider.timeout = LinkPreviewPlan.timeout
@@ -22,7 +36,11 @@ enum LinkPreviewFetcher {
         do {
             metadata = try await provider.startFetchingMetadata(for: url)
         } catch {
-            return LinkPreviewPlan.outcome(for: error) == .retry ? .retry : .preview(title: nil, image: nil)
+            switch LinkPreviewPlan.outcome(for: error) {
+            case .done: return .preview(title: nil, image: nil)
+            case .retry: return .retry
+            case .offline: return .offline
+            }
         }
         let title = metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines)
         var raw = await data(from: metadata.imageProvider)
@@ -32,13 +50,18 @@ enum LinkPreviewFetcher {
         return .preview(title: title?.isEmpty == false ? title : nil, image: image)
     }
 
+    /// Nil after `LinkPreviewPlan.timeout`, or once the fetch is cancelled.
     private static func data(from provider: NSItemProvider?) async -> Data? {
         guard let provider, provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else { return nil }
-        return await withCheckedContinuation { continuation in
-            _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
-                continuation.resume(returning: data)
+        // NSItemProvider loads from any thread, and nothing else touches this one once the load starts.
+        nonisolated(unsafe) let loader = provider
+        return await withDeadline(LinkPreviewPlan.timeout) {
+            await withCheckedContinuation { continuation in
+                _ = loader.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                    continuation.resume(returning: data)
+                }
             }
-        }
+        } ?? nil
     }
 }
 
@@ -54,12 +77,19 @@ enum LinkPreviewFetcher {
     private(set) var task: Task<Void, Never>?
     private var again = false
 
+    /// The longest one fetch may take, its metadata and its image or icon included, before it is left for the next
+    /// fill, so a fetch that never answers never holds up the queue.
+    nonisolated static let deadline: TimeInterval = LinkPreviewPlan.timeout * 3
+    private let deadline: TimeInterval
+
     init(container: ModelContainer,
          isEnabled: @escaping @MainActor () -> Bool = { LinkPreviewPlan.isEnabled },
+         deadline: TimeInterval = LinkPreviewQueue.deadline,
          fetch: @escaping @Sendable (URL) async -> LinkPreviewFetcher.Outcome = { await LinkPreviewFetcher.fetch($0) },
          save: @escaping @MainActor (Set<UUID>) -> Void) {
         self.container = container
         self.isEnabled = isEnabled
+        self.deadline = deadline
         self.fetch = fetch
         self.save = save
     }
@@ -105,12 +135,15 @@ enum LinkPreviewFetcher {
             for clip in batch {
                 if Task.isCancelled { break }
                 guard let url = LinkPreviewPlan.fetchableURL(clip.url) else { continue }
-                let outcome = await fetch(url)
+                // Past the deadline it is a retry: left for the next fill.
+                let outcome = await LinkPreviewFetcher.withDeadline(deadline) { await fetch(url) } ?? .retry
                 // Stopped meanwhile: the fetch may have been cut off, so its answer is not kept.
                 if Task.isCancelled { break }
                 switch outcome {
                 case .preview(let title, let image): results.append(Fetched(id: clip.id, url: clip.url, title: title, image: image))
                 case .retry: failed.insert(clip.id)
+                // Every other link would fail the same way: they all wait for the next fill.
+                case .offline: return write(results)
                 }
             }
             write(results)

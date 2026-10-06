@@ -17,6 +17,25 @@ struct KeyboardClip: Identifiable, Equatable {
     var linkHost: String? = nil
 }
 
+extension KeyboardClip {
+    /// Same rule as the app's `ClipRow`: link clips, and text clips that are one bare http(s) URL.
+    var linkParts: (host: String, rest: String)? {
+        switch contentType {
+        case .url: LinkParts.split(preview)
+        case .plainText, .richText, .html: LinkParts.bareLink(preview)
+        default: nil
+        }
+    }
+
+    /// One line of text for the widget's compact layouts. A link shown by its page title reads "title · host".
+    var summary: String {
+        if contentType == .image { return String(localized: "Image") }
+        if let linkHost { return preview + " \u{00b7} " + linkHost }
+        if let parts = linkParts { return parts.host + parts.rest }
+        return preview
+    }
+}
+
 /// A pinboard chip in the keyboard header.
 struct KeyboardBoard: Identifiable, Equatable {
     let id: UUID

@@ -23,18 +23,22 @@ enum SpotlightPlan {
         let isSensitive: Bool
     }
 
-    /// The entry for `input`, or nil for anything never indexed: a secret, an image with no text read in it or whose text
-    /// is a secret, a color, an unknown type, empty text. `bundle` holds the catalog; tests pass one language's `.lproj`.
+    /// The entry for `input`, or nil for anything never indexed: a secret, text, a link or an image's text read in it
+    /// that reads as a secret, an image with no text read, a color, an unknown type, empty text. `bundle` holds the
+    /// catalog; tests pass one language's `.lproj`.
+    ///
+    /// Text that reads as a secret stays out whatever "Protect secrets" says: Spotlight is outside the app, where
+    /// nothing can be masked.
     static func record(for input: Input, bundle: Bundle = .main) -> SpotlightRecord? {
         guard !input.isSensitive else { return nil }
         let id = input.id
         switch input.contentType {
         case .plainText, .richText, .html:
-            guard let text = clean(input.text) else { return nil }
+            guard let text = clean(input.text), SecretDetector.kind(of: text) == nil else { return nil }
             let (title, summary) = split(text, room: titleLimit)
             return SpotlightRecord(id: id, title: title, summary: summary, thumbnailSource: .none)
         case .url:
-            guard let url = clean(input.text) else { return nil }
+            guard let url = clean(input.text), SecretDetector.kind(of: url) == nil else { return nil }
             let thumbnail: SpotlightRecord.ThumbnailSource = input.hasThumbnail ? .link : .none
             guard let page = clean(input.linkTitle) else {
                 return SpotlightRecord(id: id, title: String(url.prefix(titleLimit)), summary: "", thumbnailSource: thumbnail)
@@ -42,8 +46,7 @@ enum SpotlightPlan {
             return SpotlightRecord(id: id, title: split(page, room: titleLimit).title,
                                    summary: String(url.prefix(summaryLimit)), thumbnailSource: thumbnail)
         case .image:
-            // The text read is an image's only text, so an image that reads as a secret stays out, whatever "Protect
-            // secrets" says: Spotlight is outside the app, where nothing can be masked.
+            // The text read is an image's only text.
             guard let text = clean(input.ocrText), SecretDetector.kind(of: text) == nil else { return nil }
             let label = String(localized: "Image", bundle: bundle) + " \u{00b7} "
             let (line, summary) = split(text, room: titleLimit - label.count)

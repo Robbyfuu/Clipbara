@@ -15,12 +15,15 @@ final class EditClipWindowController: NSObject, NSWindowDelegate {
 
     /// A second ⌘E replaces the clip being edited, unsaved text included, in the same window. A panel opened over this
     /// window opened over Copyd: focus still goes back to the first app.
-    func show(_ item: ClipboardItem, in context: ModelContext, returnTo app: NSRunningApplication?) {
+    /// `onLinkSaved`: the edit was saved as a link, whose preview is now to fetch.
+    func show(_ item: ClipboardItem, in context: ModelContext, returnTo app: NSRunningApplication?,
+              onLinkSaved: @escaping @MainActor () -> Void) {
         if let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier { returnApp = app }
         let editor = EditClipView(text: item.textContent ?? "") { [weak self] text in
-            // The sweep or a sync may have deleted the clip meanwhile.
-            if let text, !item.isDeleted, item.modelContext != nil {
-                item.saveEdit(text, in: context)
+            // The sweep or a sync may have deleted the clip meanwhile. A secret edit deletes it: never fetched.
+            if let text, !item.isDeleted, item.modelContext != nil, item.saveEdit(text, in: context),
+               !item.isGone, item.contentType == .url {
+                onLinkSaved()
             }
             self?.window?.close()
         }

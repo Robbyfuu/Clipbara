@@ -52,8 +52,11 @@ final class LinkPreviewPlanTests: XCTestCase {
         XCTAssertEqual(LinkPreviewPlan.nextBatch(clips: [a, b, c], limit: 2, skipping: [a.id]), [b.id, c.id])
     }
 
+    /// Offline ends the pass; a timeout or a lost connection is retried by the next fill.
     func testOfflineAndTimeoutAreRetried() {
-        for code in [NSURLErrorNotConnectedToInternet, NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost] {
+        XCTAssertEqual(LinkPreviewPlan.outcome(for: NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)),
+                       .offline)
+        for code in [NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost] {
             XCTAssertEqual(LinkPreviewPlan.outcome(for: NSError(domain: NSURLErrorDomain, code: code)), .retry, "\(code)")
         }
         XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchTimedOut)), .retry)
@@ -70,7 +73,7 @@ final class LinkPreviewPlanTests: XCTestCase {
     func testUnderlyingErrorDecides() {
         let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
         XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchFailed, userInfo: [NSUnderlyingErrorKey: offline])),
-                       .retry)
+                       .offline)
         XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchFailed)), .done)
         let notFound = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost)
         XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchFailed, userInfo: [NSUnderlyingErrorKey: notFound])),
@@ -161,6 +164,14 @@ final class LinkPreviewPlanTests: XCTestCase {
         XCTAssertNil(LinkPreviewPlan.image(from: Data("not an image".utf8)))
     }
 
+    /// Under 200 px on its longest side, the image is a site icon: the card keeps the title only.
+    func testSmallIconIsNotKept() {
+        XCTAssertNil(LinkPreviewPlan.image(from: OCRImage.png(width: 199, height: 120)))
+        XCTAssertNil(LinkPreviewPlan.image(from: OCRImage.png(width: 32, height: 32)))
+        XCTAssertNotNil(LinkPreviewPlan.image(from: OCRImage.png(width: 200, height: 40)))
+        XCTAssertNotNil(LinkPreviewPlan.image(from: OCRImage.png(width: 60, height: 200)))
+    }
+
     /// The fetched title, for cards, search and the keyboard: never a secret's, never an empty one.
     @MainActor
     func testPreviewTitleIsANonSecretLinksNonEmptyTitle() throws {
@@ -198,9 +209,9 @@ final class LinkPreviewQueueTests: XCTestCase {
         return item
     }
 
-    private func makeQueue(enabled: Bool = true,
+    private func makeQueue(enabled: Bool = true, deadline: TimeInterval = LinkPreviewQueue.deadline,
                            fetch: @escaping @Sendable (URL) async -> LinkPreviewFetcher.Outcome) -> LinkPreviewQueue {
-        LinkPreviewQueue(container: container, isEnabled: { enabled }, fetch: fetch) { [unowned self] ids in
+        LinkPreviewQueue(container: container, isEnabled: { enabled }, deadline: deadline, fetch: fetch) { [unowned self] ids in
             saves.append(ids)
             try? container.mainContext.save()
         }
@@ -208,6 +219,63 @@ final class LinkPreviewQueueTests: XCTestCase {
 
     private func finish(_ queue: LinkPreviewQueue) async {
         while let task = queue.task { await task.value }
+    }
+
+    /// Waits up to 3 s for the pass to end. False when it doesn't, so a stuck queue fails the test instead of hanging it.
+    private func settle(_ queue: LinkPreviewQueue) async -> Bool {
+        for _ in 0..<300 where queue.task != nil { try? await Task.sleep(for: .milliseconds(10)) }
+        return queue.task == nil
+    }
+
+    /// Offline: the pass ends at the first offline answer, leaving the other links for the next fill.
+    func testOfflineEndsThePass() async throws {
+        let links = try (1...3).map { try insert("https://copyd.app/\($0)") }
+        let fetches = Fetches()
+        let queue = makeQueue { url in fetches.add(url); return .offline }
+        queue.fill()
+        await finish(queue)
+        XCTAssertEqual(fetches.all.count, 1)
+        XCTAssertFalse(links.contains(where: \.linkPreviewDone))
+        XCTAssertEqual(saves, [])
+    }
+
+    /// A fetch that never answers is given up after the deadline and left for the next fill, which still fetches.
+    func testFetchThatNeverAnswersNeverBlocksTheNextFill() async throws {
+        let stuck = try insert("https://copyd.app/stuck")
+        let stall = Stall()
+        defer { stall.release() }
+        let queue = makeQueue(deadline: 0.2) { url in
+            if url.lastPathComponent == "stuck" { await stall.wait() }
+            return .preview(title: "Fresh", image: nil)
+        }
+        queue.fill()
+        let ended = await settle(queue)
+        XCTAssertTrue(ended, "the pass gave up on the stuck fetch")
+        XCTAssertFalse(stuck.linkPreviewDone, "left for the next fill")
+        let fresh = try insert("https://copyd.app/fresh")
+        queue.fill()
+        _ = await settle(queue)
+        XCTAssertEqual(fresh.linkTitle, "Fresh")
+        XCTAssertFalse(stuck.linkPreviewDone)
+    }
+
+    /// The bound on a fetch and on loading its image: nil once the deadline passes or the caller is cancelled, even
+    /// when the work never answers.
+    func testDeadlineAndCancellationEndAWaitThatNeverAnswers() async {
+        let stall = Stall()
+        defer { stall.release() }
+        Task { try? await Task.sleep(for: .seconds(3)); stall.release() }  // a broken bound fails instead of hanging
+        let start = ContinuousClock.now
+        let late = await LinkPreviewFetcher.withDeadline(0.1) { await stall.wait(); return "late" }
+        XCTAssertNil(late)
+        let waiting = Task { await LinkPreviewFetcher.withDeadline(60) { await stall.wait(); return "late" } }
+        try? await Task.sleep(for: .milliseconds(50))
+        waiting.cancel()
+        let cancelled = await waiting.value
+        XCTAssertNil(cancelled)
+        XCTAssertLessThan(ContinuousClock.now - start, .seconds(2))
+        let quick = await LinkPreviewFetcher.withDeadline(5) { "quick" }
+        XCTAssertEqual(quick, "quick")
     }
 
     func testFillStoresTitleAndImageAndMarksEachOneDone() async throws {
@@ -360,6 +428,32 @@ private final class Fetches: @unchecked Sendable {
     var all: [URL] { lock.withLock { urls } }
     func add(_ url: URL) { lock.withLock { urls.append(url) } }
     func count(of url: URL) -> Int { lock.withLock { urls.filter { $0 == url }.count } }
+}
+
+/// A fetch that never answers, cancelled or not, until `release`. Holds no thread while it waits.
+private final class Stall: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    private var released = false
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let now = lock.withLock {
+                if !released { waiting.append(continuation) }
+                return released
+            }
+            if now { continuation.resume() }
+        }
+    }
+
+    func release() {
+        let all = lock.withLock {
+            released = true
+            defer { waiting = [] }
+            return waiting
+        }
+        all.forEach { $0.resume() }
+    }
 }
 
 /// Holds the fetcher inside its first fetch until `open`, so a test can change the clip mid-fetch.

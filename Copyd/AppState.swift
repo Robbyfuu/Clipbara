@@ -229,7 +229,7 @@ final class AppState {
         guard item.isEditable, let context = modelContainer?.mainContext else { return NSSound.beep() }
         let app = panelController.focusReturnApp
         hidePanel()
-        EditClipWindowController.shared.show(item, in: context, returnTo: app)
+        EditClipWindowController.shared.show(item, in: context, returnTo: app) { [weak self] in self?.linkPreviews?.fill() }
     }
 
     /// ⌘-click: adds or removes a card from the multi-selection.

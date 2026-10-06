@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 
 /// The pure parts of link previews: which links are fetched next, which failures are retried, and the image a card
 /// keeps. LinkPresentation itself lives in `LinkPreviewFetcher`, which only the apps compile.
@@ -11,6 +12,8 @@ enum LinkPreviewPlan {
     /// The longest side, in pixels, of the image a card keeps.
     static let targetPixelSize: CGFloat = 640
     static let jpegQuality: CGFloat = 0.7
+    /// A smaller image, on its longest side, is a site's icon: never kept.
+    static let minPixelSize = 200
     /// One fetch gives up after this long, and is retried by the next fill.
     static let timeout: TimeInterval = 10
     /// The fill pass looks at this many of the newest link clips, `batchSize` at a time.
@@ -26,8 +29,9 @@ enum LinkPreviewPlan {
         let url: String?
     }
 
-    /// `retry`: offline or timed out, left for the next fill. `done`: final, stored with no preview.
-    enum Outcome: Equatable, Sendable { case retry, done }
+    /// `retry`: timed out or cut off, left for the next fill. `done`: final, stored with no preview. `offline`: no
+    /// connection, so the pass ends and every link left waits for the next fill.
+    enum Outcome: Equatable, Sendable { case retry, done, offline }
 
     /// The newest link clips not fetched yet, at most `limit`, among the `window` newest link clips. Never a secret, an
     /// id in `skipping` (failed earlier in this pass), or anything but an http(s) URL.
@@ -96,13 +100,14 @@ enum LinkPreviewPlan {
             || (b[0] == 192 && b[1] == 168) || (b[0] == 100 && b[1] & 0xC0 == 64)
     }
 
-    /// Offline, timed out or cut off (`stop()`, the system) is `retry`, also when LinkPresentation wraps it.
+    /// Offline is `offline`; timed out or cut off (`stop()`, the system) is `retry`, also when LinkPresentation wraps it.
     static func outcome(for error: Error) -> Outcome {
         if error is CancellationError { return .retry }
         let error = error as NSError
         switch (error.domain, error.code) {
-        case (NSURLErrorDomain, NSURLErrorNotConnectedToInternet), (NSURLErrorDomain, NSURLErrorTimedOut),
-             (NSURLErrorDomain, NSURLErrorNetworkConnectionLost), (NSURLErrorDomain, NSURLErrorCancelled):
+        case (NSURLErrorDomain, NSURLErrorNotConnectedToInternet): return .offline
+        case (NSURLErrorDomain, NSURLErrorTimedOut), (NSURLErrorDomain, NSURLErrorNetworkConnectionLost),
+             (NSURLErrorDomain, NSURLErrorCancelled):
             return .retry
         // `LPError.metadataFetchCancelled` and `.metadataFetchTimedOut`, by domain and code, so the extensions never
         // link LinkPresentation.
@@ -113,9 +118,15 @@ enum LinkPreviewPlan {
     }
 
     /// The page's image as a card keeps it: a JPEG, at most `targetPixelSize` on its longest side, decoded by ImageIO
-    /// at that size. Nil when the data is not an image.
+    /// at that size. Nil when the data is not an image, or one under `minPixelSize`: a site's icon, so the card keeps
+    /// the title only.
     static func image(from data: Data) -> Data? {
-        Thumbnail.jpeg(from: data, maxPixels: targetPixelSize, quality: jpegQuality)
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              max(width, height) >= minPixelSize else { return nil }
+        return Thumbnail.jpeg(from: data, maxPixels: targetPixelSize, quality: jpegQuality)
     }
 }
 

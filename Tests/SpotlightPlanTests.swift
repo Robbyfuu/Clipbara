@@ -129,6 +129,17 @@ final class SpotlightPlanTests: XCTestCase {
         XCTAssertNotNil(SpotlightPlan.record(for: input(.image, ocr: "Invoice 42", thumbnail: true)))
     }
 
+    /// Text or a link that reads as a secret stays out whatever "Protect secrets" says, like an image's text: Spotlight
+    /// is outside the app, where nothing can be masked.
+    func testTextOrLinkThatIsASecretIsNotIndexed() {
+        XCTAssertNil(SpotlightPlan.record(for: input(.plainText, text: FakeSecret.stripe)))
+        XCTAssertNil(SpotlightPlan.record(for: input(.richText, text: "export TOKEN=" + FakeSecret.github)))
+        XCTAssertNil(SpotlightPlan.record(for: input(.html, text: "\n " + FakeSecret.aws + " \n")))
+        XCTAssertNil(SpotlightPlan.record(for: input(.url, text: FakeSecret.jwt, linkTitle: "Copyd")))
+        XCTAssertNotNil(SpotlightPlan.record(for: input(.plainText, text: "Grocery list")))
+        XCTAssertNotNil(SpotlightPlan.record(for: input(.url, text: "https://copyd.app/docs")))
+    }
+
     // MARK: Transitions
 
     func testOCRTextRemovedBecomesADelete() {
