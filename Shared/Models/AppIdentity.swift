@@ -62,10 +62,25 @@ final class AppIdentity {
 enum AppIdentityPublisher {
     static let refreshAfter: TimeInterval = 30 * 86_400
 
-    /// None yet, or older than 30 days. Never Copyd itself.
-    static func needsPublish(existing: Date?, now: Date, bundleId: String, ownBundleId: String) -> Bool {
-        guard bundleId != ownBundleId else { return false }
+    /// Only the Mac uploads identities. The iPhone can't read other apps' icons, so it only reads the Mac's: its
+    /// tracker and re-queue skip them, and a stale copy on the phone can never overwrite a newer one.
+    #if os(macOS)
+    static let publishesHere = true
+    #else
+    static let publishesHere = false
+    #endif
+
+    /// None yet, or older than 30 days. Never Copyd itself, and never from a secret: it stays on this Mac, and so does
+    /// the app it came from.
+    static func needsPublish(existing: Date?, now: Date, bundleId: String, ownBundleId: String,
+                             isSensitive: Bool = false) -> Bool {
+        guard bundleId != ownBundleId, !isSensitive else { return false }
         guard let existing else { return true }
         return now.timeIntervalSince(existing) > refreshAfter
+    }
+
+    /// A Mac's upload met another Mac's copy on the server: the newest wins, and a tie keeps the server's.
+    static func serverWins(server: Date, local: Date) -> Bool {
+        server >= local
     }
 }

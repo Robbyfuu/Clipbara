@@ -40,7 +40,9 @@ final class AppIdentityMapperTests: XCTestCase {
                                         colorHex: "#FFCC00", updatedAt: snapshot.updatedAt)
         let rec = record(snapshot)
         SyncRecordMapper.populate(rec, from: other)
-        XCTAssertThrowsError(try SyncRecordMapper.appIdentity(from: rec))
+        XCTAssertThrowsError(try SyncRecordMapper.appIdentity(from: rec)) { error in
+            guard case SyncRecordMapper.DecodeError.recordNameMismatch = error else { return XCTFail("\(error)") }
+        }
     }
 
     func testDecodeDispatchesEveryKnownType() throws {

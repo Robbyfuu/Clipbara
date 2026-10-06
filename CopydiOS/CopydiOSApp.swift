@@ -125,6 +125,7 @@ struct CopydiOSApp: App {
                 model.imageText.fill()
                 model.linkPreviews.fill()
                 model.smartKinds.fill()
+                model.reloadAppLooksIfStale()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()
             }
@@ -197,6 +198,7 @@ private struct KeyboardPreviewHarness: View {
         case "noFullAccess": model.state = .noFullAccess
         case "noStore": model.state = .noStore
         case "error": model.state = .error
+        case "needsApp": model.state = .needsApp
         default:
             let items = (try? KeyboardFeed.items(in: context, mode: model.mode)) ?? []
             let card = d.string(forKey: "CopydKeyboardPreviewClipboard").flatMap(ClipCapture.text)

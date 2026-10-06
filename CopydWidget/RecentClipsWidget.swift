@@ -58,7 +58,8 @@ struct RecentClipsProvider: TimelineProvider {
                     url: SharedStore.url(groupContainer: group), allowsSave: false, cloudKitDatabase: .none))
             return RecentClipsEntry(date: .now, state: .load(ModelContext(container)))
         } catch {
-            return RecentClipsEntry(date: .now, state: .error)
+            // Usually a store the updated app hasn't migrated yet: opening the app fixes it.
+            return RecentClipsEntry(date: .now, state: .noStore)
         }
     }
 }

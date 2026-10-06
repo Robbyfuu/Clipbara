@@ -122,6 +122,16 @@ final class StoreMigrationTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<AppIdentity>()).map(\.bundleId), ["com.apple.Safari"])
     }
 
+    /// Why the keyboard and the widget say "Open Copyd": until the app migrates the store, their read-only open of it
+    /// with the new schema fails.
+    func testReadOnlyOpenOfAnUnmigratedStoreFails() throws {
+        let url = try storeURL()
+        _ = try seedStore(at: url, models: [ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self])
+        let schema = Schema(StoreSchema.models)
+        XCTAssertThrowsError(try ModelContainer(for: schema, configurations: ModelConfiguration(
+            schema: schema, url: url, allowsSave: false, cloudKitDatabase: .none)))
+    }
+
     private func storeURL() throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

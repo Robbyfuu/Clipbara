@@ -66,6 +66,7 @@ final class AppState {
         guard !hasStarted else { return }
         hasStarted = true
         self.modelContainer = modelContainer
+        AppIconProvider.store = modelContext  // synced icons, for apps not installed here
         clipboardMonitor.start(modelContext: modelContext)
         PasteService.removeFilesOnDelete(in: modelContext)
         PasteService.removeOrphanFiles(in: modelContainer)

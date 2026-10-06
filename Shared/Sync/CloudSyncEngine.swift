@@ -52,6 +52,8 @@ import SwiftData
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
     private static let batchRecords = 100
     private static let batchBytes = 52_428_800
+    /// The batch-size estimate for one app identity: its 128×128 PNG, uncompressed RGBA.
+    private static let identityBytes = 65_536
     /// CKSyncEngine retries these on its own.
     private static let retryable: Set<CKError.Code> = [
         .networkFailure, .networkUnavailable, .zoneBusy, .serviceUnavailable, .requestRateLimited,
@@ -219,8 +221,10 @@ import SwiftData
                       clip.contentTypeRaw != "fileURL", clip.isSyncEligible {
                 // ponytail: sizes every pending entry's clip; entries are few, cap them like clips if that changes.
                 candidates.append(.init(change: change, kind: .entry, byteCount: 0))
-            } else if let identity = identities[id] {
-                candidates.append(.init(change: change, kind: .appIdentity, byteCount: identity.iconPNG.count))
+            } else if AppIdentityPublisher.publishesHere, identities[id] != nil {
+                // Only the Mac uploads one: on the iPhone a pending identity save (from any older build) is dropped.
+                // Never read the external icon blob to size it: a 128 px PNG is at most about this.
+                candidates.append(.init(change: change, kind: .appIdentity, byteCount: Self.identityBytes))
             } else {
                 // Deleted since it was queued, an entry that lost its clip or pinboard, or an entry of an ineligible clip.
                 dead.append(change)
@@ -397,6 +401,8 @@ import SwiftData
         var fields: [UUID: Data?] = [:]  // a nil value clears the stored system fields
         var requeue: [CKSyncEngine.PendingRecordZoneChange] = []
         var remoteDeleted: [(id: UUID, save: CKSyncEngine.PendingRecordZoneChange)] = []
+        // Another Mac's newer (or equal) identity: applied here instead of overwritten.
+        var serverIdentities: [AppIdentitySnapshot] = [], serverIdentityFields: [UUID: Data] = [:]
         var zoneMissing = false
         func resendLater(_ change: CKSyncEngine.PendingRecordZoneChange, _ id: UUID) {
             deferred.insert(id)
@@ -414,8 +420,15 @@ import SwiftData
             let save = CKSyncEngine.PendingRecordZoneChange.saveRecord(SyncRecordMapper.recordID(named: name))
             switch f.error.code {
             case .serverRecordChanged:
-                // Local pending change wins: keep local values, resend on the server's system fields.
-                if let server = f.error.serverRecord {
+                // An app identity: the newest wins. Anything else: the local pending change wins, so keep local values
+                // and resend on the server's system fields.
+                if let server = f.error.serverRecord, server.recordType == SyncRecordMapper.appIdentityType,
+                   let remote = try? SyncRecordMapper.appIdentity(from: server),
+                   let local = modelContext.syncIdentity(id: id),
+                   AppIdentityPublisher.serverWins(server: remote.updatedAt, local: local.updatedAt) {
+                    serverIdentities.append(remote)
+                    serverIdentityFields[id] = SyncRecordMapper.archive(server)
+                } else if let server = f.error.serverRecord {
                     fields[id] = SyncRecordMapper.archive(server)
                     requeue.append(save)
                 } else {
@@ -468,6 +481,9 @@ import SwiftData
         }
 
         storeSystemFields(fields)
+        if !serverIdentities.isEmpty {
+            applyRemote(identities: serverIdentities, fields: serverIdentityFields, engine: engine)
+        }
         if !remoteDeleted.isEmpty {
             engine.state.remove(pendingRecordZoneChanges: remoteDeleted.map(\.save))
             applyRemote(deletions: remoteDeleted.map(\.id), fields: [:], engine: engine)
@@ -487,6 +503,8 @@ import SwiftData
                              engine: CKSyncEngine) -> RemoteApplier.Outcome {
         // One snapshot of the pending list: it cannot change during apply, and reading it per record is O(n).
         let pending = Set(engine.state.pendingRecordZoneChanges)
+        // `hasPendingSave`, `out.saves` and `out.deletes` are UUID-named: identities never reach them (newest wins,
+        // and they never merge), so `recordID(for:)` is right for every id they hold.
         let applier = RemoteApplier(context: modelContext) { pending.contains(.saveRecord(SyncRecordMapper.recordID(for: $0))) }
         let out = applier.apply(clips: clips, pinboards: pinboards, entries: entries, identities: identities,
                                 deletions: deletions, systemFields: fields)

@@ -1645,6 +1645,22 @@
         }
       }
     },
+    "Open Copyd to update your history." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Copyd to update your history."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre Copyd para actualizar tu historial."
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "localizations" : {
         "en" : {

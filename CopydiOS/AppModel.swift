@@ -32,6 +32,9 @@ final class AppModel {
     var pendingRoute: QuickRoute?
     /// Each app's icon and header color, from the identities the Mac synced (`AppIdentity`), by bundle id.
     private(set) var appLooks: [String: AppLook] = [:]
+    @ObservationIgnored private var looksTask: Task<Void, Never>?
+    /// A reload was asked for in the background: it runs on the next return to the foreground.
+    @ObservationIgnored private var looksStale = false
 
     struct AppLook: Sendable {
         /// Decoded for a 28 pt row icon.
@@ -91,7 +94,10 @@ final class AppModel {
         // Nor do the automatic pinboards: each device sorts its own clips.
         smartKinds = SmartKindsQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
-        sync.onMirrorWiped = { [weak self] in self?.spotlight.removeAll() }
+        sync.onMirrorWiped = { [weak self] in
+            self?.spotlight.removeAll()
+            self?.reloadAppLooks()  // the old account's icons go with its clips
+        }
         reloadAppLooks()
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
@@ -314,11 +320,15 @@ final class AppModel {
     }
 
     /// Reads every identity and decodes its icon at 84 px (28 pt at 3x), all off the main thread. There is one per
-    /// app the Mac copied from, so dozens at most.
+    /// app the Mac copied from, so dozens at most. A newer reload supersedes a running one; in the background it waits
+    /// for `reloadAppLooksIfStale` on the next return.
     func reloadAppLooks() {
+        guard UIApplication.shared.applicationState != .background else { return looksStale = true }
+        looksStale = false
+        looksTask?.cancel()
         let container = container
-        Task {
-            appLooks = await ImageTextQueue.offMain {
+        looksTask = Task {
+            let looks = await ImageTextQueue.offMain {
                 let identities = (try? ModelContext(container).fetch(FetchDescriptor<AppIdentity>())) ?? []
                 var looks: [String: AppLook] = [:]
                 for m in identities {
@@ -327,7 +337,13 @@ final class AppModel {
                 }
                 return looks
             }
+            guard !Task.isCancelled else { return }
+            appLooks = looks
         }
+    }
+
+    func reloadAppLooksIfStale() {
+        if looksStale { reloadAppLooks() }
     }
 
     static func reloadWidgets() {

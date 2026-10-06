@@ -97,12 +97,16 @@ struct RemoteApplier {
         return clips + boards + entries
     }
 
-    /// `uploadableIDs` as record IDs, plus every app identity (an `app-` name, not a UUID).
-    static func uploadableRecordIDs(in context: ModelContext, onlyUnconfirmed: Bool) throws -> [CKRecord.ID] {
+    /// `uploadableIDs` as record IDs, plus on the Mac every app identity (an `app-` name, not a UUID). The iPhone only
+    /// reads identities, so it never re-queues one.
+    static func uploadableRecordIDs(in context: ModelContext, onlyUnconfirmed: Bool,
+                                    includingIdentities: Bool = AppIdentityPublisher.publishesHere) throws -> [CKRecord.ID] {
+        let records = try uploadableIDs(in: context, onlyUnconfirmed: onlyUnconfirmed).map(SyncRecordMapper.recordID(for:))
+        guard includingIdentities else { return records }
         let identities = try context.fetch(FetchDescriptor<AppIdentity>())
             .filter { !onlyUnconfirmed || $0.syncSystemFields == nil }
             .map { SyncRecordMapper.recordID(named: AppIdentity.recordName(for: $0.bundleId)) }
-        return try uploadableIDs(in: context, onlyUnconfirmed: onlyUnconfirmed).map(SyncRecordMapper.recordID(for:)) + identities
+        return records + identities
     }
 
     /// Deletes every clip, pinboard, entry and app identity and returns their ids. Does not save: the caller saves

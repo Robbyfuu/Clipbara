@@ -248,7 +248,7 @@ struct ClipboardCardView: View {
     /// edge, clipped by the card corner. Butter and the Copyd mark when the app is unknown here. A secret keeps this
     /// header; only its body is masked.
     private var headerView: some View {
-        let look = AppIconProvider.look(for: item.sourceAppBundleId, in: modelContext)
+        let look = AppIconProvider.look(for: item.sourceAppBundleId)
         let fill = look.map { Color(red: $0.color.r, green: $0.color.g, blue: $0.color.b) } ?? DesignTokens.Brand.butter
         let ink = look.map { ContrastPicker.textColor(on: $0.color) } == .light ? DesignTokens.Brand.onDark : DesignTokens.Brand.onButter
         return HStack(alignment: .center, spacing: 6) {
@@ -263,13 +263,14 @@ struct ClipboardCardView: View {
                         TextFoundBadge()
                     }
                     if isSuggested {
+                        // On the butter fallback header a butter chip would vanish, so it takes the card and its ink
+                        // (which turns light in dark mode, as the card turns dark).
                         Text("Suggested")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(DesignTokens.Brand.onButter)
+                            .foregroundStyle(look == nil ? DesignTokens.Brand.ink : DesignTokens.Brand.onButter)
                             .lineLimit(1)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            // On the butter fallback header a butter chip would vanish.
                             .background(look == nil ? DesignTokens.Brand.card : DesignTokens.Brand.butter, in: Capsule())
                     } else {
                         Text(item.userTitle ?? item.contentType.displayName)

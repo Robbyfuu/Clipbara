@@ -2,7 +2,8 @@ import SwiftUI
 import UIKit
 
 enum KeyboardState: Equatable {
-    case noFullAccess, noStore, error, loaded([KeyboardClip])
+    /// `needsApp`: the store wouldn't open, usually because the updated app hasn't migrated it yet.
+    case noFullAccess, noStore, needsApp, error, loaded([KeyboardClip])
 }
 
 /// State and actions the controller hands to the SwiftUI keyboard.
@@ -14,7 +15,7 @@ final class KeyboardModel {
     /// The automatic pinboards with a clip to show, after `boards`.
     var smartBoards: [SmartBoard] = []
     var lastSync: Date?
-    /// Source app icons by bundle id, at most 28 px, filled as cards need them.
+    /// Source app icons by bundle id, at most 42 px, filled as cards need them.
     var icons: [String: UIImage] = [:]
     var toast: String?
     var showsGlobe = false
@@ -197,6 +198,7 @@ struct KeyboardView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .noStore: message("Open Copyd once to connect your history.", symbol: "iphone")
+        case .needsApp: message("Open Copyd to update your history.", symbol: "arrow.triangle.2.circlepath")
         case .error: message("Couldn't load your history.", symbol: "exclamationmark.triangle")
         case .loaded(let clips):
             if clips.isEmpty { message("Copy something on your Mac.", symbol: "clipboard") } else { grid(clips) }

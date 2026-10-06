@@ -57,7 +57,11 @@ enum SyncRecordMapper {
     static let inlineLimit = 262_144
     static let maxClipBytes = 20_971_520
 
-    enum DecodeError: Error { case missingField(String) }
+    enum DecodeError: Error {
+        case missingField(String)
+        /// An `AppIdentity` record not named after its own bundle id.
+        case recordNameMismatch
+    }
 
     /// A fetched record, decoded by its type.
     enum Fetched: Equatable {
@@ -283,7 +287,7 @@ enum SyncRecordMapper {
     static func appIdentity(from record: CKRecord) throws -> AppIdentitySnapshot {
         let bundleId: String = try required(record, "bundleId")
         guard record.recordID.recordName == AppIdentity.recordName(for: bundleId) else {
-            throw DecodeError.missingField("recordName")
+            throw DecodeError.recordNameMismatch
         }
         return AppIdentitySnapshot(
             bundleId: bundleId, name: try required(record, "name"), iconPNG: try required(record, "iconPNG"),

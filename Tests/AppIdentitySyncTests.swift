@@ -74,6 +74,23 @@ final class AppIdentitySyncTests: XCTestCase {
         XCTAssertEqual(changes, [])
     }
 
+    /// The iPhone's tracker (`publishesHere` is false there): an identity it saves or deletes never uploads.
+    func testPhoneTrackerNeverQueuesIdentities() throws {
+        let phone = LocalChangeTracker(context: context, uploadsIdentities: false) { [unowned self] in self.changes += $0 }
+        tracker = nil
+        let m = identity()
+        context.insert(m)
+        let clip = ClipboardItem(contentType: .plainText, rawData: Data("x".utf8), textContent: "x", contentHash: "h")
+        context.insert(clip)
+        try context.save()
+        XCTAssertEqual(changes, [.saveRecord(SyncRecordMapper.recordID(for: clip.id))], "clips still upload")
+        changes = []
+        context.delete(m)
+        try context.save()
+        XCTAssertEqual(changes, [])
+        _ = phone
+    }
+
     // MARK: Applier
 
     func testApplyInsertsAFetchedIdentity() throws {
@@ -125,6 +142,9 @@ final class AppIdentitySyncTests: XCTestCase {
                        [recordID(), SyncRecordMapper.recordID(for: clip.id)])
         XCTAssertEqual(Set(try RemoteApplier.uploadableRecordIDs(in: context, onlyUnconfirmed: false)),
                        [recordID(), recordID("com.apple.Notes"), SyncRecordMapper.recordID(for: clip.id)])
+        // The iPhone re-queues only its clips, pinboards and entries.
+        XCTAssertEqual(try RemoteApplier.uploadableRecordIDs(in: context, onlyUnconfirmed: false, includingIdentities: false),
+                       [SyncRecordMapper.recordID(for: clip.id)])
     }
 
     func testClearSystemFieldsAndDeleteAllCoverIdentities() throws {

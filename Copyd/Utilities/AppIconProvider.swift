@@ -5,27 +5,37 @@ import UniformTypeIdentifiers
 struct AppIconProvider {
     private nonisolated(unsafe) static let cache = NSCache<NSString, NSImage>()
 
-    static func icon(for bundleId: String?, size: CGFloat = 16) -> NSImage {
-        guard let bundleId else {
+    /// Where synced identities are read: the app's main context, set once at launch.
+    @MainActor static var store: ModelContext?
+
+    /// The installed app's icon, else the one its synced identity carries (an app only on another Mac), else a generic
+    /// symbol. The symbol is never cached, so an identity that syncs later shows.
+    @MainActor static func icon(for bundleId: String?, size: CGFloat = 16) -> NSImage {
+        let cacheKey = "\(bundleId ?? ""):\(Int(size))" as NSString
+        if let cached = cache.object(forKey: cacheKey) {
+            return cached
+        }
+        guard let bundleId, let icon = knownIcon(bundleId) else {
             let icon = NSImage(systemSymbolName: "app", accessibilityDescription: nil) ?? NSImage()
             icon.size = NSSize(width: size, height: size)
             return icon
         }
-
-        let cacheKey = "\(bundleId):\(Int(size))" as NSString
-        if let cached = cache.object(forKey: cacheKey) {
-            return cached
-        }
-
-        let icon: NSImage
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-            icon = NSWorkspace.shared.icon(forFile: url.path)
-        } else {
-            icon = NSImage(systemSymbolName: "app", accessibilityDescription: nil) ?? NSImage()
-        }
         icon.size = NSSize(width: size, height: size)
         cache.setObject(icon, forKey: cacheKey)
         return icon
+    }
+
+    /// A fresh image each call: `icon(for:size:)` sets each cached size's own.
+    @MainActor private static func knownIcon(_ bundleId: String) -> NSImage? {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        return synced(bundleId).flatMap { NSImage(data: $0.iconPNG) }
+    }
+
+    @MainActor private static func synced(_ bundleId: String) -> AppIdentity? {
+        guard let store else { return nil }
+        return try? AppIdentity.find(bundleId, in: store)
     }
 
     // MARK: - Card header look
@@ -41,14 +51,14 @@ struct AppIconProvider {
 
     /// The live icon of an app installed here wins; an identity synced from another Mac covers one that isn't. Nil
     /// for neither, or no source app: the header then falls back to butter and the Copyd mark.
-    @MainActor static func look(for bundleId: String?, in context: ModelContext) -> Look? {
+    @MainActor static func look(for bundleId: String?) -> Look? {
         guard let bundleId else { return nil }
         if let cached = looks[bundleId] { return cached }
         let look: Look?
         let live = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) != nil ? icon(for: bundleId, size: 128) : nil
         if let live, let art = art(for: live) {
             look = Look(icon: live, color: art.color)
-        } else if let synced = try? AppIdentity.find(bundleId, in: context), let image = NSImage(data: synced.iconPNG),
+        } else if let synced = synced(bundleId), let image = NSImage(data: synced.iconPNG),
                   let color = RGB(hex: synced.colorHex) {
             look = Look(icon: image, color: color)
         } else {
@@ -58,7 +68,8 @@ struct AppIconProvider {
         return look
     }
 
-    @MainActor static func forgetLooks() { looks = [:] }
+    /// After a sync: only apps still unknown here are looked up again.
+    @MainActor static func forgetLooks() { looks = looks.filter { $0.value != nil } }
 
     /// The installed app's icon as a 128×128 PNG, with its `IconColor.dominant`: what the Mac publishes as an
     /// `AppIdentity`. Nil when the app isn't installed. Safe off the main thread.

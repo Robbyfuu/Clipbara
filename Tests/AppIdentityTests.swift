@@ -49,6 +49,25 @@ final class AppIdentityTests: XCTestCase {
                                                         bundleId: "com.apple.Safari", ownBundleId: own))
     }
 
+    /// A secret stays on this Mac, so the app it came from is not announced either.
+    func testNeverPublishesFromASecret() {
+        XCTAssertFalse(AppIdentityPublisher.needsPublish(existing: nil, now: now, bundleId: "com.apple.Safari",
+                                                         ownBundleId: own, isSensitive: true))
+    }
+
+    // MARK: Conflicts
+
+    /// A Mac's upload met another Mac's copy on the server: the server copy wins unless the local one is newer.
+    func testServerWinsWhenNewerOrEqual() {
+        XCTAssertTrue(AppIdentityPublisher.serverWins(server: now.addingTimeInterval(10), local: now))
+        XCTAssertTrue(AppIdentityPublisher.serverWins(server: now, local: now), "a tie keeps what the server holds")
+        XCTAssertFalse(AppIdentityPublisher.serverWins(server: now, local: now.addingTimeInterval(10)))
+    }
+
+    func testOnlyTheMacPublishes() {
+        XCTAssertTrue(AppIdentityPublisher.publishesHere, "this test target is macOS")
+    }
+
     func testNeverPublishesCopydItself() {
         XCTAssertFalse(AppIdentityPublisher.needsPublish(existing: nil, now: now, bundleId: own, ownBundleId: own))
         XCTAssertFalse(AppIdentityPublisher.needsPublish(existing: now.addingTimeInterval(-90 * day), now: now,

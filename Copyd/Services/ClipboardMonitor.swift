@@ -133,7 +133,7 @@ final class ClipboardMonitor {
 
         modelContext?.insert(item)
         try? modelContext?.save()
-        publishIdentity(bundleId: sourceAppBundleId, name: sourceAppName)
+        publishIdentity(bundleId: sourceAppBundleId, name: sourceAppName, isSensitive: item.isSensitive)
         cleanupOldItems()
         refreshLatestItems()
         onCapture?(item.id)
@@ -142,12 +142,14 @@ final class ClipboardMonitor {
     }
 
     /// Publishes the source app's name, icon and color for the iPhone and other Macs (`AppIdentity`): once per app,
-    /// again after 30 days, never for Copyd. The icon renders off the main thread; the save uploads through the tracker.
-    private func publishIdentity(bundleId: String?, name: String?) {
+    /// again after 30 days, never for Copyd or a secret. The icon renders off the main thread; the save uploads through
+    /// the tracker.
+    private func publishIdentity(bundleId: String?, name: String?, isSensitive: Bool) {
         guard let bundleId, let modelContext, !publishing.contains(bundleId) else { return }
         let existing = try? AppIdentity.find(bundleId, in: modelContext)
         guard AppIdentityPublisher.needsPublish(existing: existing?.updatedAt, now: .now, bundleId: bundleId,
-                                                ownBundleId: Bundle.main.bundleIdentifier ?? "") else { return }
+                                                ownBundleId: Bundle.main.bundleIdentifier ?? "",
+                                                isSensitive: isSensitive) else { return }
         publishing.insert(bundleId)
         Task { [weak self] in
             let art = await Task.detached(priority: .utility) { AppIconProvider.identityArt(for: bundleId) }.value

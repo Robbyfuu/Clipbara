@@ -92,12 +92,14 @@ final class KeyboardViewController: UIInputViewController {
         guard let group = SharedStore.groupContainer, SharedStore.storeExists(groupContainer: group) else {
             return model.state = .noStore
         }
+        // The app's own schema: a read-only open of a store holding an entity it lacks can fail. Until the updated app
+        // migrates the store, opening it with the new schema fails too: the app fixes both.
+        guard let container = try? ModelContainer(
+            for: Schema(StoreSchema.models),
+            configurations: ModelConfiguration(
+                url: SharedStore.url(groupContainer: group), allowsSave: false, cloudKitDatabase: .none))
+        else { return model.state = .needsApp }
         do {
-            // The app's own schema: a read-only open of a store holding an entity it lacks can fail.
-            let container = try ModelContainer(
-                for: Schema(StoreSchema.models),
-                configurations: ModelConfiguration(
-                    url: SharedStore.url(groupContainer: group), allowsSave: false, cloudKitDatabase: .none))
             self.container = container
             let context = ModelContext(container)
             model.boards = try KeyboardFeed.boards(in: context)
@@ -110,9 +112,9 @@ final class KeyboardViewController: UIInputViewController {
                 clipboard = nil
             }
             let items = try KeyboardFeed.items(in: context, mode: model.mode)
-            // Each app's icon, decoded once at 28 px and kept: never a 128 px icon per card.
+            // Each app's icon, decoded once at 42 px (14 pt at 3x) and kept: never a 128 px icon per card.
             let missing = Set(items.compactMap(\.sourceAppBundleId)).subtracting(model.icons.keys)
-            if let icons = try? AppIdentity.icons(for: missing, maxPixels: 28, in: context), !icons.isEmpty {
+            if let icons = try? AppIdentity.icons(for: missing, maxPixels: 42, in: context), !icons.isEmpty {
                 model.icons.merge(icons.mapValues { UIImage(cgImage: $0) }) { $1 }
             }
             model.state = .loaded(model.mode == .recent ? (clipboard.map { [$0.card] } ?? []) + items : items)
