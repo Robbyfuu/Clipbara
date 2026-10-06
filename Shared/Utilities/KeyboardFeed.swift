@@ -13,6 +13,27 @@ struct KeyboardClip: Identifiable, Equatable {
     let sourceAppName: String?
     /// The keyboard's own capture of the current pasteboard, not yet in the store. Shows "Clipboard" for its meta line.
     var isClipboard = false
+    /// A link shown by its page title: the host, for the line under it. Nil otherwise.
+    var linkHost: String? = nil
+}
+
+extension KeyboardClip {
+    /// Same rule as the app's `ClipRow`: link clips, and text clips that are one bare http(s) URL.
+    var linkParts: (host: String, rest: String)? {
+        switch contentType {
+        case .url: LinkParts.split(preview)
+        case .plainText, .richText, .html: LinkParts.bareLink(preview)
+        default: nil
+        }
+    }
+
+    /// One line of text for the widget's compact layouts. A link shown by its page title reads "title · host".
+    var summary: String {
+        if contentType == .image { return String(localized: "Image") }
+        if let linkHost { return preview + " \u{00b7} " + linkHost }
+        if let parts = linkParts { return parts.host + parts.rest }
+        return preview
+    }
 }
 
 /// A pinboard chip in the keyboard header.
@@ -26,8 +47,10 @@ enum KeyboardFeed {
     enum Mode: Equatable { case recent, pinned, pinboard(UUID) }
     static let limit = 60, previewLimit = 300
 
+    /// `linkTitles`: a link shows its fetched page title in place of the URL, never its image (memory).
     @MainActor
-    static func items(in context: ModelContext, mode: Mode, limit: Int = limit) throws -> [KeyboardClip] {
+    static func items(in context: ModelContext, mode: Mode, limit: Int = limit,
+                      linkTitles: Bool = LinkPreviewPlan.isEnabled) throws -> [KeyboardClip] {
         // File clips can't be typed or pasted from the keyboard (or copied from the widget): a Mac path, or files.
         // Secrets never show in the keyboard or the widget.
         let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
@@ -40,19 +63,29 @@ enum KeyboardFeed {
                 $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isPinned == true && $0.isSensitive == false
             }
         case .pinboard(let boardID):
-            // A board has few entries; order them in memory by the entry's own `displayOrder`.
-            var boardFetch = FetchDescriptor<Pinboard>(predicate: #Predicate { $0.id == boardID })
-            boardFetch.fetchLimit = 1
-            guard let board = try context.fetch(boardFetch).first else { return [] }
-            return board.entries.sorted { $0.displayOrder < $1.displayOrder }
-                .compactMap(\.clipboardItem)
-                .filter { $0.contentType != .fileURL && $0.contentType != .files && !$0.isSensitive }
-                .prefix(limit).map(clip)
+            // The entries in their own order, then only the card fields of their clips: following `clipboardItem`
+            // would load each clip whole. A clip's id is read from the relationship without loading the clip.
+            let entries = try context.fetch(FetchDescriptor<PinboardEntry>(
+                predicate: #Predicate { $0.pinboard?.id == boardID }, sortBy: [SortDescriptor(\.displayOrder)]))
+            let ids = entries.compactMap { $0.clipboardItem?.persistentModelID }
+            let byID = Dictionary(try context.fetch(cardFields(#Predicate {
+                ids.contains($0.persistentModelID)
+                    && $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isSensitive == false
+            })).map { ($0.persistentModelID, $0) }, uniquingKeysWith: { first, _ in first })
+            return ids.compactMap { byID[$0] }.prefix(limit).map { clip($0, linkTitles: linkTitles) }
         }
-        var descriptor = FetchDescriptor<ClipboardItem>(
-            predicate: predicate, sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        var descriptor = cardFields(predicate)
+        descriptor.sortBy = [SortDescriptor(\.copiedAt, order: .reverse)]
         descriptor.fetchLimit = limit
-        return try context.fetch(descriptor).map(clip)
+        return try context.fetch(descriptor).map { clip($0, linkTitles: linkTitles) }
+    }
+
+    /// What a card shows, never `rawData` nor `linkImageData`: small blobs are stored inline, and would load with the row.
+    private static func cardFields(_ predicate: Predicate<ClipboardItem>) -> FetchDescriptor<ClipboardItem> {
+        var descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
+        descriptor.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.thumbnailData, \.isPinned, \.copiedAt,
+                                        \.sourceAppName, \.sourceAppBundleId, \.isSensitive, \.linkTitle]
+        return descriptor
     }
 
     @MainActor
@@ -75,14 +108,15 @@ enum KeyboardFeed {
             sourceAppName: nil, isClipboard: true)
     }
 
-    private static func clip(_ item: ClipboardItem) -> KeyboardClip {
+    private static func clip(_ item: ClipboardItem, linkTitles: Bool) -> KeyboardClip {
         let type = item.contentType
         let text = item.textContent
+        let title = linkTitles ? item.linkPreviewTitle : nil
         return KeyboardClip(
-            id: item.id, contentType: type, preview: preview(type, text),
+            id: item.id, contentType: type, preview: title ?? preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
-            sourceAppName: item.sourceAppName)
+            sourceAppName: item.sourceAppName, linkHost: title == nil ? nil : text.flatMap(LinkParts.split)?.host)
     }
 
     /// "Insert as…" for one card, worked out when it is long-pressed, never for the whole feed. `text` is the clip's

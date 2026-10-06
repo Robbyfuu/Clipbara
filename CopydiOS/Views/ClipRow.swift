@@ -9,6 +9,9 @@ struct ClipRow: View {
     let item: ClipboardItem
     var onDelete: (() -> Void)?
     @State private var editing = false
+    /// The link's fetched image, decoded once per preview by `.task(id:)`, never in `body`.
+    @State private var linkImage: UIImage?
+    @AppStorage(LinkPreviewPlan.enabledDefaultsKey, store: SharedDefaults.store) private var linkPreviewsOn = true
 
     var body: some View {
         // The sweep, a sync or another row's delete may have removed the clip: reading it then would crash.
@@ -20,7 +23,7 @@ struct ClipRow: View {
     }
 
     private var row: some View {
-        Button { if item.contentType == .files { model.share(item) } else { model.copy(item) } } label: {
+        Button { if item.contentType.sharesOnTap { model.share(item) } else { model.copy(item) } } label: {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
@@ -61,16 +64,22 @@ struct ClipRow: View {
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
         } else if item.contentType == .color {
+            // HEX as the title, RGB as the subtitle. The swatch matches the other rows' 60 pt thumbnails.
+            let hex = item.textContent ?? ""
             HStack(spacing: 14) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(hex: item.textContent ?? "") ?? DesignTokens.Brand.chip)
+                    .fill(Color(hex: hex) ?? DesignTokens.Brand.chip)
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(DesignTokens.Brand.line, lineWidth: 1))
                     .frame(width: 60, height: 60)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     if let title { mainLine(title) }
-                    Text(item.textContent ?? "").brandFont(14, design: .monospaced)
+                    Text(verbatim: hex).brandFont(16, .semibold, design: .monospaced).lineLimit(1)
                         .foregroundStyle(DesignTokens.Brand.ink)
+                    if let rgb = ColorFormat.rgbString(hex: hex) {
+                        Text(verbatim: rgb).brandFont(13, design: .monospaced, relativeTo: .footnote).lineLimit(1)
+                            .foregroundStyle(DesignTokens.Brand.ink2)
+                    }
                     meta
                 }
             }
@@ -100,31 +109,59 @@ struct ClipRow: View {
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         } else if let parts = linkParts {
-            VStack(alignment: .leading, spacing: 6) {
-                if let title {
-                    mainLine(title)
-                    Text(parts.host + parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
-                        .foregroundStyle(DesignTokens.Brand.ink2)
-                        .lineLimit(2).truncationMode(.middle)
-                } else {
-                    Text(parts.host).brandFont(18, .bold).tracking(-0.18).lineLimit(1)
-                        .foregroundStyle(DesignTokens.Brand.ink)
+            // The fetched preview: the page's image as a thumbnail, its title, and the domain under it.
+            let pageTitle = linkPreviewsOn ? item.linkPreviewTitle : nil
+            let image = linkPreviewsOn ? linkImage : nil
+            HStack(spacing: 14) {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .accessibilityHidden(true)
                 }
-                if title == nil, !parts.rest.isEmpty {
-                    Text(parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
-                        .foregroundStyle(DesignTokens.Brand.ink2)
-                        .lineLimit(2).truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 6) {
+                    if let heading = title ?? pageTitle {
+                        mainLine(heading)
+                        // A user title keeps the whole link under it; a page title, the domain.
+                        Text(title == nil ? parts.host : parts.host + parts.rest)
+                            .brandFont(12, design: .monospaced, relativeTo: .caption)
+                            .foregroundStyle(DesignTokens.Brand.ink2)
+                            .lineLimit(2).truncationMode(.middle)
+                    } else {
+                        Text(parts.host).brandFont(18, .bold).tracking(-0.18).lineLimit(1)
+                            .foregroundStyle(DesignTokens.Brand.ink)
+                        if !parts.rest.isEmpty {
+                            Text(parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
+                                .foregroundStyle(DesignTokens.Brand.ink2)
+                                .lineLimit(2).truncationMode(.middle)
+                        }
+                    }
+                    meta
                 }
-                meta
             }
-            .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+            .padding(image == nil ? EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16)
+                                  : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
+            // Again when a preview lands, or an edit clears it.
+            .task(id: "\(item.id) \(item.linkPreviewDone)") { linkImage = await loadLinkImage() }
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                mainLine(title ?? item.textContent ?? "")
+                if title == nil, let code = codePreview {
+                    Text(code).brandFont(14, design: .monospaced).lineSpacing(3).lineLimit(4)
+                        .foregroundStyle(DesignTokens.Brand.ink)
+                } else {
+                    mainLine(title ?? item.textContent ?? "")
+                }
                 meta
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         }
+    }
+
+    /// The text with code colors when it is code; nil otherwise. Secrets never get here: they show their mask above.
+    /// Four lines show, so the first 2 KB is plenty, and the cache keeps it from being worked out on every body.
+    private var codePreview: AttributedString? {
+        guard let text = item.textContent else { return nil }
+        return CodeStyle.attributed(String(text.prefix(2048)), key: item.contentHash)
     }
 
     private func mainLine(_ text: String) -> some View {
@@ -161,6 +198,13 @@ struct ClipRow: View {
                 .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 12))
                 .accessibilityHidden(true)
         }
+    }
+
+    /// A link's fetched image, decoded off the main thread by ImageIO at the 60 pt thumbnail's pixel size, never the
+    /// full 640 px.
+    private func loadLinkImage() async -> UIImage? {
+        guard !item.isGone, item.contentType == .url, !item.isSensitive, let data = item.linkImageData else { return nil }
+        return await ImageTextQueue.offMain { Thumbnail.image(from: data, maxPixels: 180).map(UIImage.init(cgImage:)) }
     }
 
     /// Link clips, and text clips that are nothing but one http(s) URL, render as the link card.
@@ -254,6 +298,7 @@ private struct CopyAsMenu: View {
 private struct EditClipSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppModel.self) private var model
     let item: ClipboardItem
     @State private var text: String
     @FocusState private var focused: Bool
@@ -288,8 +333,10 @@ private struct EditClipSheet: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
-                            // The sweep or a sync may have deleted the clip meanwhile.
-                            if !item.isGone { item.saveEdit(text, in: modelContext) }
+                            // The sweep or a sync may have deleted the clip meanwhile. A secret edit deletes it.
+                            if !item.isGone, item.saveEdit(text, in: modelContext), !item.isGone, item.contentType == .url {
+                                model.linkPreviews.fill()  // the new link's preview
+                            }
                             dismiss()
                         }
                         .disabled(text.isEmpty)

@@ -39,4 +39,8 @@ enum ContentType: String, Codable, CaseIterable, Sendable {
         case .unknown: "questionmark.square"
         }
     }
+
+    /// A tap on a file clip, in the history or on a Spotlight result, opens the share sheet: its text is only the file
+    /// names, never what a copy should paste.
+    var sharesOnTap: Bool { self == .files }
 }

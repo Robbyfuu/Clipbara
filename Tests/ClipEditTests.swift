@@ -60,6 +60,43 @@ final class ClipEditTests: XCTestCase {
         XCTAssertEqual(clip.contentType, .url)
     }
 
+    /// The preview belonged to the old text: an edit clears it, so the new link is fetched afresh.
+    func testEditClearsLinkPreview() throws {
+        let context = try makeContext()
+        let clip = try saved(text("https://www.apple.com", type: .url), in: context)
+        clip.linkTitle = "Apple"
+        clip.linkImageData = Data([1, 2, 3])
+        clip.linkPreviewDone = true
+        try context.save()
+        XCTAssertTrue(clip.saveEdit("https://copyd.app", in: context))
+        XCTAssertNil(clip.linkTitle)
+        XCTAssertNil(clip.linkImageData)
+        XCTAssertFalse(clip.linkPreviewDone)
+        XCTAssertFalse(context.hasChanges, "saved")
+
+        // A title change alone keeps the preview: the text is the same.
+        clip.linkTitle = "Copyd"
+        clip.linkPreviewDone = true
+        XCTAssertFalse(clip.saveEdit("https://copyd.app", in: context))
+        XCTAssertEqual(clip.linkTitle, "Copyd")
+    }
+
+    /// An edit that turns a link into a secret replaces it: the new local clip carries no preview and is never fetched.
+    func testLinkEditedIntoASecretHasNoPreview() throws {
+        let context = try makeContext()
+        let clip = try saved(text("https://www.apple.com", type: .url), in: context)
+        clip.linkTitle = "Apple"
+        clip.linkImageData = Data([1])
+        clip.linkPreviewDone = true
+        try context.save()
+        XCTAssertTrue(clip.saveEdit(FakeSecret.stripe, in: context, protects: true))
+        let secret = try XCTUnwrap(try context.fetch(FetchDescriptor<ClipboardItem>()).first)
+        XCTAssertTrue(secret.isSensitive)
+        XCTAssertNil(secret.linkTitle)
+        XCTAssertNil(secret.linkImageData)
+        XCTAssertNil(secret.linkPreviewTitle)
+    }
+
     func testUnchangedOrEmptyEditChangesNothing() throws {
         let context = try makeContext()
         let clip = try saved(text("same"), in: context)

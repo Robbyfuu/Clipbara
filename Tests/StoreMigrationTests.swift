@@ -55,9 +55,14 @@ final class StoreMigrationTests: XCTestCase {
         XCTAssertFalse(clip.isSensitive, "existing clips are not secrets: detection runs only on new copies")
         XCTAssertNil(clip.ocrText)
         XCTAssertFalse(clip.ocrDone, "existing images are read by the first fill pass")
+        XCTAssertNil(clip.linkTitle)
+        XCTAssertNil(clip.linkImageData)
+        XCTAssertFalse(clip.linkPreviewDone, "existing links are fetched by the first fill pass")
         // The stored values, not just the model's defaults: the sweep, the uploads and the OCR fill all fetch by them.
         let unflagged = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.isSensitive == false && $0.ocrDone == false })
         XCTAssertEqual(try new.mainContext.fetchCount(unflagged), 1)
+        let unfetched = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.linkPreviewDone == false && $0.linkTitle == nil })
+        XCTAssertEqual(try new.mainContext.fetchCount(unfetched), 1)
     }
 
     /// Paste history is a new Mac-only entity: today's store must open in place with it, keeping every clip.

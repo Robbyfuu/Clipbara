@@ -18,6 +18,10 @@ final class AppModel {
     /// Reads the text in image clips while the app is in the foreground only: started on launch and on every return,
     /// stopped when the app goes to the background.
     let imageText: ImageTextQueue
+    /// Fetches link titles and images, foreground only like `imageText`.
+    let linkPreviews: LinkPreviewQueue
+    /// Keeps the clips in Spotlight, following every main-context save.
+    let spotlight: SpotlightIndexer
     /// True when the App Group container was unavailable and the store lives in memory only.
     let isInMemory: Bool
     var toastVisible = false
@@ -60,12 +64,20 @@ final class AppModel {
         #if DEBUG
         Self.seedSampleClipsIfRequested(container)
         Self.seedOCRImageIfRequested(container)
+        Self.seedLinkClipIfRequested(container)
+        Self.seedSecretClipIfRequested(container)
+        Self.seedCodeClipsIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
+        // Before the engine starts, so the saves of its first fetch are indexed.
+        spotlight = SpotlightIndexer(container: container)
         sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied() }
         // The text read in an image never syncs, so its save queues no upload.
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
+        // Link previews never sync either.
+        linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
+        sync.onMirrorWiped = { [weak self] in self?.spotlight.removeAll() }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
         Self.writeSampleInboxIfRequested()
@@ -80,6 +92,8 @@ final class AppModel {
         sweepTimer.tolerance = SecretSweeper.tolerance
         #if DEBUG
         applyDebugRoute()
+        spotlight.checkIfRequested()
+        continueSpotlightIfRequested()
         #endif
         // Any save can change the newest clip: Save Clipboard, auto-capture, the inbox, Save Text, deletes, and the
         // sync engine's applied remote changes, foreground or a background push wake.
@@ -239,13 +253,15 @@ final class AppModel {
                 return try FileBundle.write(clip.rawData, to: dir)
             }.value
             guard let urls, !urls.isEmpty else { return flash("Couldn't share") }
-            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-                .first { $0.activationState == .foregroundActive }
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            // A Spotlight result opened on a cold launch may get here before the scene is active.
+            let scene = scenes.first { $0.activationState == .foregroundActive }
+                ?? scenes.first { $0.activationState == .foregroundInactive }
             var top = scene?.keyWindow?.rootViewController
             while let presented = top?.presentedViewController { top = presented }
             guard let top else {
                 try? FileManager.default.removeItem(at: dir)
-                return
+                return flash("Couldn't share")
             }
             let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
             // Done or cancelled, the activity has its copy by now.
@@ -258,20 +274,26 @@ final class AppModel {
         }
     }
 
-    /// The widget's `copyd://copy/<uuid>`: copies that clip the same way a tap does.
+    /// The widget's `copyd://copy/<uuid>` and a tapped Spotlight result: does what a tap on that clip's row does, so a
+    /// file clip opens the share sheet instead of copying its file names.
     func copy(id: UUID) {
         var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
         fetch.fetchLimit = 1
         // The clip may have been deleted since the widget last reloaded.
-        guard let item = try? container.mainContext.fetch(fetch).first, copy(item) else { return flash("Couldn't copy") }
+        guard let item = try? container.mainContext.fetch(fetch).first, !item.isGone else { return flash("Couldn't copy") }
+        if item.contentType.sharesOnTap { return share(item) }
+        if !copy(item) { flash("Couldn't copy") }
     }
 
     /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.
-    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read. A background push
-    /// wake reads nothing; the next return to the foreground does. Called by the engine after `shared` exists.
+    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read and the new links
+    /// fetched. A background push wake does neither; the next return to the foreground does. Called by the engine after
+    /// `shared` exists.
     private static func remoteChangesApplied() {
         reloadWidgets()
-        if UIApplication.shared.applicationState == .active { shared.imageText.fill() }
+        guard UIApplication.shared.applicationState == .active else { return }
+        shared.imageText.fill()
+        shared.linkPreviews.fill()
     }
 
     static func reloadWidgets() {
@@ -323,6 +345,8 @@ final class AppModel {
         item.isSensitive = SecretDetector.flags(clip.textContent, type: clip.contentType)
         context.insert(item)
         try? context.save()
+        // Only the foreground app reads the pasteboard, so this runs in the foreground.
+        if item.contentType == .url { linkPreviews.fill() }
     }
 
     /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.
@@ -360,7 +384,10 @@ final class AppModel {
     /// so no tracker sees the delete and `queueEverything` never uploads the samples.
     private static func removeSeedClipsUnlessSeeding(_ container: ModelContainer) {
         guard !UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedLinkClip"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedSecretClip"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
@@ -372,9 +399,37 @@ final class AppModel {
         seeds.forEach(context.delete)
         boards.forEach(context.delete)
         try? context.save()
+        invalidateSpotlight()
     }
 
     private static let seedBoardID = UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!
+
+    /// The seeds write through their own context, before the indexer exists, so it never sees them: dropping the stored
+    /// index version makes it rebuild when it starts.
+    private static func invalidateSpotlight() {
+        SecretDetector.settings.removeObject(forKey: SpotlightIndexer.versionDefaultsKey)
+    }
+
+    /// `-CopydContinueSpotlight YES` (with `-CopydSeedSampleClips YES -iCloudSyncEnabled NO`): after 3 s, hands the
+    /// scene's delegate a tapped Spotlight result for the "Hello from Copyd" sample, as iOS does while Copyd runs, then
+    /// logs whether the pasteboard holds the clip.
+    private func continueSpotlightIfRequested() {
+        guard UserDefaults.standard.bool(forKey: "CopydContinueSpotlight") else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == "seed-short" })
+            fetch.fetchLimit = 1
+            guard let clip = try? container.mainContext.fetch(fetch).first,
+                  let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive })
+            else { return Self.log.error("Spotlight continue: no sample clip or no active scene") }
+            let activity = NSUserActivity(activityType: QuickRoute.spotlightActivityType)
+            activity.userInfo = [QuickRoute.spotlightIDKey: clip.id.uuidString]
+            scene.delegate?.scene?(scene, continue: activity)
+            try? await Task.sleep(for: .seconds(1))
+            let copied = UIPasteboard.general.string == clip.textContent
+            Self.log.notice("Spotlight continue \(copied ? "PASS" : "FAIL", privacy: .public): pasteboard holds the clip=\(copied, privacy: .public)")
+        }
+    }
 
     /// `-CopydWriteSampleInbox YES`: writes one text item to the inbox, as the Share extension would, and skips the
     /// drain for this launch. The next launch imports it and shows "Added 1 from Share".
@@ -402,6 +457,56 @@ final class AppModel {
         }
         context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png), contentHash: hash))
         try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedLinkClip YES`: inserts one link to https://www.apple.com, not fetched yet, for the fill pass to find.
+    /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes it.
+    private static func seedLinkClipIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedLinkClip"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-preview-link"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let link = "https://www.apple.com"
+        context.insert(ClipboardItem(contentType: .url, rawData: Data(link.utf8), textContent: link, contentHash: hash))
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedSecretClip YES`: inserts one secret, as a detected capture would, for the Spotlight check to miss.
+    /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes it.
+    private static func seedSecretClipIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedSecretClip"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-secret"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let secret = "sk" + "_live_" + "4eC39HqLyjWDarjtT1zdp7dc"  // split, so secret scanners skip this sample
+        let clip = ClipboardItem(contentType: .plainText, rawData: Data(secret.utf8), textContent: secret, contentHash: hash)
+        clip.isSensitive = true
+        context.insert(clip)
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedCodeClips YES`: inserts one code clip and one color clip, for the code colors and the swatch row.
+    /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes them.
+    private static func seedCodeClipsIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedCodeClips"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-snippet"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let color = "#3478F6"
+        context.insert(ClipboardItem(contentType: .color, rawData: Data(color.utf8), textContent: color, contentHash: "seed-swatch"))
+        let code = "// Greets a user\nfunc greet(_ name: String) {\n    print(\"Hi, \\(name)!\", 42)\n}"
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(code.utf8), textContent: code, contentHash: hash))
+        try? context.save()
+        invalidateSpotlight()
     }
 
     private static func seedSampleClipsIfRequested(_ container: ModelContainer) {
@@ -440,6 +545,7 @@ final class AppModel {
             context.insert(PinboardEntry(clipboardItem: item, pinboard: work, displayOrder: order))
         }
         try? context.save()
+        invalidateSpotlight()
     }
     #endif
 }

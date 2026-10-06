@@ -94,8 +94,8 @@ enum ImageTextRecognizer {
     }
 
     /// Runs `work` on a utility dispatch queue: a cold Vision start can block for a minute, and must never hold one of
-    /// the cooperative pool's few threads.
-    nonisolated private static func offMain<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+    /// the cooperative pool's few threads. `LinkPreviewQueue` reads the store and decodes images through it too.
+    nonisolated static func offMain<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async { continuation.resume(returning: work()) }
         }

@@ -36,13 +36,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 }
 
-/// Hands Home Screen quick actions to `AppModel.pendingRoute`. SwiftUI's `WindowGroup` still owns the window,
-/// so this never creates one.
+/// Hands Home Screen quick actions and tapped Spotlight results to `AppModel.pendingRoute`. SwiftUI's `WindowGroup`
+/// still owns the window, so this never creates one.
 @MainActor
 final class SceneDelegate: NSObject, UIWindowSceneDelegate {
-    /// Cold launch: the item arrives with the connection options, before any view exists.
+    /// Cold launch: the item or the Spotlight result arrives with the connection options, before any view exists.
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         if let item = connectionOptions.shortcutItem { route(item) }
+        for activity in connectionOptions.userActivities { route(activity) }
+    }
+
+    /// A Spotlight result tapped while Copyd runs, in the foreground or the background.
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        route(userActivity)
+    }
+
+    /// A tapped Spotlight result copies its clip, as a widget row does. The only route here, so nothing copies twice.
+    private func route(_ activity: NSUserActivity) {
+        if let route = QuickRoute(activityType: activity.activityType, userInfo: activity.userInfo) {
+            AppModel.shared.pendingRoute = route
+        }
     }
 
     /// Warm launch: the app was already running.
@@ -96,8 +109,12 @@ struct CopydiOSApp: App {
             // `initial`, so a cold launch captures the clipboard too. A repeat is harmless: the drain is idempotent
             // and the capture reads each `changeCount` once.
             .onChange(of: scenePhase, initial: true) { _, phase in
-                // Reading images runs in the foreground only; it picks up where it stopped on the next return.
-                if phase == .background { model.imageText.stop() }
+                // Reading images and fetching links run in the foreground only; they pick up where they stopped on the
+                // next return.
+                if phase == .background {
+                    model.imageText.stop()
+                    model.linkPreviews.stop()
+                }
                 guard phase == .active else { return }
                 model.drainInbox()
                 model.captureNewCopy()
@@ -105,13 +122,14 @@ struct CopydiOSApp: App {
                 model.sync.fetchIfStale()
                 // After the drain and the capture, so their new images are read first.
                 model.imageText.fill()
+                model.linkPreviews.fill()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()
             }
             .onOpenURL { url in
                 // A link that only foregrounds the app still runs auto-capture behind the iOS prompt.
-                // A link must never read the pasteboard: only the Home Screen quick action may save the clipboard.
-                if let route = QuickRoute(url: url), route != .saveClipboard { model.pendingRoute = route }
+                // A link must never read the pasteboard: only the quick action and the intents may save the clipboard.
+                if let route = QuickRoute(url: url), QuickRoute.allowsURL(route) { model.pendingRoute = route }
             }
             // `initial` picks up a quick action the scene delegate stored before this view existed.
             .onChange(of: model.pendingRoute, initial: true) { _, route in
@@ -186,8 +204,8 @@ private struct KeyboardPreviewHarness: View {
     }
 }
 
-/// `-CopydWidgetPreview` shows the three widget families at iPhone widget sizes, fed by the widget's own loader.
-/// Medium rows are real links, so tapping one runs the `copy` route.
+/// `-CopydWidgetPreview` shows the widget families at iPhone widget sizes, fed by the widget's own loader.
+/// Medium rows are real links, so tapping one runs the `copy` route; the circular button runs the save intent.
 private struct WidgetPreviewHarness: View {
     let container: ModelContainer
     @State private var state: RecentClipsState?
@@ -205,6 +223,13 @@ private struct WidgetPreviewHarness: View {
                             RecentClipsSmall(state: smalls[i], now: .now).widgetFrame(width: 158, height: 158)
                         }
                         RecentClipsAccessory(state: state, now: .now).frame(width: 160, height: 72)
+                    }
+                    // The Lock Screen circular and inline families.
+                    HStack(spacing: 18) {
+                        // `AccessoryWidgetBackground` draws nothing outside WidgetKit; the material stands in for it.
+                        LockScreenSaveView().frame(width: 76, height: 76).background(.ultraThinMaterial, in: Circle())
+                        RecentClipsInline(state: state).font(.system(size: 15, weight: .semibold)).lineLimit(1)
+                            .frame(width: 240, alignment: .leading)
                     }
                 }
             }

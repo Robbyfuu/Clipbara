@@ -3,7 +3,6 @@ import SwiftUI
 struct TextCardContent: View {
     let item: ClipboardItem
     var searchText: String = ""
-    @State private var isCode: Bool = false
 
     private var previewText: String {
         if let mask = item.secretMask { return mask }
@@ -17,28 +16,19 @@ struct TextCardContent: View {
     }
 
     var body: some View {
-        Group {
-            if searchText.isEmpty {
-                Text(previewText)
-            } else {
-                Text(TextHighlighter.highlight(previewText, query: searchText))
-            }
-        }
-        .font(.system(size: 13, design: isCode ? .monospaced : .default))
-        .lineSpacing(3)
-        .multilineTextAlignment(.leading)
-        .foregroundStyle(DesignTokens.Brand.ink)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .mask(LinearGradient(
-            stops: [.init(color: .black, location: 0.72), .init(color: .clear, location: 1)],
-            startPoint: .top, endPoint: .bottom))
-        .padding(10)
-        .background(DesignTokens.Brand.chip)
-        .task(id: item.id) {
-            guard !item.isSensitive, let text = item.textContent else { return }
-            let sample = text.prefix(900)
-            let codeIndicators = ["func ", "var ", "let ", "class ", "import ", "def ", "return ", "{", "}", "=>", "->", "();", "//", "/*"]
-            isCode = codeIndicators.contains { sample.contains($0) }
-        }
+        let preview = previewText
+        // A secret shows its mask, never code colors. The search highlight goes on top of the colors.
+        let code = item.isSensitive ? nil : CodeStyle.attributed(preview, key: item.contentHash)
+        Text(TextHighlighter.highlight(preview, query: searchText, over: code))
+            .font(.system(size: 13, design: code == nil ? .default : .monospaced))
+            .lineSpacing(3)
+            .multilineTextAlignment(.leading)
+            .foregroundStyle(DesignTokens.Brand.ink)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .mask(LinearGradient(
+                stops: [.init(color: .black, location: 0.72), .init(color: .clear, location: 1)],
+                startPoint: .top, endPoint: .bottom))
+            .padding(10)
+            .background(DesignTokens.Brand.chip)
     }
 }

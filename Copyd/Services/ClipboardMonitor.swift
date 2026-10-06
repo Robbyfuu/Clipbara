@@ -19,6 +19,8 @@ final class ClipboardMonitor {
     @ObservationIgnored var onPick: (([UUID]) -> Void)?
     /// Called after a new image clip is saved, so its text is read right away.
     @ObservationIgnored var onNewImage: (() -> Void)?
+    /// Called after a new link clip is saved, so its preview is fetched right away.
+    @ObservationIgnored var onNewLink: (() -> Void)?
 
     var isMonitoring: Bool = false
     var latestItems: [ClipboardItem] = []
@@ -133,6 +135,7 @@ final class ClipboardMonitor {
         refreshLatestItems()
         onCapture?(item.id)
         if content.contentType == .image { onNewImage?() }
+        if content.contentType == .url { onNewLink?() }
     }
 
     /// 히스토리 제한 초과 시 오래된 아이템 삭제 (isPinned 아이템 보존)

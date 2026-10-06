@@ -43,6 +43,8 @@ import SwiftData
     /// Local captures and Universal Clipboard never pass through here. The first fetch of a fresh state (install,
     /// sign-in, a wiped mirror) downloads the whole history and is not reported.
     @ObservationIgnored var onRemoteInserts: (@MainActor ([UUID]) -> Void)?
+    /// Called after an account change or a deleted zone wiped the local mirror, before sync starts over.
+    @ObservationIgnored var onMirrorWiped: (@MainActor () -> Void)?
     @ObservationIgnored private var arrivals: Set<UUID> = []
     @ObservationIgnored private var reportsArrivals = false
     #endif
@@ -319,6 +321,7 @@ import SwiftData
     /// iOS has no sync toggle, so turning sync off would be permanent. Call only once the local mirror is empty.
     /// The stopped engine's late events and batch requests fail the `syncEngine === engine` checks.
     private func restartEmpty() {
+        onMirrorWiped?()
         stop(clearState: true)  // drops the tracker, so no observer forwards saves to the next engine
         SharedDefaults.store?.removeObject(forKey: SharedDefaults.lastSyncAtKey)
         Task { @MainActor [weak self] in self?.start() }

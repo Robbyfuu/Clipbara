@@ -1,6 +1,8 @@
+import AppIntents
 import SwiftData
 import SwiftUI
 import UIKit
+import WidgetKit
 
 // Shared with the app, whose DEBUG -CopydWidgetPreview harness renders these views without WidgetKit.
 
@@ -27,24 +29,6 @@ enum RecentClipsState {
         case .empty, .clips: String(localized: "Copy something on your Mac")
         case .error: String(localized: "Couldn't load")
         }
-    }
-}
-
-extension KeyboardClip {
-    /// Same rule as the app's `ClipRow`: link clips, and text clips that are one bare http(s) URL.
-    var linkParts: (host: String, rest: String)? {
-        switch contentType {
-        case .url: LinkParts.split(preview)
-        case .plainText, .richText, .html: LinkParts.bareLink(preview)
-        default: nil
-        }
-    }
-
-    /// One line of text for the compact layouts.
-    var summary: String {
-        if contentType == .image { return String(localized: "Image") }
-        if let parts = linkParts { return parts.host + parts.rest }
-        return preview
     }
 }
 
@@ -120,7 +104,7 @@ struct RecentClipsMedium: View {
             if clip.contentType == .image {
                 RecentClipThumbnail(data: clip.thumbnail).frame(width: 28, height: 28)
             }
-            Text(clip.summary).font(.system(size: 13, weight: clip.linkParts == nil ? .regular : .semibold))
+            Text(clip.summary).font(.system(size: 13, weight: clip.linkParts == nil && clip.linkHost == nil ? .regular : .semibold))
                 .lineLimit(2).multilineTextAlignment(.leading).foregroundStyle(DesignTokens.Brand.ink)
                 .privacySensitive()
             Spacer(minLength: 4)
@@ -158,6 +142,34 @@ struct RecentClipsAccessory: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+}
+
+/// Lock Screen inline: the newest clip on one line beside the date. The system draws it in its own style.
+struct RecentClipsInline: View {
+    let state: RecentClipsState
+
+    var body: some View {
+        if let clip = state.clips.first {
+            Label { Text(clip.summary) } icon: { Image(systemName: "doc.on.clipboard") }.privacySensitive()
+        } else {
+            Text(state.message)
+        }
+    }
+}
+
+/// Lock Screen circular: runs the save intent, which opens Copyd. System styles only, so it works in the
+/// vibrant rendering mode.
+struct LockScreenSaveView: View {
+    var body: some View {
+        Button(intent: SaveClipboardIntent()) {
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "doc.on.clipboard").font(.system(size: 22, weight: .semibold))
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Save Clipboard")
     }
 }
 

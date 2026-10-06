@@ -151,6 +151,32 @@ final class SyncRecordMapperTests: XCTestCase {
         XCTAssertEqual(back, image.snapshot)
     }
 
+    /// A link's fetched title and image never sync: each device fetches its own, and none of it reaches CloudKit.
+    @MainActor
+    func testLinkPreviewIsNeverMapped() throws {
+        let container = try ModelContainer(for: ClipboardItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let url = "https://www.apple.com"
+        let link = ClipboardItem(contentType: .url, rawData: Data(url.utf8), textContent: url, contentHash: "h")
+        container.mainContext.insert(link)
+        let image = Data(repeating: 0xAB, count: 64)
+        link.linkTitle = "Apple Preview Title"
+        link.linkImageData = image
+        link.linkPreviewDone = true
+        let rec = record(for: link.snapshot)
+        try SyncRecordMapper.populate(rec, from: link.snapshot, assetDirectory: dir)
+        let keys = Set(rec.allKeys()).union(rec.encryptedValues.allKeys())
+        XCTAssertTrue(keys.filter { $0.lowercased().contains("link") || $0.lowercased().contains("preview") }.isEmpty, "\(keys)")
+        for key in rec.encryptedValues.allKeys() {
+            XCTAssertNotEqual(rec.encryptedValues[key] as? String, "Apple Preview Title", key)
+            XCTAssertNotEqual(rec.encryptedValues[key] as? Data, image, key)
+        }
+        let back = try SyncRecordMapper.clip(from: rec)
+        XCTAssertEqual(back.textContent, url)
+        XCTAssertEqual(back, link.snapshot)
+        XCTAssertFalse(Mirror(reflecting: link.snapshot).children.contains { ($0.label ?? "").lowercased().contains("link") },
+                       "ClipSnapshot carries no preview field")
+    }
+
     func testOnlyAllowedPlainKeys() throws {
         let clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
         let rec = record(for: clip)

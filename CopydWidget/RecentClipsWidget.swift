@@ -6,7 +6,12 @@ import WidgetKit
 struct CopydWidgets: WidgetBundle {
     var body: some Widget {
         RecentClipsWidget()
+        LockScreenSaveWidget()
         LatestClipLiveActivity()
+        if #available(iOS 18, *) {
+            SaveClipboardControl()
+            SearchControl()
+        }
     }
 }
 
@@ -15,7 +20,7 @@ struct RecentClipsWidget: Widget {
         StaticConfiguration(kind: "RecentClips", provider: RecentClipsProvider()) { RecentClipsEntryView(entry: $0) }
             .configurationDisplayName("Recent clips")
             .description("Your latest clips. Tap one to copy it.")
-            .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
+            .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline])
     }
 }
 
@@ -62,7 +67,7 @@ struct RecentClipsEntryView: View {
     let entry: RecentClipsEntry
 
     var body: some View {
-        // Small and the Lock Screen have room for one clip, so the whole widget copies it.
+        // Small and the Lock Screen families have room for one clip, so the whole widget copies it.
         let url = entry.state.clips.first.map { QuickRoute.copyURL($0.id) }
         switch family {
         case .systemMedium:
@@ -70,6 +75,10 @@ struct RecentClipsEntryView: View {
                 .containerBackground(for: .widget) { DesignTokens.Brand.shelf }
         case .accessoryRectangular:
             RecentClipsAccessory(state: entry.state, now: entry.date)
+                .widgetURL(url)
+                .containerBackground(for: .widget) { Color.clear }
+        case .accessoryInline:
+            RecentClipsInline(state: entry.state)
                 .widgetURL(url)
                 .containerBackground(for: .widget) { Color.clear }
         default:

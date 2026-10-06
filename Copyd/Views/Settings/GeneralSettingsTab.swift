@@ -13,6 +13,7 @@ struct GeneralSettingsTab: View {
     @AppStorage(SuggestionModel.enabledDefaultsKey) private var useAppleIntelligence: Bool = true
     @AppStorage(SecretDetector.protectDefaultsKey) private var protectSecrets: Bool = true
     @AppStorage(SecretSweeper.deleteAfterDefaultsKey) private var deleteSecretsAfter: Int = SecretSweeper.defaultMinutes
+    @AppStorage(LinkPreviewPlan.enabledDefaultsKey) private var linkPreviews: Bool = true
     /// Re-read whenever Copyd comes back to the front, e.g. from System Settings.
     @State private var hasPasteAccess = CGPreflightPostEventAccess()
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
@@ -56,6 +57,12 @@ struct GeneralSettingsTab: View {
                     } catch {
                         launchAtLogin = !newValue
                     }
+                }
+
+            // Off: nothing is fetched, and link cards show the domain and path.
+            Toggle("Link previews", isOn: $linkPreviews)
+                .onChange(of: linkPreviews) { _, on in
+                    if on { appState.linkPreviews?.fill() } else { appState.linkPreviews?.stop() }
                 }
 
             Section("Pasting") {

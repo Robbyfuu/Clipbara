@@ -4,7 +4,8 @@ import Foundation
 /// and the suffix of the shortcut type in `CopydiOS/Info.plist`.
 enum QuickRoute: Equatable {
     case saveClipboard, search, pinboards, keyboardSetup, history
-    /// `copyd://copy/<uuid>`, from the widget. It only writes the pasteboard, so any link may open it.
+    /// `copyd://copy/<uuid>`, from the widget, or a tapped Spotlight result. It only writes the pasteboard, so any link
+    /// may open it.
     case copy(UUID)
 
     private static let shortcutPrefix = "com.robbyfuu.copyd."
@@ -12,6 +13,10 @@ enum QuickRoute: Equatable {
         "save-clipboard": .saveClipboard, "search": .search, "pinboards": .pinboards, "keyboard-setup": .keyboardSetup,
         "history": .history,
     ]
+
+    /// A `copyd://` link may open any route but save: a web page must never make Copyd read the pasteboard.
+    /// Save is reachable only in process, from the quick action and the App Intents.
+    static func allowsURL(_ route: QuickRoute) -> Bool { route != .saveClipboard }
 
     static func copyURL(_ id: UUID) -> URL {
         URL(string: "copyd://copy/\(id.uuidString)")!  // a UUID string is always a valid path
@@ -27,6 +32,18 @@ enum QuickRoute: Equatable {
             guard let route = Self.named[host] else { return nil }
             self = route
         }
+    }
+
+    /// CoreSpotlight's `CSSearchableItemActionType` and `CSSearchableItemActivityIdentifier`, spelled out so this file
+    /// never links CoreSpotlight into the extensions. `QuickRouteTests` pins them to the real constants.
+    static let spotlightActivityType = "com.apple.corespotlightitem"
+    static let spotlightIDKey = "kCSSearchableItemActivityIdentifier"
+
+    /// A tapped Spotlight result: copies its clip, whose UUID string is the entry's identifier.
+    init?(activityType: String, userInfo: [AnyHashable: Any]?) {
+        guard activityType == Self.spotlightActivityType,
+              let id = (userInfo?[Self.spotlightIDKey] as? String).flatMap(UUID.init(uuidString:)) else { return nil }
+        self = .copy(id)
     }
 
     init?(shortcutType: String) {

@@ -263,7 +263,13 @@ struct KeyboardView: View {
     }
 
     @ViewBuilder private func cardBody(_ clip: KeyboardClip) -> some View {
-        if let parts = linkParts(clip) {
+        if let host = clip.linkHost {
+            // A link shown by its page title, with the host under it.
+            Text(clip.preview).font(.system(size: 14, weight: .semibold)).lineLimit(2)
+                .foregroundStyle(DesignTokens.Brand.ink)
+            Text(host).font(.system(size: 11, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                .foregroundStyle(DesignTokens.Brand.ink2)
+        } else if let parts = linkParts(clip) {
             Text(parts.host).font(.system(size: 15, weight: .bold)).lineLimit(1)
                 .foregroundStyle(DesignTokens.Brand.ink)
             if !parts.rest.isEmpty {
