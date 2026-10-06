@@ -42,6 +42,8 @@ struct NavigationBarView: View {
         }
         .onChange(of: smartBoardsEnabled) { _, _ in refreshSmartBoards() }
         .onChange(of: smartTopicsEnabled) { _, _ in refreshSmartBoards() }
+        // Apple Intelligence may have been turned on or off since the last opening: the topic boards follow.
+        .onChange(of: appState.panelPresentationID) { _, _ in refreshSmartBoards() }
         // A sort pass saves every 50 clips: one refetch once the saves pause.
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in refreshSmartBoards() }

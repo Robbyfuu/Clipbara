@@ -116,6 +116,8 @@
   - **When:** on capture (Mac) and in a fill pass over the newest 1,000 clips. It runs in batches of 50 for types and 10 for topics, and is never in an extension.
   - **Threading:** the same structure as OCR, with a utility queue and one pass at a time. The write is a tracked pre-save, then a suppressed save.
   - **Topic failures:** a model failure leaves `topicDone == false`. `other` and unavailable both set `topicDone = true` with `topicRaw = nil`. When the model becomes available later, the version key resets these.
+    - Deviation: an error the same text would meet again counts as `other`, not a failure: a guardrail violation, a refusal, a decoding failure, or an unsupported language. An unsupported language counts as unavailable when the device's own locale is unsupported.
+    - A failed clip is retried when the app becomes active again, or on the next launch, not on every capture.
 - **UI.**
   - **Mac nav bar:** smart boards come after the user's pinboards, each with a ✨ glyph. Only non-empty boards are shown.
     - ⌥⌘1–9 numbering keeps counting through them in display order.

@@ -11,12 +11,58 @@ enum TopicClassifier {
     /// The longest one answer may take, a cold model load included, before the clip is left for the next fill.
     static let timeout: TimeInterval = 15
 
-    /// Apple Intelligence is on and its model is ready. Always false before macOS 26 and iOS 26.
+    /// Apple Intelligence is on and its model is ready: the pass runs. Always false before macOS 26 and iOS 26.
     static var isAvailable: Bool {
         #if canImport(FoundationModels)
         if #available(macOS 26, iOS 26, *) { return SystemLanguageModel.default.availability == .available }
         #endif
         return false
+    }
+
+    /// Apple Intelligence is on, its model ready or still downloading: the topic boards and their setting show.
+    static var isSupported: Bool {
+        #if canImport(FoundationModels)
+        if #available(macOS 26, iOS 26, *) { return isSupported(SystemLanguageModel.default.availability) }
+        #endif
+        return false
+    }
+
+    #if canImport(FoundationModels)
+    @available(macOS 26, iOS 26, *)
+    static func isSupported(_ availability: SystemLanguageModel.Availability) -> Bool {
+        switch availability {
+        case .available, .unavailable(.modelNotReady): true
+        default: false
+        }
+    }
+    #endif
+
+    /// A failed request, as the clip stores it. What the same text would meet again is final with no topic (`other`):
+    /// a guardrail, a refusal, an answer that never decodes, or a language the model doesn't read. Unsupported
+    /// language when the device's own (`localeSupported` false) isn't supported, or missing assets, is `unavailable`.
+    /// Anything else is retried. macOS and iOS 27 throw `LanguageModelError`; 26 throws `GenerationError`.
+    static func outcome(for error: any Error, localeSupported: Bool) -> TopicPlan.Outcome {
+        #if canImport(FoundationModels)
+        if #available(macOS 27, iOS 27, *) {
+            if let error = error as? LanguageModelError {
+                switch error {
+                case .guardrailViolation, .refusal: return .other
+                case .unsupportedLanguageOrLocale: return localeSupported ? .other : .unavailable
+                default: return .failed
+                }
+            }
+            if case .assetsUnavailable = error as? SystemLanguageModel.Error { return .unavailable }
+        }
+        if #available(macOS 26, iOS 26, *), let error = error as? LanguageModelSession.GenerationError {
+            switch error {
+            case .guardrailViolation, .refusal, .decodingFailure: return .other
+            case .unsupportedLanguageOrLocale: return localeSupported ? .other : .unavailable
+            case .assetsUnavailable: return .unavailable
+            default: return .failed
+            }
+        }
+        #endif
+        return .failed
     }
 
     /// One request in a fresh session: a session keeps every prompt in its transcript. Never call it with a secret's,
@@ -32,21 +78,20 @@ enum TopicClassifier {
                 let topic = try await session.respond(to: prompt, generating: ClipTopic.self,
                                                       options: GenerationOptions(samplingMode: .greedy)).content
                 return TopicPlan.outcome(topic.rawValue)
-            } catch let error as LanguageModelSession.GenerationError {
-                switch error {
-                // The same text would meet the same answer: final, with no topic.
-                case .guardrailViolation, .refusal, .unsupportedLanguageOrLocale: return .other
-                case .assetsUnavailable: return .unavailable
-                default: return .failed
-                }
             } catch {
-                return .failed
+                return outcome(for: error, localeSupported: SystemLanguageModel.default.supportsLocale())
             }
         } ?? .failed
         #else
         return .unavailable
         #endif
     }
+}
+
+extension SmartBoard {
+    /// The boards the Mac and iPhone list: the topic boards too, while "Group by topic" is on and Apple Intelligence is
+    /// supported here. The keyboard lists the type boards only.
+    static var listed: [SmartBoard] { TopicPlan.isEnabled && TopicClassifier.isSupported ? allCases : types }
 }
 
 #if canImport(FoundationModels)
@@ -64,6 +109,10 @@ enum ClipTopic: String {
 @MainActor final class TopicQueue {
     private let container: ModelContainer
     private let isEnabled: @MainActor () -> Bool
+    /// `TopicPlan.shouldPause`, checked before each request and after each batch.
+    private let shouldPause: @MainActor () -> Bool
+    /// Between two batches.
+    private let pause: Duration
     /// Holds `TopicPlan.versionDefaultsKey`.
     private let defaults: UserDefaults
     private let classify: @Sendable (String) async -> TopicPlan.Outcome
@@ -71,26 +120,36 @@ enum ClipTopic: String {
     /// The running pass. Never more than one: a `fill` meanwhile makes it go round once more.
     private(set) var task: Task<Void, Never>?
     private var again = false
+    /// The model failed on these: left until the app comes back to the front, or the next launch, never retried on
+    /// every capture.
+    private var failed: Set<UUID> = []
 
     init(container: ModelContainer,
          isEnabled: @escaping @MainActor () -> Bool = { TopicPlan.isEnabled && TopicClassifier.isAvailable },
+         shouldPause: @escaping @MainActor () -> Bool = { TopicPlan.shouldPause() },
+         pause: Duration = .seconds(2),
          defaults: UserDefaults = SecretDetector.settings,
          classify: @escaping @Sendable (String) async -> TopicPlan.Outcome = { await TopicClassifier.classify($0) },
          save: @escaping @MainActor (Set<UUID>) -> Void) {
         self.container = container
         self.isEnabled = isEnabled
+        self.shouldPause = shouldPause
+        self.pause = pause
         self.defaults = defaults
         self.classify = classify
         self.save = save
     }
 
     /// Asks about the newest clips not asked yet: after a capture or an edit, at launch, after a sync, on return to the
-    /// foreground. Nothing while either setting is off or the model is unavailable.
-    func fill() {
+    /// foreground. Nothing while either setting is off or the model is unavailable. `retryingFailures`: the app is
+    /// active again, so the clips the model failed on are asked again too.
+    func fill(retryingFailures: Bool = false) {
+        if retryingFailures { failed = [] }
         guard isEnabled() else { return }
         again = true
         guard task == nil else { return }
-        task = Task { [weak self] in await self?.drain() }
+        // Background work: the model runs at utility priority, below anything the user waits for.
+        task = Task(priority: .utility) { [weak self] in await self?.drain() }
     }
 
     /// Ends the pass after the answer in flight, keeping what it already wrote.
@@ -109,11 +168,10 @@ enum ClipTopic: String {
     }
 
     private func pass() async {
-        resetIfStale()
+        guard !shouldPause() else { return }
+        await resetIfStale()
         let container = container, classify = classify
         var last: [UUID] = []
-        // Failed in this pass: left for the next `fill`, never asked again batch after batch.
-        var failed: Set<UUID> = []
         while !Task.isCancelled {
             let skipped = failed
             let batch = await ImageTextQueue.offMain { Self.nextBatch(in: container, skipping: skipped) }
@@ -122,16 +180,21 @@ enum ClipTopic: String {
             last = batch.map(\.id)
             var results: [Answered] = []
             for clip in batch {
-                if Task.isCancelled { break }
+                // Stopped, or paused (the panel opened, the device got hot): what was answered is kept.
+                if Task.isCancelled || shouldPause() { return write(results) }
                 let outcome = clip.preview.isEmpty ? .other : await classify(clip.preview)
                 // Stopped meanwhile: the request may have been cut off, so its answer is not kept.
-                if Task.isCancelled { break }
+                if Task.isCancelled { return write(results) }
                 guard outcome.isDone else { failed.insert(clip.id); continue }
                 results.append(Answered(id: clip.id, contentHash: clip.contentHash, outcome: outcome))
                 // Every other clip would meet the same: they wait until the model is back.
                 if outcome == .unavailable { return write(results) }
             }
             write(results)
+            if shouldPause() { return }
+            // ponytail: a fixed pause between batches keeps the model off the CPU most of the time; make it follow the
+            // load if a long backlog still feels heavy.
+            try? await Task.sleep(for: pause)
         }
     }
 
@@ -166,16 +229,28 @@ enum ClipTopic: String {
     }
 
     /// Clips marked done with no topic while the model was unavailable, or under an older `TopicPlan.version`, are
-    /// asked again: the pass only runs while the model is available.
-    private func resetIfStale() {
+    /// asked again: the pass only runs while the model is available. Only the `TopicPlan.window` newest, the clips a
+    /// pass reaches, found off the main thread.
+    private func resetIfStale() async {
         guard defaults.integer(forKey: TopicPlan.versionDefaultsKey) != TopicPlan.version else { return }
-        let context = container.mainContext
-        if context.hasChanges { try? context.save() }
-        let stale = (try? context.fetch(FetchDescriptor<ClipboardItem>(
-            predicate: #Predicate { $0.topicDone == true && $0.topicRaw == nil }))) ?? []
-        stale.forEach { $0.topicDone = false }
-        if !stale.isEmpty { save(Set(stale.map(\.id))) }
+        let container = container
+        let ids = await ImageTextQueue.offMain { Self.staleIDs(in: container) }
+        if !ids.isEmpty {
+            let context = container.mainContext
+            if context.hasChanges { try? context.save() }
+            let stale = (try? context.fetch(FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) }))) ?? []
+            stale.forEach { $0.topicDone = false }
+            if !stale.isEmpty { save(Set(stale.map(\.id))) }
+        }
         defaults.set(TopicPlan.version, forKey: TopicPlan.versionDefaultsKey)
+    }
+
+    /// The window's clips marked done with no topic.
+    nonisolated private static func staleIDs(in container: ModelContainer) -> [UUID] {
+        var window = FetchDescriptor<ClipboardItem>(sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        window.fetchLimit = TopicPlan.window
+        window.propertiesToFetch = [\.id, \.topicDone, \.topicRaw]
+        return ((try? ModelContext(container).fetch(window)) ?? []).filter { $0.topicDone && $0.topicRaw == nil }.map(\.id)
     }
 
     /// The next batch, with what the model reads of each. Only the batch's text is loaded: the window is read without
@@ -185,12 +260,12 @@ enum ClipTopic: String {
         let context = ModelContext(container)
         var window = FetchDescriptor<ClipboardItem>(sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         window.fetchLimit = TopicPlan.window
-        window.propertiesToFetch = [\.id, \.contentTypeRaw, \.isSensitive, \.topicDone, \.copiedAt]
+        window.propertiesToFetch = [\.id, \.contentTypeRaw, \.isSensitive, \.topicDone, \.copiedAt, \.linkPreviewDone]
         let clips = (try? context.fetch(window)) ?? []
         let ids = TopicPlan.nextBatch(clips: clips.map {
             TopicPlan.Candidate(id: $0.id, contentType: $0.contentType, isSensitive: $0.isSensitive,
-                                isDone: $0.topicDone, copiedAt: $0.copiedAt)
-        }, skipping: failed)
+                                isDone: $0.topicDone, copiedAt: $0.copiedAt, linkPreviewDone: $0.linkPreviewDone)
+        }, skipping: failed, waitsForLinkPreviews: LinkPreviewPlan.isEnabled)
         guard !ids.isEmpty else { return [] }
         var batch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { ids.contains($0.id) })
         batch.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.linkTitle, \.isSensitive, \.contentHash]

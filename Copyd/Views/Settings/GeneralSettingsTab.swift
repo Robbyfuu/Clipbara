@@ -74,7 +74,7 @@ struct GeneralSettingsTab: View {
                     if on { appState.topics?.fill() } else { appState.topics?.stop() }
                 }
             // Off: the topic boards leave the top bar, and no clip goes to the model.
-            if TopicClassifier.isAvailable {
+            if TopicClassifier.isSupported {
                 Toggle("Group by topic with Apple Intelligence", isOn: $smartTopics)
                     .padding(.leading, 20)
                     .disabled(!smartBoards)

@@ -5,6 +5,7 @@ import SwiftData
 struct PinboardsView: View {
     @Query(sort: \Pinboard.displayOrder) private var boards: [Pinboard]
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(SmartKinds.enabledDefaultsKey, store: SharedDefaults.store) private var smartBoardsEnabled = true
     @AppStorage(TopicPlan.enabledDefaultsKey, store: SharedDefaults.store) private var smartTopicsEnabled = true
     /// The type boards, then the topic boards, holding a clip History shows, with their counts, in order. Each device
@@ -57,6 +58,8 @@ struct PinboardsView: View {
         .onAppear(perform: refreshCounts)
         .onChange(of: smartBoardsEnabled) { refreshCounts() }
         .onChange(of: smartTopicsEnabled) { refreshCounts() }
+        // Apple Intelligence may have been turned on or off in Settings meanwhile: the topic boards follow.
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refreshCounts() } }
         // A sort pass saves every 50 clips: one recount once the saves pause.
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in refreshCounts() }

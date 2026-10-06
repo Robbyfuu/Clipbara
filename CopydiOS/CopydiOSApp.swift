@@ -126,7 +126,7 @@ struct CopydiOSApp: App {
                 model.imageText.fill()
                 model.linkPreviews.fill()
                 model.smartKinds.fill()
-                model.topics.fill()
+                model.topics.fill(retryingFailures: true)  // back in front: the clips the model failed on too
                 model.reloadAppLooksIfStale()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()

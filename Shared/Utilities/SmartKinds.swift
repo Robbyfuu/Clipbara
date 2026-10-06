@@ -9,8 +9,6 @@ enum SmartBoard: String, CaseIterable, Hashable, Sendable {
 
     /// The type boards, sorted by `SmartKinds.classify`, in display order.
     static let types: [SmartBoard] = [.links, .code, .addresses, .contacts, .images, .colors, .files]
-    /// The boards the Mac and iPhone list: the topic boards too, while "Group by topic" is on.
-    static var listed: [SmartBoard] { TopicPlan.isEnabled ? allCases : types }
 
     var isTopic: Bool { !Self.types.contains(self) }
 

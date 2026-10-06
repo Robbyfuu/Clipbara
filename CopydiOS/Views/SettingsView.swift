@@ -105,7 +105,7 @@ struct SettingsView: View {
                     Divider().overlay(DesignTokens.Brand.line)
                     toggleRow("Automatic pinboards", symbol: "sparkles", isOn: $smartBoardsEnabled)
                     Divider().overlay(DesignTokens.Brand.line)
-                    if TopicClassifier.isAvailable {
+                    if TopicClassifier.isSupported {
                         toggleRow("Group by topic with Apple Intelligence", symbol: "apple.intelligence",
                                   isOn: $smartTopicsEnabled)
                             .disabled(!smartBoardsEnabled)

@@ -40,6 +40,8 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
+        # Topic boards: FoundationModels exists from macOS 26 only, so Copyd still launches on 14 and 15.
+        OTHER_LDFLAGS: "$(inherited) -weak_framework FoundationModels"
         ENABLE_APP_SANDBOX: "YES"
         DEVELOPMENT_TEAM: TQC76W2BKK
         CODE_SIGN_STYLE: Automatic
@@ -94,6 +96,8 @@ targets:
         INFOPLIST_FILE: CopydiOS/Info.plist
         GENERATE_INFOPLIST_FILE: false
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Topic boards: FoundationModels exists from iOS 26 only, so Copyd still launches on 17 and 18.
+        OTHER_LDFLAGS: "$(inherited) -weak_framework FoundationModels"
     dependencies:
       - target: CopydKeyboard
         embed: true

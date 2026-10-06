@@ -94,7 +94,10 @@ final class AppModel {
         // The text read in an image never syncs, so its save queues no upload.
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         // Link previews never sync either.
-        linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
+        linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in
+            sync.saveLocalOnly(ids)
+            Self.shared.topics.fill()  // a link is asked about its topic once its title is in
+        }
         // Nor do the automatic pinboards: each device sorts its own clips.
         smartKinds = SmartKindsQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         // Nor do the topics: each device asks its own model.
@@ -539,9 +542,10 @@ final class AppModel {
         invalidateSpotlight()
     }
 
-    /// `-CopydSeedTopicClips YES`: inserts text clips whose topic is already set, as the model would set it, for the
-    /// topic boards in the Automatic section where the model is unavailable (the simulator). Refuses to run unless sync
-    /// is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes them.
+    /// `-CopydSeedTopicClips YES`: inserts text clips whose topic is already set, as the model would set it, so the
+    /// topic boards fill the Automatic section without waiting for the model. They show only where Apple Intelligence
+    /// is supported (`TopicClassifier.isSupported`). Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A
+    /// launch without any seed flag deletes them.
     private static func seedTopicClipsIfRequested(_ container: ModelContainer) {
         guard UserDefaults.standard.bool(forKey: "CopydSeedTopicClips"),
               !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }

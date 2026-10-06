@@ -118,8 +118,11 @@ final class AppState {
         self.imageText = imageText
         clipboardMonitor.onNewImage = { [weak imageText] in imageText?.fill() }
         imageText.fill()
-        // Link previews never sync either.
-        let linkPreviews = LinkPreviewQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        // Link previews never sync either. A link is asked about its topic once its title is in.
+        let linkPreviews = LinkPreviewQueue(container: modelContainer) { [weak engine, weak self] ids in
+            engine?.saveLocalOnly(ids)
+            self?.topics?.fill()
+        }
         self.linkPreviews = linkPreviews
         clipboardMonitor.onNewLink = { [weak linkPreviews] in linkPreviews?.fill() }
         linkPreviews.fill()
@@ -127,10 +130,18 @@ final class AppState {
         let smartKinds = SmartKindsQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
         self.smartKinds = smartKinds
         smartKinds.fill()
-        // Nor do the topics: each device asks its own model.
-        let topics = TopicQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        // Nor do the topics: each device asks its own model. Never while the panel is open: its suggestions share the
+        // model. The pass picks up once the panel is gone, and retries the clips it failed on when Copyd is active again.
+        let topics = TopicQueue(container: modelContainer, shouldPause: { [weak self] in
+            TopicPlan.shouldPause(busy: self?.panelController.isVisible ?? false)
+        }) { [weak engine] ids in engine?.saveLocalOnly(ids) }
         self.topics = topics
         topics.fill()
+        panelController.onPanelDidHide = { [weak topics] in topics?.fill() }
+        _ = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                                   queue: .main) { [weak topics] _ in
+            MainActor.assumeIsolated { topics?.fill(retryingFailures: true) }
+        }
 
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in

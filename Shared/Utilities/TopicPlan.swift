@@ -27,6 +27,15 @@ enum TopicPlan {
         let isSensitive: Bool
         let isDone: Bool
         let copiedAt: Date
+        let linkPreviewDone: Bool
+    }
+
+    /// The pass stops, and waits for the next fill: in Low Power Mode, on a hot device, or while `busy` (the Mac's
+    /// panel is open, and its suggestions share the model).
+    static func shouldPause(lowPower: Bool = ProcessInfo.processInfo.isLowPowerModeEnabled,
+                            thermal: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState,
+                            busy: Bool = false) -> Bool {
+        lowPower || thermal == .serious || thermal == .critical || busy
     }
 
     /// The model's answer for one clip. `topic`, `other` and `unavailable` are final: stored with `topicDone`.
@@ -44,11 +53,13 @@ enum TopicPlan {
     }
 
     /// The newest text and link clips not asked yet, at most `limit`, among the `window` newest clips. Never an id in
-    /// `skipping`: the model failed on it earlier in this pass.
+    /// `skipping`: the model failed on it. `waitsForLinkPreviews` ("Link previews" is on): a link is asked about once its
+    /// preview is fetched, so the model reads its page title too.
     static func nextBatch(clips: [Candidate], limit: Int = batchSize, window: Int = window,
-                          skipping: Set<UUID>) -> [UUID] {
+                          skipping: Set<UUID>, waitsForLinkPreviews: Bool = false) -> [UUID] {
         clips.sorted { $0.copiedAt > $1.copiedAt }.prefix(window)
-            .filter { !$0.isDone && !skipping.contains($0.id) && isEligible($0.contentType, isSensitive: $0.isSensitive) }
+            .filter { !$0.isDone && !skipping.contains($0.id) && isEligible($0.contentType, isSensitive: $0.isSensitive)
+                && !(waitsForLinkPreviews && $0.contentType == .url && !$0.linkPreviewDone) }
             .prefix(limit).map(\.id)
     }
 

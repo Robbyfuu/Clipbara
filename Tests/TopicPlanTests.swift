@@ -1,3 +1,4 @@
+import FoundationModels
 import SwiftData
 import XCTest
 
@@ -5,10 +6,10 @@ import XCTest
 final class TopicPlanTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    private func candidate(_ type: ContentType, _ minutesAgo: Int, secret: Bool = false,
-                           done: Bool = false) -> TopicPlan.Candidate {
+    private func candidate(_ type: ContentType, _ minutesAgo: Int, secret: Bool = false, done: Bool = false,
+                           previewDone: Bool = true) -> TopicPlan.Candidate {
         TopicPlan.Candidate(id: UUID(), contentType: type, isSensitive: secret, isDone: done,
-                            copiedAt: now.addingTimeInterval(TimeInterval(-60 * minutesAgo)))
+                            copiedAt: now.addingTimeInterval(TimeInterval(-60 * minutesAgo)), linkPreviewDone: previewDone)
     }
 
     func testBatchSkipsSecretsImagesAndFiles() {
@@ -32,6 +33,74 @@ final class TopicPlanTests: XCTestCase {
     func testBatchSkipsThePassFailures() {
         let a = candidate(.plainText, 0), b = candidate(.plainText, 1)
         XCTAssertEqual(TopicPlan.nextBatch(clips: [a, b], skipping: [a.id]), [b.id])
+    }
+
+    /// A link waits for its page title while "Link previews" is on, so the model reads the title too.
+    func testLinksWaitForTheirPreview() {
+        let waiting = candidate(.url, 0, previewDone: false), fetched = candidate(.url, 1),
+            text = candidate(.plainText, 2, previewDone: false)
+        XCTAssertEqual(TopicPlan.nextBatch(clips: [waiting, fetched, text], skipping: [], waitsForLinkPreviews: true),
+                       [fetched.id, text.id])
+        XCTAssertEqual(TopicPlan.nextBatch(clips: [waiting, fetched, text], skipping: [], waitsForLinkPreviews: false),
+                       [waiting.id, fetched.id, text.id], "with previews off, nothing to wait for")
+    }
+
+    /// Low Power Mode, a serious or critical thermal state, or the Mac's panel open (its suggestions share the model).
+    func testPauseWhenTheDeviceIsStrainedOrThePanelIsOpen() {
+        XCTAssertFalse(TopicPlan.shouldPause(lowPower: false, thermal: .nominal, busy: false))
+        XCTAssertFalse(TopicPlan.shouldPause(lowPower: false, thermal: .fair, busy: false))
+        XCTAssertTrue(TopicPlan.shouldPause(lowPower: true, thermal: .nominal, busy: false))
+        XCTAssertTrue(TopicPlan.shouldPause(lowPower: false, thermal: .serious, busy: false))
+        XCTAssertTrue(TopicPlan.shouldPause(lowPower: false, thermal: .critical, busy: false))
+        XCTAssertTrue(TopicPlan.shouldPause(lowPower: false, thermal: .nominal, busy: true))
+    }
+
+    /// "Automatic pinboards" off turns the topics off too, and only the type boards are listed.
+    func testTopicsNeedAutomaticPinboards() {
+        let defaults = SecretDetector.settings
+        defer {
+            defaults.removeObject(forKey: SmartKinds.enabledDefaultsKey)
+            defaults.removeObject(forKey: TopicPlan.enabledDefaultsKey)
+        }
+        defaults.set(false, forKey: SmartKinds.enabledDefaultsKey)
+        defaults.set(true, forKey: TopicPlan.enabledDefaultsKey)
+        XCTAssertFalse(TopicPlan.isEnabled)
+        XCTAssertEqual(SmartBoard.listed, SmartBoard.types)
+        defaults.set(true, forKey: SmartKinds.enabledDefaultsKey)
+        defaults.set(false, forKey: TopicPlan.enabledDefaultsKey)
+        XCTAssertFalse(TopicPlan.isEnabled)
+        XCTAssertEqual(SmartBoard.listed, SmartBoard.types)
+    }
+
+    /// Topic boards and the setting show where Apple Intelligence is on, its model ready or still downloading.
+    func testSupportedWhileTheModelIsReadyOrDownloading() throws {
+        guard #available(macOS 26, *) else { throw XCTSkip("FoundationModels needs macOS 26") }
+        XCTAssertTrue(TopicClassifier.isSupported(.available))
+        XCTAssertTrue(TopicClassifier.isSupported(.unavailable(.modelNotReady)))
+        XCTAssertFalse(TopicClassifier.isSupported(.unavailable(.appleIntelligenceNotEnabled)))
+        XCTAssertFalse(TopicClassifier.isSupported(.unavailable(.deviceNotEligible)))
+    }
+
+    /// An error the same text would meet again is final, with no topic (`other`); the rest are retried.
+    func testErrorsTheSameTextWouldMeetAgainAreFinal() throws {
+        guard #available(macOS 26, *) else { throw XCTSkip("FoundationModels needs macOS 26") }
+        let context = LanguageModelSession.GenerationError.Context(debugDescription: "test")
+        func outcome(_ error: Error, localeSupported: Bool = true) -> TopicPlan.Outcome {
+            TopicClassifier.outcome(for: error, localeSupported: localeSupported)
+        }
+        XCTAssertEqual(outcome(LanguageModelSession.GenerationError.guardrailViolation(context)), .other)
+        XCTAssertEqual(outcome(LanguageModelSession.GenerationError.decodingFailure(context)), .other)
+        XCTAssertEqual(outcome(LanguageModelSession.GenerationError.unsupportedLanguageOrLocale(context)), .other)
+        XCTAssertEqual(outcome(LanguageModelSession.GenerationError.unsupportedLanguageOrLocale(context),
+                               localeSupported: false), .unavailable, "the device's own language is not supported")
+        XCTAssertEqual(outcome(LanguageModelSession.GenerationError.assetsUnavailable(context)), .unavailable)
+        XCTAssertEqual(outcome(LanguageModelSession.GenerationError.rateLimited(context)), .failed)
+        XCTAssertEqual(outcome(CancellationError()), .failed)
+        guard #available(macOS 27, *) else { return }
+        XCTAssertEqual(outcome(LanguageModelError.guardrailViolation(.init(debugDescription: "test"))), .other)
+        XCTAssertEqual(outcome(LanguageModelError.refusal(.init(explanation: "", debugDescription: "test"))), .other)
+        XCTAssertEqual(outcome(SystemLanguageModel.Error.assetsUnavailable(.init(debugDescription: "test"))), .unavailable)
+        XCTAssertEqual(outcome(LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "test"))), .failed)
     }
 
     func testPreviewsAreTruncatedTo300Characters() {
@@ -98,6 +167,7 @@ final class TopicQueueTests: XCTestCase {
         item.copiedAt = Date(timeIntervalSince1970: 1_800_000_000 + dt)
         item.isSensitive = secret
         item.linkTitle = title
+        item.linkPreviewDone = title != nil
         container.mainContext.insert(item)
         try container.mainContext.save()
         return item
@@ -118,9 +188,22 @@ final class TopicQueueTests: XCTestCase {
         }
     }
 
+    /// Set by the test, or by the fake model mid-pass.
+    private final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _on = false
+        var on: Bool {
+            get { lock.withLock { _on } }
+            set { lock.withLock { _on = newValue } }
+        }
+    }
+
+    private let paused = Flag()
+
     private func makeQueue(_ model: Model) -> TopicQueue {
-        TopicQueue(container: container, isEnabled: { true }, defaults: defaults,
-                   classify: { await model.classify($0) }) { [unowned self] ids in
+        let paused = paused
+        return TopicQueue(container: container, isEnabled: { true }, shouldPause: { paused.on }, pause: .zero,
+                   defaults: defaults, classify: { await model.classify($0) }) { [unowned self] ids in
             saves.append(ids)
             try? container.mainContext.save()
         }
@@ -160,8 +243,9 @@ final class TopicQueueTests: XCTestCase {
         XCTAssertEqual(saves.map(\.count), [10, 10, 5])
     }
 
-    /// A failure leaves the clip undone: never asked again in the same pass, asked again by the next fill.
-    func testFailureRetriesOnTheNextFill() async throws {
+    /// A failure leaves the clip undone, and waits for the app to come back to the front (or the next launch): a
+    /// capture's fill never asks it again.
+    func testFailureRetriesWhenTheAppIsActiveAgain() async throws {
         let clip = try insert(.plainText, "Invoice 2026-114 due Friday")
         let model = Model { _, call in call == 1 ? .failed : .topic(.finance) }
         let queue = makeQueue(model)
@@ -171,10 +255,61 @@ final class TopicQueueTests: XCTestCase {
         XCTAssertFalse(clip.topicDone)
         XCTAssertNil(clip.topicRaw)
         XCTAssertEqual(saves, [])
+        try insert(.image, nil, dt: 1)
         queue.fill()
+        await finish(queue)
+        XCTAssertEqual(model.asked.count, 1, "a capture's fill leaves it alone")
+        queue.fill(retryingFailures: true)
         await finish(queue)
         XCTAssertEqual(clip.topicRaw, "finance")
         XCTAssertTrue(clip.topicDone)
+    }
+
+    /// The pass never starts while paused, and stops before the next request once paused, keeping what it answered.
+    func testPassStopsWhilePausedAndResumesOnTheNextFill() async throws {
+        let a = try insert(.plainText, "Flight LA 800 to Lisbon", dt: 1)
+        let b = try insert(.plainText, "Invoice 2026-114 due Friday", dt: 0)
+        let paused = paused
+        paused.on = true
+        let model = Model { _, _ in
+            paused.on = true
+            return .topic(.travel)
+        }
+        let queue = makeQueue(model)
+        queue.fill()
+        await finish(queue)
+        XCTAssertEqual(model.asked, [], "never started while paused")
+        paused.on = false
+        queue.fill()
+        await finish(queue)
+        XCTAssertEqual(model.asked.count, 1, "stopped before the next request")
+        XCTAssertEqual(a.topicRaw, "travel", "the answer it had is kept")
+        XCTAssertFalse(b.topicDone)
+        paused.on = false
+        queue.fill()
+        await finish(queue)
+        XCTAssertEqual(b.topicRaw, "travel")
+    }
+
+    /// The version key asks again only the clips a pass can reach: the newest 1,000.
+    func testStaleResetStaysInTheWindow() async throws {
+        let old = try insert(.plainText, "Old note", dt: -1)
+        old.topicDone = true
+        for i in 0..<999 {
+            let image = ClipboardItem(contentType: .image, rawData: Data(), contentHash: "img-\(i)")
+            image.copiedAt = Date(timeIntervalSince1970: 1_800_000_000 + TimeInterval(i))
+            container.mainContext.insert(image)
+        }
+        let new = try insert(.plainText, "Flight LA 800 to Lisbon", dt: 2000)
+        new.topicDone = true
+        try container.mainContext.save()
+        let model = Model { _, _ in .topic(.travel) }
+        let queue = makeQueue(model)
+        queue.fill()
+        await finish(queue)
+        XCTAssertEqual(new.topicRaw, "travel", "asked again")
+        XCTAssertTrue(old.topicDone, "past the window: left as it was")
+        XCTAssertEqual(model.asked, ["Flight LA 800 to Lisbon"])
     }
 
     func testOtherIsDoneWithNoTopic() async throws {
