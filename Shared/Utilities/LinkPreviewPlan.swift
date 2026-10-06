@@ -38,23 +38,45 @@ enum LinkPreviewPlan {
             .prefix(limit).map(\.id)
     }
 
-    /// The clip's text as an http(s) URL with a host. Nil for any other scheme, so a fetch never reads a local file.
+    /// Link clips among the `window` newest that no fetch will ever take: another scheme, or a single-use link. Marked
+    /// done with no preview, so no pass looks at them again. Never a secret.
+    static func neverFetched(clips: [Candidate], window: Int = window) -> [UUID] {
+        clips.filter(\.isLink).sorted { $0.copiedAt > $1.copiedAt }.prefix(window)
+            .filter { !$0.isDone && !$0.isSensitive && fetchableURL($0.url) == nil }
+            .map(\.id)
+    }
+
+    /// Ruling E4: query items and path segments of sign-in, reset, verify and unsubscribe links. Fetching one could
+    /// use it up, or act on it. Compared case-insensitively.
+    static let singleUseQueryNames: Set<String> = ["token", "code", "otp", "sig", "signature", "key", "reset", "verify",
+                                                   "verification", "magic", "auth", "password", "session", "ticket", "nonce"]
+    static let singleUsePathSegments: Set<String> = ["reset-password", "verify", "magic-link", "confirm", "unsubscribe"]
+
+    /// The clip's text as an http(s) URL with a host. Nil for any other scheme, so a fetch never reads a local file, and
+    /// for a single-use link.
     static func fetchableURL(_ text: String?) -> URL? {
         guard let text, let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
               url.host?.isEmpty == false else { return nil }
+        let names = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.map { $0.name.lowercased() } ?? []
+        guard !names.contains(where: singleUseQueryNames.contains),
+              !url.pathComponents.contains(where: { singleUsePathSegments.contains($0.lowercased()) }) else { return nil }
         return url
     }
 
+    /// Offline, timed out or cut off (`stop()`, the system) is `retry`, also when LinkPresentation wraps it.
     static func outcome(for error: Error) -> Outcome {
+        if error is CancellationError { return .retry }
         let error = error as NSError
         switch (error.domain, error.code) {
         case (NSURLErrorDomain, NSURLErrorNotConnectedToInternet), (NSURLErrorDomain, NSURLErrorTimedOut),
-             (NSURLErrorDomain, NSURLErrorNetworkConnectionLost):
+             (NSURLErrorDomain, NSURLErrorNetworkConnectionLost), (NSURLErrorDomain, NSURLErrorCancelled):
             return .retry
-        // `LPError.metadataFetchTimedOut`, by its domain and code, so the extensions never link LinkPresentation.
-        case ("LPErrorDomain", 4): return .retry
-        default: return .done
+        // `LPError.metadataFetchCancelled` and `.metadataFetchTimedOut`, by domain and code, so the extensions never
+        // link LinkPresentation.
+        case ("LPErrorDomain", 3), ("LPErrorDomain", 4): return .retry
+        default:
+            return (error.userInfo[NSUnderlyingErrorKey] as? Error).map(outcome(for:)) ?? .done
         }
     }
 

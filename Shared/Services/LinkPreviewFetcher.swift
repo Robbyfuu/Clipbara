@@ -95,16 +95,21 @@ enum LinkPreviewFetcher {
         var failed: Set<UUID> = []
         while !Task.isCancelled {
             let skipped = failed
-            let batch = await ImageTextQueue.offMain { Self.nextBatch(in: container, skipping: skipped) }
+            let next = await ImageTextQueue.offMain { Self.nextBatch(in: container, skipping: skipped) }
+            let batch = next.batch
+            // Single-use and non-http links: done with no preview, never fetched.
+            var results = next.never.map { Fetched(id: $0.id, url: $0.url, title: nil, image: nil) }
             // The same batch again means the last write didn't land: stop rather than fetch it forever.
-            guard !batch.isEmpty, batch.map(\.id) != last else { return }
+            guard !batch.isEmpty, batch.map(\.id) != last else { return write(results) }
             last = batch.map(\.id)
-            var results: [Result] = []
             for clip in batch {
                 if Task.isCancelled { break }
                 guard let url = LinkPreviewPlan.fetchableURL(clip.url) else { continue }
-                switch await fetch(url) {
-                case .preview(let title, let image): results.append(Result(id: clip.id, url: clip.url, title: title, image: image))
+                let outcome = await fetch(url)
+                // Stopped meanwhile: the fetch may have been cut off, so its answer is not kept.
+                if Task.isCancelled { break }
+                switch outcome {
+                case .preview(let title, let image): results.append(Fetched(id: clip.id, url: clip.url, title: title, image: image))
                 case .retry: failed.insert(clip.id)
                 }
             }
@@ -112,7 +117,7 @@ enum LinkPreviewFetcher {
         }
     }
 
-    private struct Result {
+    private struct Fetched {
         let id: UUID
         /// The text fetched, so a preview never lands on a clip edited meanwhile.
         let url: String
@@ -121,7 +126,7 @@ enum LinkPreviewFetcher {
     }
 
     /// Stores each preview, or none, and marks the clip fetched. Skips a clip deleted, edited or made a secret meanwhile.
-    private func write(_ results: [Result]) {
+    private func write(_ results: [Fetched]) {
         let context = container.mainContext
         // A pending user change goes out in a save the tracker reports, before the save that hides these clips from it.
         if context.hasChanges { try? context.save() }
@@ -137,8 +142,9 @@ enum LinkPreviewFetcher {
         if !written.isEmpty { save(written) }
     }
 
-    nonisolated private static func nextBatch(in container: ModelContainer,
-                                              skipping failed: Set<UUID>) -> [(id: UUID, url: String)] {
+    /// The next batch to fetch, and the links never fetched (`LinkPreviewPlan.neverFetched`), with their text.
+    nonisolated private static func nextBatch(in container: ModelContainer, skipping failed: Set<UUID>)
+        -> (batch: [(id: UUID, url: String)], never: [(id: UUID, url: String)]) {
         let link = ContentType.url.rawValue
         var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentTypeRaw == link },
                                                    sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
@@ -150,6 +156,7 @@ enum LinkPreviewFetcher {
                                       isDone: $0.linkPreviewDone, copiedAt: $0.copiedAt, url: $0.textContent)
         }
         let urls = Dictionary(candidates.map { ($0.id, $0.url ?? "") }, uniquingKeysWith: { first, _ in first })
-        return LinkPreviewPlan.nextBatch(clips: candidates, skipping: failed).map { ($0, urls[$0] ?? "") }
+        return (LinkPreviewPlan.nextBatch(clips: candidates, skipping: failed).map { ($0, urls[$0] ?? "") },
+                LinkPreviewPlan.neverFetched(clips: candidates).map { ($0, urls[$0] ?? "") })
     }
 }

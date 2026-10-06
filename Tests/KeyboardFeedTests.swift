@@ -80,9 +80,11 @@ final class KeyboardFeedTests: XCTestCase {
         add("https://copyd.app", type: .url, dt: 0)
         let clips = try KeyboardFeed.items(in: context, mode: .recent)
         XCTAssertEqual(clips.map(\.preview), ["Apple", "https://copyd.app"])
+        XCTAssertEqual(clips.map(\.linkHost), ["apple.com", nil], "the host goes under a title only")
         XCTAssertNil(clips.first?.thumbnail)
-        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent, linkTitles: false).map(\.preview),
-                       ["https://www.apple.com", "https://copyd.app"])
+        let off = try KeyboardFeed.items(in: context, mode: .recent, linkTitles: false)
+        XCTAssertEqual(off.map(\.preview), ["https://www.apple.com", "https://copyd.app"])
+        XCTAssertEqual(off.map(\.linkHost), [nil, nil])
     }
 
     func testClipboardCardFromCapturedText() throws {

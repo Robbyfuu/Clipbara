@@ -13,6 +13,8 @@ struct KeyboardClip: Identifiable, Equatable {
     let sourceAppName: String?
     /// The keyboard's own capture of the current pasteboard, not yet in the store. Shows "Clipboard" for its meta line.
     var isClipboard = false
+    /// A link shown by its page title: the host, for the line under it. Nil otherwise.
+    var linkHost: String? = nil
 }
 
 /// A pinboard chip in the keyboard header.
@@ -54,6 +56,9 @@ enum KeyboardFeed {
         var descriptor = FetchDescriptor<ClipboardItem>(
             predicate: predicate, sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         descriptor.fetchLimit = limit
+        // What a card shows, never `rawData` nor `linkImageData`: small blobs are stored inline, and would load with the row.
+        descriptor.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.thumbnailData, \.isPinned, \.copiedAt,
+                                        \.sourceAppName, \.sourceAppBundleId, \.isSensitive, \.linkTitle]
         return try context.fetch(descriptor).map { clip($0, linkTitles: linkTitles) }
     }
 
@@ -80,11 +85,12 @@ enum KeyboardFeed {
     private static func clip(_ item: ClipboardItem, linkTitles: Bool) -> KeyboardClip {
         let type = item.contentType
         let text = item.textContent
+        let title = linkTitles ? item.linkPreviewTitle : nil
         return KeyboardClip(
-            id: item.id, contentType: type, preview: (linkTitles ? item.linkPreviewTitle : nil) ?? preview(type, text),
+            id: item.id, contentType: type, preview: title ?? preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
-            sourceAppName: item.sourceAppName)
+            sourceAppName: item.sourceAppName, linkHost: title == nil ? nil : text.flatMap(LinkParts.split)?.host)
     }
 
     /// "Insert as…" for one card, worked out when it is long-pressed, never for the whole feed. `text` is the clip's

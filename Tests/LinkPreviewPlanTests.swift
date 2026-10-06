@@ -59,6 +59,52 @@ final class LinkPreviewPlanTests: XCTestCase {
         XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchTimedOut)), .retry)
     }
 
+    /// A fetch cut off by `stop()` or the system is not an answer about the link: tried again by the next fill.
+    func testCancellationIsRetried() {
+        XCTAssertEqual(LinkPreviewPlan.outcome(for: CancellationError()), .retry)
+        XCTAssertEqual(LinkPreviewPlan.outcome(for: NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled)), .retry)
+        XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchCancelled)), .retry)
+    }
+
+    /// LinkPresentation wraps the network error: an offline failure is retried, a bare failure is final.
+    func testUnderlyingErrorDecides() {
+        let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
+        XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchFailed, userInfo: [NSUnderlyingErrorKey: offline])),
+                       .retry)
+        XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchFailed)), .done)
+        let notFound = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost)
+        XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchFailed, userInfo: [NSUnderlyingErrorKey: notFound])),
+                       .done)
+    }
+
+    /// Ruling E4: a single-use link (sign-in, reset, verify, unsubscribe) is never fetched: the fetch could use it up.
+    func testSingleUseLinksAreNeverFetched() {
+        for url in ["https://example.com/blog?page=2", "https://www.apple.com", "https://github.com/apple/swift/blob/main/README.md",
+                    "https://example.com/search?q=token", "https://example.com/verify-email-guide",
+                    "https://example.com/docs/confirmation", "https://example.com/?keyboard=1"] {
+            XCTAssertNotNil(LinkPreviewPlan.fetchableURL(url), url)
+        }
+        for url in ["https://app.example.com/login?token=abc", "https://example.com/a?TOKEN=abc", "https://x.com/?otp=123456",
+                    "https://x.com/cb?state=1&code=abc", "https://x.com/f?sig=1", "https://x.com/f?Signature=1",
+                    "https://x.com/m?key=k", "https://x.com/?reset=1", "https://x.com/?verify=1", "https://x.com/?verification=1",
+                    "https://x.com/?magic=1", "https://x.com/?auth=1", "https://x.com/?password=p", "https://x.com/?session=s",
+                    "https://x.com/?ticket=t", "https://x.com/?nonce=n",
+                    "https://x.com/reset-password/abc", "https://x.com/account/Verify?id=1", "https://x.com/magic-link/xyz",
+                    "https://x.com/email/confirm", "https://x.com/unsubscribe/123"] {
+            XCTAssertNil(LinkPreviewPlan.fetchableURL(url), url)
+        }
+    }
+
+    /// Links never fetched (another scheme, or single use) are marked done at once, so no pass looks at them again.
+    /// Never a secret, a done clip, or one outside the window.
+    func testNeverFetchedLinksAreTheUnfetchableOnes() {
+        let web = clip(0), once = clip(1, url: "https://x.com/login?token=abc"), ftp = clip(2, url: "ftp://x.com/f")
+        let secret = clip(3, secret: true, url: "https://x.com/login?token=abc")
+        let done = clip(4, done: true, url: "ftp://x.com/g"), text = clip(5, link: false, url: "not a url")
+        XCTAssertEqual(LinkPreviewPlan.neverFetched(clips: [done, secret, ftp, text, once, web]), [once.id, ftp.id])
+        XCTAssertEqual(LinkPreviewPlan.neverFetched(clips: [web, once, ftp], window: 2), [once.id])
+    }
+
     /// No metadata, an HTTP error or a bad host is final: a dead link is never fetched again.
     func testOtherFailuresAreDone() {
         XCTAssertEqual(LinkPreviewPlan.outcome(for: LPError(.metadataFetchFailed)), .done)
@@ -230,6 +276,35 @@ final class LinkPreviewQueueTests: XCTestCase {
         await finish(queue)
         XCTAssertTrue(link.linkPreviewDone)
         XCTAssertEqual(titleWasSaved, true)
+    }
+
+    /// `stop()` mid-fetch: whatever the fetch returns, it was cut off, so the link stays for the next fill.
+    func testStoppedFetchIsNeverMarkedDone() async throws {
+        let link = try insert("https://www.apple.com")
+        let gate = Gate()
+        let queue = makeQueue { _ in gate.enter(); return .preview(title: nil, image: nil) }
+        queue.fill()
+        guard await gate.waitUntilEntered() else { return XCTFail("never fetched") }
+        queue.stop()
+        gate.open()
+        await finish(queue)
+        XCTAssertFalse(link.linkPreviewDone)
+        XCTAssertNil(link.linkTitle)
+        XCTAssertEqual(saves, [])
+    }
+
+    /// A single-use link is marked done with no preview, never fetched.
+    func testSingleUseLinkIsDoneWithoutAFetch() async throws {
+        let once = try insert("https://app.example.com/login?token=abc")
+        let web = try insert("https://www.apple.com")
+        let fetches = Fetches()
+        let queue = makeQueue { url in fetches.add(url); return .preview(title: "Apple", image: nil) }
+        queue.fill()
+        await finish(queue)
+        XCTAssertEqual(fetches.all, [URL(string: "https://www.apple.com")!])
+        XCTAssertTrue(once.linkPreviewDone)
+        XCTAssertNil(once.linkTitle)
+        XCTAssertEqual(web.linkTitle, "Apple")
     }
 
     func testFillWhileAPassRunsNeverStartsASecond() async throws {
