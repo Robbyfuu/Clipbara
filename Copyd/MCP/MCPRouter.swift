@@ -111,6 +111,13 @@ struct MCPRouter: Sendable {
                 return true
             }
         }
+
+        /// Gives back the slot claimed at `time`, for a copy that wrote nothing.
+        func release(at time: TimeInterval) {
+            lock.withLock {
+                if let index = times.lastIndex(of: time) { times.remove(at: index) }
+            }
+        }
     }
 
     private struct Boards: Encodable {
@@ -131,10 +138,17 @@ struct MCPRouter: Sendable {
                 let boards = try await library.boards()
                 return try success(Boards(pinboards: boards.filter { $0.id == nil }, smartBoards: boards.filter { $0.id != nil }))
             case .copy(let text):
-                guard lastCopy.claim(at: now()) else {
+                // Claimed before the write, so two copies at once can't both pass; a refusal (Copyd pasting) gives it back.
+                let claimed = now()
+                guard lastCopy.claim(at: claimed) else {
                     return failure("Too many copies; try again in a moment.")
                 }
-                try await library.copy(text: text)
+                do {
+                    try await library.copy(text: text)
+                } catch let refusal as ToolError {
+                    lastCopy.release(at: claimed)
+                    throw refusal
+                }
                 return try success(["copied": true])
             }
         } catch let error as ToolError {

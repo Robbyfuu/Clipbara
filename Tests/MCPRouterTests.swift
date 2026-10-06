@@ -385,6 +385,26 @@ final class MCPRouterTests: XCTestCase {
                        "Copyd is pasting right now; try again in a moment.")
     }
 
+    /// A copy refused while Copyd pastes wrote nothing, so it spends no budget: a retry within the second goes through.
+    func testACopyRefusedWhileCopydIsPastingGivesBackItsSlot() async {
+        let clock = TestClock()
+        let library = FakeClipLibrary()
+        let r = MCPRouter(library: library, allowsWrite: { true }, now: { clock.now })
+        let copy = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"copy_to_clipboard","arguments":{"text":"hi"}}}"#
+
+        await library.configure(copyError: .pasting)
+        let refused = toolResult(await send(copy, to: r))
+        XCTAssertEqual((refused["content"] as? [[String: Any]])?.first?["text"] as? String,
+                       "Copyd is pasting right now; try again in a moment.")
+        await library.configure()
+        clock.now = 0.5
+        let retried = toolResult(await send(copy, to: r))
+        XCTAssertEqual(retried["isError"] as? Bool, false, "\(retried)")
+
+        let copied = await library.copied
+        XCTAssertEqual(copied, ["hi"])
+    }
+
     /// An agent's copy landing between Copyd's own clipboard write and its ⌘V would be pasted instead of the user's pick.
     func testWritesWaitWhileCopydIsPasting() {
         XCTAssertNil(ToolError.busy(pasteStackActive: false, autoPastePending: false))
