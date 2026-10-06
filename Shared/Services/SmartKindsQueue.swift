@@ -94,8 +94,8 @@ import SwiftData
         let byID = Dictionary(((try? context.fetch(batch)) ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return ids.compactMap { id in
             guard let clip = byID[id] else { return nil }
-            // A secret is sorted by its type only: its text never lands it in Code or Phones & Emails.
-            let kinds = SmartKinds.classify(contentType: clip.contentType, text: clip.isSensitive ? nil : clip.textContent)
+            // A secret is in no automatic pinboard, not even by its type: a secret link never shows in Links.
+            let kinds = clip.isSensitive ? 0 : SmartKinds.classify(contentType: clip.contentType, text: clip.textContent)
             return Sorted(id: id, contentHash: clip.contentHash, kinds: kinds)
         }
     }

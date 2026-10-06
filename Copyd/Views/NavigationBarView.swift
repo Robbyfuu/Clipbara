@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
@@ -15,6 +16,8 @@ struct NavigationBarView: View {
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse) private var historyItems: [ClipboardItem]
     @Query private var pinboardEntries: [PinboardEntry]
     @AppStorage(SmartKinds.enabledDefaultsKey) private var smartBoardsEnabled = true
+    /// The type boards holding a clip, in order; none while "Automatic pinboards" is off. Counted in the store.
+    @State private var smartBoards: [SmartBoard] = []
 
     @State private var isAddingPinboard = false
     @State private var newPinboardName = ""
@@ -32,8 +35,13 @@ struct NavigationBarView: View {
         .frame(height: DesignTokens.Nav.height)
         .onAppear {
             appState.orderedPinboardIDs = pinboards.map(\.id)
+            refreshSmartBoards()
             appState.orderedSmartBoards = smartBoards
         }
+        .onChange(of: smartBoardsEnabled) { _, _ in refreshSmartBoards() }
+        // A sort pass saves every 50 clips: one refetch once the saves pause.
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in refreshSmartBoards() }
         .onChange(of: pinboards.map(\.id)) { _, ids in
             appState.orderedPinboardIDs = ids
         }
@@ -310,11 +318,10 @@ struct NavigationBarView: View {
         OptionsMenuButton(searchState: appState.searchState)
     }
 
-    /// The type boards holding a clip, in order; none while "Automatic pinboards" is off. One pass over History.
-    private var smartBoards: [SmartBoard] {
-        guard smartBoardsEnabled else { return [] }
-        let kinds = historyItems.reduce(0) { $1.isGone ? $0 : $0 | $1.smartKinds }
-        return SmartBoard.types.filter { kinds & $0.bit != 0 }
+    /// One `fetchCount` per type board, never a pass over every clip.
+    private func refreshSmartBoards() {
+        let boards = smartBoardsEnabled ? ((try? SmartKinds.counts(in: modelContext, limit: 1)) ?? []).map(\.board) : []
+        if boards != smartBoards { smartBoards = boards }
     }
 
     private var pinnedItemIDs: Set<UUID> {

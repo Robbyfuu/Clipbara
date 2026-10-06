@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// An automatic pinboard: a read-only view of History, never a `Pinboard` entity, and never synced. The type boards come
 /// first, in the spec's order; the topic boards (Apple Intelligence) follow.
@@ -65,7 +66,8 @@ enum SmartKinds {
         }
         guard let text else { return 0 }
         let sample = String(decoding: text.utf8.prefix(sampleBytes), as: UTF8.self)
-        if LinkParts.bareLink(sample) != nil { return SmartBoard.links.bit }
+        // A text cut at `sampleBytes` may look like one link; the whole text is not.
+        if text.utf8.count <= sampleBytes, LinkParts.bareLink(sample) != nil { return SmartBoard.links.bit }
         var kinds = CodeDetector.isCode(sample) ? SmartBoard.code.bit : 0
         for match in detector?.matches(in: sample, range: NSRange(sample.startIndex..., in: sample)) ?? [] {
             switch match.resultType {
@@ -93,5 +95,38 @@ enum SmartKinds {
                           limit: Int = batchSize, window: Int = window) -> [UUID] {
         clips.sorted { $0.copiedAt > $1.copiedAt }.prefix(window)
             .filter { $0.version != version }.prefix(limit).map(\.id)
+    }
+
+    // MARK: In the store
+
+    /// Every `smartKinds` value holding a type board's bit, for an in-store `masks.contains($0.smartKinds)`: SwiftData
+    /// has no bitwise or division operator in a predicate. 64 values for 7 type boards. Empty for a topic board, which
+    /// matches its topic instead (`predicate(for:)`).
+    static func masks(for board: SmartBoard) -> [Int] {
+        board.isTopic ? [] : (0..<(1 << SmartBoard.types.count)).filter { $0 & board.bit != 0 }
+    }
+
+    /// A board's clips, matched in the store, so a count or a list never loads every clip. `excluding`: types the
+    /// caller's list leaves out. `includesSecrets`: false where secrets never show (the keyboard).
+    static func predicate(for board: SmartBoard, excluding types: [ContentType] = [],
+                          includesSecrets: Bool = true) -> Predicate<ClipboardItem> {
+        // Topic boards (Task 3) go here: a match on `topicRaw == board.rawValue` in place of the masks.
+        let masks = masks(for: board), excluded = types.map(\.rawValue)
+        return #Predicate {
+            masks.contains($0.smartKinds) && !excluded.contains($0.contentTypeRaw)
+                && (includesSecrets || $0.isSensitive == false)
+        }
+    }
+
+    /// The type boards holding a clip, in display order, with how many. `limit` caps each count: 1 is enough to know
+    /// a board shows. One `fetchCount` per board.
+    static func counts(in context: ModelContext, excluding types: [ContentType] = [], includesSecrets: Bool = true,
+                       limit: Int? = nil) throws -> [(board: SmartBoard, count: Int)] {
+        try SmartBoard.types.compactMap { board in
+            var descriptor = FetchDescriptor(predicate: predicate(for: board, excluding: types, includesSecrets: includesSecrets))
+            descriptor.fetchLimit = limit
+            let count = try context.fetchCount(descriptor)
+            return count > 0 ? (board, count) : nil
+        }
     }
 }

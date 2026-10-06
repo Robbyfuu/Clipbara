@@ -1,15 +1,17 @@
+import Combine
 import SwiftUI
 import SwiftData
 
 struct PinboardsView: View {
     @Query(sort: \Pinboard.displayOrder) private var boards: [Pinboard]
-    /// Every clip, for the automatic pinboards' counts. Each device sorts its own (`SmartKindsQueue`).
-    @Query private var clips: [ClipboardItem]
+    @Environment(\.modelContext) private var modelContext
     @AppStorage(SmartKinds.enabledDefaultsKey, store: SharedDefaults.store) private var smartBoardsEnabled = true
+    /// The type boards holding a clip History shows, with their counts, in order. Each device sorts its own clips
+    /// (`SmartKindsQueue`); they are counted in the store.
+    @State private var automatic: [(board: SmartBoard, count: Int)] = []
     @State private var path = NavigationPath()
 
     var body: some View {
-        let automatic = smartCounts
         NavigationStack(path: $path) {
             List {
                 ScreenTitle(text: String(localized: "Pinboards")).brandRow(top: 4, bottom: 9)
@@ -51,17 +53,16 @@ struct PinboardsView: View {
             .navigationDestination(for: Pinboard.self) { PinboardDetail(board: $0) }
             .navigationDestination(for: SmartBoard.self) { SmartBoardDetail(board: $0) }
         }
+        .onAppear(perform: refreshCounts)
+        .onChange(of: smartBoardsEnabled) { refreshCounts() }
+        // A sort pass saves every 50 clips: one recount once the saves pause.
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in refreshCounts() }
     }
 
-    /// The type boards holding a clip History shows, with their counts, in order. None while the setting is off.
-    // ponytail: one in-memory pass over every clip per render; a stored count if history grows past a few thousand.
-    private var smartCounts: [(board: SmartBoard, count: Int)] {
-        guard smartBoardsEnabled else { return [] }
-        var counts = [Int](repeating: 0, count: SmartBoard.types.count)
-        for clip in clips where clip.smartKinds != 0 && clip.contentType != .fileURL {
-            for (index, board) in SmartBoard.types.enumerated() where clip.smartKinds & board.bit != 0 { counts[index] += 1 }
-        }
-        return zip(SmartBoard.types, counts).filter { $0.1 > 0 }.map { (board: $0.0, count: $0.1) }
+    /// One `fetchCount` per type board, leaving out the Mac's file links as History does. None while the setting is off.
+    private func refreshCounts() {
+        automatic = smartBoardsEnabled ? (try? SmartKinds.counts(in: modelContext, excluding: [.fileURL])) ?? [] : []
     }
 
     private func card(_ name: String, count: Int, @ViewBuilder leading: () -> some View) -> some View {
@@ -117,13 +118,16 @@ private struct PinboardDetail: View {
 
 /// An automatic pinboard: History's rows, newest first, narrowed to the board's clips. Read-only.
 private struct SmartBoardDetail: View {
-    @Query(sort: \ClipboardItem.copiedAt, order: .reverse) private var items: [ClipboardItem]
+    /// The board's clips only, fetched in the store, leaving out the Mac's file links as History does.
+    @Query private var shown: [ClipboardItem]
     let board: SmartBoard
 
+    init(board: SmartBoard) {
+        self.board = board
+        _shown = Query(filter: SmartKinds.predicate(for: board, excluding: [.fileURL]), sort: \.copiedAt, order: .reverse)
+    }
+
     var body: some View {
-        let shown = items.filter {
-            $0.contentType != .fileURL && SmartKinds.members(of: board, kinds: $0.smartKinds, topic: nil)
-        }
         List {
             ScreenTitle(text: board.title).brandRow(top: 4, bottom: 9)
             ForEach(shown) { ClipRow(item: $0) }

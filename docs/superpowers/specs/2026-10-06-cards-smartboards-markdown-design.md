@@ -77,7 +77,7 @@
 
   | English | Spanish | Contents |
   |---|---|---|
-  | Links | Enlaces | URL clips |
+  | Links | Enlaces | URL clips, and text that is one bare http(s) link |
   | Code | Código | Detected by round 1's `CodeDetector` |
   | Addresses | Direcciones | NSDataDetector `.address` |
   | Phones & Emails | Teléfonos y correos | NSDataDetector `.phoneNumber`, or an email `.link` with `mailto` |

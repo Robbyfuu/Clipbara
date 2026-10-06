@@ -74,6 +74,13 @@ final class SmartKindsTests: XCTestCase {
         XCTAssertEqual(boards(.plainText, "Call me at (415) 555-0132 " + padding), [.contacts])
     }
 
+    /// Text over 4 KB is never one bare link, even when its first 4 KB has no space.
+    func testLongTextIsNeverALink() {
+        let long = "https://copyd.app/" + String(repeating: "a", count: SmartKinds.sampleBytes)
+        XCTAssertEqual(boards(.plainText, long), [])
+        XCTAssertEqual(boards(.plainText, "https://copyd.app/" + String(repeating: "a", count: 100)), [.links])
+    }
+
     // MARK: Boards
 
     func testBoardsInSpecOrder() {
@@ -94,6 +101,19 @@ final class SmartKindsTests: XCTestCase {
         XCTAssertEqual(SmartBoard.allCases.map { $0.title(bundle: es) },
                        ["Enlaces", "Código", "Direcciones", "Teléfonos y correos", "Imágenes", "Colores", "Archivos",
                         "Trabajo", "Compras", "Viajes", "Finanzas", "Estudio", "Social", "Personal"])
+    }
+
+    /// Every `smartKinds` value holding the board's bit, for an in-store `masks.contains`: SwiftData has no bitwise
+    /// operator in a predicate.
+    func testMasksHoldTheBoardsBitOnly() {
+        for board in SmartBoard.types {
+            let masks = SmartKinds.masks(for: board)
+            XCTAssertEqual(masks.count, 64, "\(board)")
+            XCTAssertEqual(Set(masks).count, 64)
+            XCTAssertTrue(masks.allSatisfy { $0 & board.bit != 0 && $0 < 1 << SmartBoard.types.count })
+        }
+        XCTAssertEqual(SmartKinds.masks(for: .links).first, SmartBoard.links.bit)
+        XCTAssertEqual(SmartKinds.masks(for: .work), [], "a topic board matches its topic, not a mask")
     }
 
     func testMembers() {
@@ -211,16 +231,66 @@ final class SmartKindsQueueTests: XCTestCase {
         XCTAssertEqual(saves.count, 1)
     }
 
-    /// A secret is sorted by its type only: its text never lands it in Code or Phones & Emails.
-    func testSecretsAreSortedByTypeOnly() async throws {
-        let secret = try insert(.plainText, "Call me at (415) 555-0132")
-        secret.isSensitive = true
+    /// A secret is in no automatic pinboard, not even by its type: a secret link never shows in Links.
+    func testSecretsAreNeverSorted() async throws {
+        let text = try insert(.plainText, "Call me at (415) 555-0132")
+        let link = try insert(.url, "https://example.com/reset?token=abc123")
+        text.isSensitive = true
+        link.isSensitive = true
         try container.mainContext.save()
         let queue = makeQueue()
         queue.fill()
         await finish(queue)
-        XCTAssertEqual(secret.smartKinds, 0)
-        XCTAssertEqual(secret.smartKindsVersion, SmartKinds.version)
+        XCTAssertEqual(text.smartKinds, 0)
+        XCTAssertEqual(link.smartKinds, 0)
+        XCTAssertEqual(text.smartKindsVersion, SmartKinds.version, "sorted, so never read again")
+        XCTAssertEqual(link.smartKindsVersion, SmartKinds.version)
+    }
+
+    // MARK: Counting in the store
+
+    @discardableResult
+    private func insert(_ type: ContentType, kinds: SmartBoard..., dt: TimeInterval, secret: Bool = false) throws -> ClipboardItem {
+        let item = try insert(type, "x", dt: dt)
+        item.smartKinds = kinds.reduce(0) { $0 | $1.bit }
+        item.isSensitive = secret
+        try container.mainContext.save()
+        return item
+    }
+
+    func testCountsAreTheNonEmptyTypeBoardsInOrder() throws {
+        let context = container.mainContext
+        XCTAssertTrue(try SmartKinds.counts(in: context).isEmpty)
+        try insert(.plainText, kinds: .code, .contacts, dt: 0)
+        try insert(.plainText, kinds: .code, dt: 1)
+        try insert(.color, kinds: .colors, dt: 2)
+        try insert(.plainText, dt: 3)
+        let counts = try SmartKinds.counts(in: context)
+        XCTAssertEqual(counts.map(\.board), [.code, .contacts, .colors])
+        XCTAssertEqual(counts.map(\.count), [2, 1, 1])
+        XCTAssertEqual(try SmartKinds.counts(in: context, limit: 1).map(\.count), [1, 1, 1], "enough to know it shows")
+    }
+
+    /// The iPhone leaves the Mac's file links out, and the keyboard every file and every secret, like their lists.
+    func testCountsLeaveOutWhatTheListLeavesOut() throws {
+        try insert(.fileURL, kinds: .files, dt: 0)
+        try insert(.files, kinds: .files, dt: 1)
+        try insert(.plainText, kinds: .code, dt: 2, secret: true)
+        let context = container.mainContext
+        XCTAssertEqual(try SmartKinds.counts(in: context).map(\.count), [1, 2])
+        XCTAssertEqual(try SmartKinds.counts(in: context, excluding: [.fileURL]).map(\.count), [1, 1])
+        XCTAssertTrue(try SmartKinds.counts(in: context, excluding: [.fileURL, .files], includesSecrets: false).isEmpty)
+    }
+
+    /// The iPhone's board list fetches by the same predicate, newest first.
+    func testPredicateFetchesTheBoardsClipsOnly() throws {
+        let old = try insert(.plainText, kinds: .code, dt: 0)
+        try insert(.url, kinds: .links, dt: 1)
+        let new = try insert(.plainText, kinds: .code, .addresses, dt: 2)
+        try insert(.fileURL, kinds: .code, dt: 3)
+        let fetch = FetchDescriptor(predicate: SmartKinds.predicate(for: .code, excluding: [.fileURL]),
+                                    sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        XCTAssertEqual(try container.mainContext.fetch(fetch).map(\.id), [new.id, old.id])
     }
 
     func testNothingRunsWhileTurnedOff() async throws {

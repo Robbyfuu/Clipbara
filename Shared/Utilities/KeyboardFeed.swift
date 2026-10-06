@@ -76,7 +76,7 @@ enum KeyboardFeed {
             })).map { ($0.persistentModelID, $0) }, uniquingKeysWith: { first, _ in first })
             return ids.compactMap { byID[$0] }.prefix(limit).map { clip($0, linkTitles: linkTitles) }
         case .smart(let board):
-            predicate = member(of: board)
+            predicate = SmartKinds.predicate(for: board, excluding: [.fileURL, .files], includesSecrets: false)
         }
         var descriptor = cardFields(predicate)
         descriptor.sortBy = [SortDescriptor(\.copiedAt, order: .reverse)]
@@ -88,30 +88,14 @@ enum KeyboardFeed {
     private static func cardFields(_ predicate: Predicate<ClipboardItem>) -> FetchDescriptor<ClipboardItem> {
         var descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
         descriptor.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.thumbnailData, \.isPinned, \.copiedAt,
-                                        \.sourceAppName, \.sourceAppBundleId, \.isSensitive, \.linkTitle, \.smartKinds]
+                                        \.sourceAppName, \.sourceAppBundleId, \.isSensitive, \.linkTitle]
         return descriptor
     }
 
-    /// A type board's clips the keyboard can show: never a file clip nor a secret. The bit test runs in the store, so
-    /// only the shown cards are loaded. SwiftData has no bitwise or division operator in a predicate, so it matches
-    /// every mask holding the board's bit: 64 values for 7 type boards.
-    private static func member(of board: SmartBoard) -> Predicate<ClipboardItem> {
-        let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
-        let masks = (0..<(1 << SmartBoard.types.count)).filter { $0 & board.bit != 0 }
-        return #Predicate {
-            masks.contains($0.smartKinds)
-                && $0.contentTypeRaw != fileRaw && $0.contentTypeRaw != filesRaw && $0.isSensitive == false
-        }
-    }
-
-    /// The type boards with a clip to show, in display order, after the user's pinboards.
+    /// The type boards with a clip the keyboard can show (never a file clip nor a secret), after the user's pinboards.
     @MainActor
     static func smartBoards(in context: ModelContext) throws -> [SmartBoard] {
-        try SmartBoard.types.filter { board in
-            var descriptor = FetchDescriptor(predicate: member(of: board))
-            descriptor.fetchLimit = 1
-            return try context.fetchCount(descriptor) > 0
-        }
+        try SmartKinds.counts(in: context, excluding: [.fileURL, .files], includesSecrets: false, limit: 1).map(\.board)
     }
 
     @MainActor
