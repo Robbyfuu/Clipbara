@@ -77,21 +77,51 @@ final class LinkPreviewPlanTests: XCTestCase {
                        .done)
     }
 
-    /// Ruling E4: a single-use link (sign-in, reset, verify, unsubscribe) is never fetched: the fetch could use it up.
+    /// Rulings E4 and E6: a single-use link (sign-in, reset, verify, invite, unsubscribe) is never fetched: the fetch
+    /// could use it up. Query names and path segments match by substring, and a fragment holding a value is a token.
     func testSingleUseLinksAreNeverFetched() {
-        for url in ["https://example.com/blog?page=2", "https://www.apple.com", "https://github.com/apple/swift/blob/main/README.md",
-                    "https://example.com/search?q=token", "https://example.com/verify-email-guide",
-                    "https://example.com/docs/confirmation", "https://example.com/?keyboard=1"] {
+        for url in ["https://example.com/blog?page=2", "https://www.apple.com", "https://github.com/org/repo",
+                    "https://news.ycombinator.com/item?id=1", "https://github.com/apple/swift/blob/main/README.md",
+                    "https://example.com/search?q=token", "https://example.com/?keyboard=1", "https://example.com/docs#install"] {
             XCTAssertNotNil(LinkPreviewPlan.fetchableURL(url), url)
         }
         for url in ["https://app.example.com/login?token=abc", "https://example.com/a?TOKEN=abc", "https://x.com/?otp=123456",
                     "https://x.com/cb?state=1&code=abc", "https://x.com/f?sig=1", "https://x.com/f?Signature=1",
-                    "https://x.com/m?key=k", "https://x.com/?reset=1", "https://x.com/?verify=1", "https://x.com/?verification=1",
-                    "https://x.com/?magic=1", "https://x.com/?auth=1", "https://x.com/?password=p", "https://x.com/?session=s",
-                    "https://x.com/?ticket=t", "https://x.com/?nonce=n",
+                    "https://x.com/?reset=1", "https://x.com/?verify=1", "https://x.com/?verification=1",
+                    "https://x.com/?magic=1", "https://x.com/?auth=1", "https://x.com/?password=p", "https://x.com/?passwd=p",
+                    "https://x.com/?session=s", "https://x.com/?ticket=t", "https://x.com/?nonce=n", "https://x.com/?invite=i",
+                    "https://x.com/?confirm=1",
+                    // E6: names that only contain a word
+                    "https://x.com/cb?access_token=abc", "https://x.com/?reset_password_token=abc",
+                    "https://x.com/?confirmation_token=abc", "https://x.com/cb?id_token=abc",
+                    "https://x.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=x",
+                    // E6: a token in the fragment
+                    "https://x.com/cb#access_token=abc",
+                    // path segments
                     "https://x.com/reset-password/abc", "https://x.com/account/Verify?id=1", "https://x.com/magic-link/xyz",
-                    "https://x.com/email/confirm", "https://x.com/unsubscribe/123"] {
+                    "https://x.com/email/confirm", "https://x.com/unsubscribe/123", "https://x.com/reset/MQ/abc-123/",
+                    "https://x.com/users/confirmation?x=1", "https://x.com/verify-email-guide", "https://x.com/activate/abc",
+                    "https://x.com/team/invite/abc"] {
             XCTAssertNil(LinkPreviewPlan.fetchableURL(url), url)
+        }
+    }
+
+    /// Ruling E6: a link to this device, the local network or a private address is never fetched: the fetch could act
+    /// on a router, a printer or a dev server.
+    func testLocalAndPrivateHostsAreNeverFetched() {
+        for url in ["http://localhost:3000/", "http://LOCALHOST./a", "http://dev.localhost/", "http://printer.local/",
+                    "http://router.lan", "http://nas.home/", "http://grafana.internal/d", "http://intranet/",
+                    "http://127.0.0.1:8080/", "http://127.1/", "http://2130706433/", "http://0.0.0.0/",
+                    "http://10.0.0.1/", "http://172.16.0.1/", "http://172.31.255.255/", "http://192.168.1.1/",
+                    "http://169.254.169.254/latest/meta-data", "http://100.64.0.1/", "http://100.127.255.255/",
+                    "http://[::1]/", "http://[::]/", "http://[fe80::1]/", "http://[fe80::1%25en0]/", "http://[febf::1]/",
+                    "http://[fc00::1]/", "http://[fd12:3456::1]/", "http://[::ffff:192.168.0.1]/"] {
+            XCTAssertNil(LinkPreviewPlan.fetchableURL(url), url)
+        }
+        for url in ["http://172.32.0.1/", "http://172.15.0.1/", "http://100.63.0.1/", "http://100.128.0.1/",
+                    "http://8.8.8.8/", "http://11.0.0.1/", "http://[2001:4860:4860::8888]/", "http://[fec0::1]/",
+                    "https://local.example.com", "https://my.home.example.com", "https://example.co.uk"] {
+            XCTAssertNotNil(LinkPreviewPlan.fetchableURL(url), url)
         }
     }
 
@@ -293,9 +323,10 @@ final class LinkPreviewQueueTests: XCTestCase {
         XCTAssertEqual(saves, [])
     }
 
-    /// A single-use link is marked done with no preview, never fetched.
+    /// A single-use or local link is marked done with no preview, never fetched.
     func testSingleUseLinkIsDoneWithoutAFetch() async throws {
         let once = try insert("https://app.example.com/login?token=abc")
+        let lan = try insert("http://192.168.1.1/")
         let web = try insert("https://www.apple.com")
         let fetches = Fetches()
         let queue = makeQueue { url in fetches.add(url); return .preview(title: "Apple", image: nil) }
@@ -304,6 +335,8 @@ final class LinkPreviewQueueTests: XCTestCase {
         XCTAssertEqual(fetches.all, [URL(string: "https://www.apple.com")!])
         XCTAssertTrue(once.linkPreviewDone)
         XCTAssertNil(once.linkTitle)
+        XCTAssertTrue(lan.linkPreviewDone)
+        XCTAssertNil(lan.linkTitle)
         XCTAssertEqual(web.linkTitle, "Apple")
     }
 

@@ -253,13 +253,15 @@ final class AppModel {
                 return try FileBundle.write(clip.rawData, to: dir)
             }.value
             guard let urls, !urls.isEmpty else { return flash("Couldn't share") }
-            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-                .first { $0.activationState == .foregroundActive }
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            // A Spotlight result opened on a cold launch may get here before the scene is active.
+            let scene = scenes.first { $0.activationState == .foregroundActive }
+                ?? scenes.first { $0.activationState == .foregroundInactive }
             var top = scene?.keyWindow?.rootViewController
             while let presented = top?.presentedViewController { top = presented }
             guard let top else {
                 try? FileManager.default.removeItem(at: dir)
-                return
+                return flash("Couldn't share")
             }
             let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
             // Done or cancelled, the activity has its copy by now.
@@ -272,12 +274,15 @@ final class AppModel {
         }
     }
 
-    /// The widget's `copyd://copy/<uuid>`: copies that clip the same way a tap does.
+    /// The widget's `copyd://copy/<uuid>` and a tapped Spotlight result: does what a tap on that clip's row does, so a
+    /// file clip opens the share sheet instead of copying its file names.
     func copy(id: UUID) {
         var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
         fetch.fetchLimit = 1
         // The clip may have been deleted since the widget last reloaded.
-        guard let item = try? container.mainContext.fetch(fetch).first, copy(item) else { return flash("Couldn't copy") }
+        guard let item = try? container.mainContext.fetch(fetch).first, !item.isGone else { return flash("Couldn't copy") }
+        if item.contentType.sharesOnTap { return share(item) }
+        if !copy(item) { flash("Couldn't copy") }
     }
 
     /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.

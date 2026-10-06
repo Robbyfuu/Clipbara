@@ -67,4 +67,9 @@ final class QuickRouteTests: XCTestCase {
         XCTAssertNil(QuickRoute(activityType: CSSearchableItemActionType, userInfo: [CSSearchableItemActivityIdentifier: "nope"]))
         XCTAssertNil(QuickRoute(activityType: CSSearchableItemActionType, userInfo: [CSSearchableItemActivityIdentifier: 42]))
     }
+
+    /// A file clip's text is only its file names: its tap, in the history or on a Spotlight result, shares the files.
+    func testOnlyFileClipsShareOnTap() {
+        XCTAssertEqual(ContentType.allCases.filter(\.sharesOnTap), [.files])
+    }
 }

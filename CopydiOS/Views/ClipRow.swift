@@ -21,7 +21,7 @@ struct ClipRow: View {
     }
 
     private var row: some View {
-        Button { if item.contentType == .files { model.share(item) } else { model.copy(item) } } label: {
+        Button { if item.contentType.sharesOnTap { model.share(item) } else { model.copy(item) } } label: {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
