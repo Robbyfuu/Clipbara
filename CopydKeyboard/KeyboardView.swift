@@ -12,6 +12,8 @@ final class KeyboardModel {
     var mode = KeyboardFeed.Mode.recent
     var boards: [KeyboardBoard] = []
     var lastSync: Date?
+    /// Source app icons by bundle id, at most 28 px, filled as cards need them.
+    var icons: [String: UIImage] = [:]
     var toast: String?
     var showsGlobe = false
 
@@ -233,7 +235,8 @@ struct KeyboardView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     cardBody(clip)
                     Spacer(minLength: 0)
-                    Group {
+                    HStack(spacing: 4) {
+                        appIcon(clip)
                         if clip.isClipboard {
                             Text("Clipboard")
                         } else {
@@ -248,9 +251,11 @@ struct KeyboardView: View {
             }
         }
         .frame(height: 84)
-        // An image card has no meta line, so its "Clipboard" label sits on the thumbnail.
+        // An image card has no meta line, so its "Clipboard" label, or its app icon, sits on the thumbnail.
         .overlay(alignment: .bottomLeading) {
-            if clip.isClipboard, clip.contentType == .image {
+            if clip.contentType == .image, !clip.isClipboard {
+                appIcon(clip).padding(6)
+            } else if clip.isClipboard, clip.contentType == .image {
                 Text("Clipboard").font(.system(size: 11, weight: .semibold)).foregroundStyle(DesignTokens.Brand.ink)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(DesignTokens.Brand.keyCap, in: Capsule())
@@ -260,6 +265,13 @@ struct KeyboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .keyCap(in: RoundedRectangle(cornerRadius: 12))
         .contentShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// The source app's 14 pt icon in the card's bottom corner, when the Mac synced one.
+    @ViewBuilder private func appIcon(_ clip: KeyboardClip) -> some View {
+        if let icon = clip.sourceAppBundleId.flatMap({ model.icons[$0] }) {
+            Image(uiImage: icon).resizable().frame(width: 14, height: 14).accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder private func cardBody(_ clip: KeyboardClip) -> some View {

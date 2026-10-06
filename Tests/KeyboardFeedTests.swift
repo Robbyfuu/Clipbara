@@ -127,6 +127,13 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.sourceAppName), ["Safari", nil])
     }
 
+    /// The card's corner icon is looked up by bundle id, so the feed carries it (already in `cardFields`).
+    func testFeedCarriesSourceBundleID() throws {
+        add("a", dt: 1).sourceAppBundleId = "com.apple.Safari"
+        add("b", dt: 0)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.sourceAppBundleId), ["com.apple.Safari", nil])
+    }
+
     @discardableResult
     private func board(_ name: String, order: Int) -> Pinboard {
         let b = Pinboard(name: name, displayOrder: order)

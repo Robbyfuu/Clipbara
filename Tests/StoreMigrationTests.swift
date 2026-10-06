@@ -86,4 +86,52 @@ final class StoreMigrationTests: XCTestCase {
         PasteEvent.record([id], app: "com.apple.Safari", in: new.mainContext)
         XCTAssertEqual(try new.mainContext.fetchCount(FetchDescriptor<PasteEvent>()), 1)
     }
+
+    /// App identities are a new synced entity: the Mac's store, paste history included, opens in place with it.
+    func testMacStoreGainsAppIdentities() throws {
+        let url = try storeURL()
+        let id = try seedStore(at: url, models: [ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self, PasteEvent.self])
+        let schema = Schema(StoreSchema.mac)
+        let new = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none))
+        XCTAssertEqual(try new.mainContext.fetch(FetchDescriptor<ClipboardItem>()).map(\.id), [id])
+        XCTAssertEqual(try new.mainContext.fetchCount(FetchDescriptor<AppIdentity>()), 0)
+        new.mainContext.insert(AppIdentity(bundleId: "com.apple.Safari", name: "Safari", iconPNG: Data([1]), colorHex: "#1E90FF"))
+        try new.mainContext.save()
+        XCTAssertEqual(try new.mainContext.fetch(FetchDescriptor<AppIdentity>()).map(\.bundleId), ["com.apple.Safari"])
+    }
+
+    /// The iPhone's store migrates when the app opens it; the keyboard and the widget then open it read-only with the
+    /// same shared schema and read the identities.
+    func testPhoneStoreGainsAppIdentitiesAndOpensReadOnly() throws {
+        let url = try storeURL()
+        let id = try seedStore(at: url, models: [ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self])
+        let schema = Schema(StoreSchema.models)
+        do {
+            let app = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none))
+            app.mainContext.insert(AppIdentity(bundleId: "com.apple.Safari", name: "Safari", iconPNG: Data([1]), colorHex: "#1E90FF"))
+            try app.mainContext.save()
+        }
+        let keyboard = try ModelContainer(for: schema, configurations: ModelConfiguration(
+            schema: schema, url: url, allowsSave: false, cloudKitDatabase: .none))
+        let context = ModelContext(keyboard)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ClipboardItem>()).map(\.id), [id])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AppIdentity>()).map(\.bundleId), ["com.apple.Safari"])
+    }
+
+    private func storeURL() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        return dir.appendingPathComponent("Test.store")
+    }
+
+    /// A store of today's shape (`models`), holding one clip. Returns the clip's id.
+    private func seedStore(at url: URL, models: [any PersistentModel.Type]) throws -> UUID {
+        let schema = Schema(models)
+        let old = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none))
+        let clip = ClipboardItem(contentType: .plainText, rawData: Data("kept".utf8), textContent: "kept", contentHash: "h")
+        old.mainContext.insert(clip)
+        try old.mainContext.save()
+        return clip.id
+    }
 }

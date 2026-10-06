@@ -6,6 +6,7 @@ import SwiftData
 struct ClipRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     let item: ClipboardItem
     var onDelete: (() -> Void)?
     @State private var editing = false
@@ -216,12 +217,30 @@ struct ClipRow: View {
         }
     }
 
-    /// "Source · age" on the left; a lock for a secret, and "Pinned" when pinned, on the right.
+    /// The source app's icon (the type's symbol when no identity is synced), the type over "Source · age" on the
+    /// left; a lock for a secret, and "Pinned" when pinned, on the right. A secret still shows its app.
     private var meta: some View {
-        HStack(spacing: 8) {
-            Text("\(item.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: item.copiedAt, now: Date()))")
-                .foregroundStyle(DesignTokens.Brand.ink2)
-                .lineLimit(1)
+        let look = item.sourceAppBundleId.flatMap { model.appLooks[$0] }
+        return HStack(spacing: 8) {
+            Group {
+                if let look {
+                    Image(uiImage: look.icon).resizable().scaledToFit()
+                } else {
+                    Image(systemName: item.contentType.systemImage).font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(DesignTokens.Brand.ink2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 7))
+                }
+            }
+            .frame(width: 28, height: 28)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.contentType.displayName).fontWeight(.semibold)
+                    .foregroundStyle(typeColor(look?.color))
+                Text("\(item.sourceAppName ?? "Copyd") \u{00b7} \(ClipAge.text(from: item.copiedAt, now: Date()))")
+                    .foregroundStyle(DesignTokens.Brand.ink2)
+            }
+            .lineLimit(1)
             Spacer(minLength: 0)
             if item.recognizedText != nil {
                 Text(verbatim: "Aa")
@@ -246,6 +265,17 @@ struct ClipRow: View {
             }
         }
         .brandFont(13, relativeTo: .footnote)
+    }
+
+    /// The app's color when it reads at 3:1 or better on the row's `card` ground in this appearance, else `ink2`.
+    private func typeColor(_ app: RGB?) -> Color {
+        guard let app else { return DesignTokens.Brand.ink2 }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(DesignTokens.Brand.card)
+            .resolvedColor(with: UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light))
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        guard ContrastPicker.ratio(app, RGB(r: r, g: g, b: b)) >= 3 else { return DesignTokens.Brand.ink2 }
+        return Color(red: app.r, green: app.g, blue: app.b)
     }
 
     @ViewBuilder private var thumbnail: some View {

@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 /// One clip picked into an app, for suggestions. Mac only and never synced: it lives outside `Shared/`, so the
-/// iPhone's schemas never see it, and `LocalChangeTracker` only reports clips, pinboards and their entries.
+/// iPhone's schemas never see it, and `LocalChangeTracker` only reports clips, pinboards, entries and app identities.
 @Model
 final class PasteEvent {
     var clipID: UUID
@@ -50,4 +50,9 @@ extension PasteEvent {
             }
         }
     }
+}
+
+extension StoreSchema {
+    /// The Mac's store: the shared models plus its own paste history.
+    static var mac: [any PersistentModel.Type] { models + [PasteEvent.self] }
 }

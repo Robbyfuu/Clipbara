@@ -19,6 +19,8 @@ extension DesignTokens {
         static let chip = dynamic(light: 0xE4E1D9, dark: 0x2A2A35)
         static let butter = dynamic(light: 0xF8D14F, dark: 0xF8D14F)
         static let onButter = dynamic(light: 0x191926, dark: 0x191926)
+        /// Light text on a dark app color in a card header (`ContrastPicker`'s `.light`). Dark text is `onButter`.
+        static let onDark = dynamic(light: 0xFFFFFF, dark: 0xFFFFFF)
         /// Soft butter ground for the iOS sync chip.
         static let butterSoft = dynamic(light: 0xFCF1C8, dark: 0x3A3420)
         /// Butter-toned text ("Pinned"). On `card`: 4.99:1 light, 11.17:1 dark.

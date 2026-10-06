@@ -173,10 +173,12 @@ import SwiftData
                                    syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch? {
         guard syncEngine === engine else { return nil }
         let clips: [UUID: ClipboardItem], boards: [UUID: Pinboard], entries: [UUID: PinboardEntry]
+        let identities: [UUID: AppIdentity]
         do {
             clips = Self.byID(try modelContext.fetch(FetchDescriptor<ClipboardItem>()), \.id)
             boards = Self.byID(try modelContext.fetch(FetchDescriptor<Pinboard>()), \.id)
             entries = Self.byID(try modelContext.fetch(FetchDescriptor<PinboardEntry>()), \.id)
+            identities = Self.byID(try modelContext.fetch(FetchDescriptor<AppIdentity>()), \.id)
         } catch {
             Self.log.error("Could not read models for upload: \(error.syncLogDescription, privacy: .public)")
             return nil
@@ -189,12 +191,12 @@ import SwiftData
         var clipsHeldBack = false
         for change in syncEngine.state.pendingRecordZoneChanges where context.options.scope.contains(change) {
             if case .deleteRecord(let rid) = change {
-                if let id = UUID(uuidString: rid.recordName), deferred.contains(id) { continue }
+                if let id = SyncRecordMapper.localID(rid.recordName), deferred.contains(id) { continue }
                 candidates.append(.init(change: change, kind: nil, byteCount: 0))
                 continue
             }
             guard case .saveRecord(let rid) = change else { continue }
-            guard let id = UUID(uuidString: rid.recordName) else { dead.append(change); continue }
+            guard let id = SyncRecordMapper.localID(rid.recordName) else { dead.append(change); continue }
             if deferred.contains(id) {
                 if clips[id] != nil || boards[id] != nil { clipsHeldBack = true }
                 continue
@@ -217,6 +219,8 @@ import SwiftData
                       clip.contentTypeRaw != "fileURL", clip.isSyncEligible {
                 // ponytail: sizes every pending entry's clip; entries are few, cap them like clips if that changes.
                 candidates.append(.init(change: change, kind: .entry, byteCount: 0))
+            } else if let identity = identities[id] {
+                candidates.append(.init(change: change, kind: .appIdentity, byteCount: identity.iconPNG.count))
             } else {
                 // Deleted since it was queued, an entry that lost its clip or pinboard, or an entry of an ineligible clip.
                 dead.append(change)
@@ -237,7 +241,7 @@ import SwiftData
             case .deleteRecord(let rid):
                 toDelete.append(rid)
             case .saveRecord(let rid):
-                guard let id = UUID(uuidString: rid.recordName) else { continue }
+                guard let id = SyncRecordMapper.localID(rid.recordName) else { continue }
                 do {
                     if let m = clips[id] {
                         let (r, serverHash) = SyncRecordMapper.record(SyncRecordMapper.clipType, rid, systemFields: m.syncSystemFields)
@@ -252,6 +256,10 @@ import SwiftData
                     } else if let m = entries[id], let s = m.snapshot {
                         let r = SyncRecordMapper.record(SyncRecordMapper.entryType, rid, systemFields: m.syncSystemFields).record
                         SyncRecordMapper.populate(r, from: s)
+                        toSave.append(r)
+                    } else if let m = identities[id] {
+                        let r = SyncRecordMapper.record(SyncRecordMapper.appIdentityType, rid, systemFields: m.syncSystemFields).record
+                        SyncRecordMapper.populate(r, from: m.snapshot)
                         toSave.append(r)
                     }
                 } catch {
@@ -334,33 +342,37 @@ import SwiftData
             if case .deleteRecord(let rid) = change { rid.recordName } else { nil }
         })
         var clips: [ClipSnapshot] = [], boards: [PinboardSnapshot] = [], entries: [EntrySnapshot] = []
+        var identities: [AppIdentitySnapshot] = []
         var fields: [UUID: Data] = [:]
         for m in e.modifications where !pendingDeletes.contains(m.record.recordID.recordName) {
             let r = m.record
             do {
-                switch r.recordType {
-                case SyncRecordMapper.clipType: clips.append(try SyncRecordMapper.clip(from: r))
-                case SyncRecordMapper.pinboardType: boards.append(try SyncRecordMapper.pinboard(from: r))
-                case SyncRecordMapper.entryType: entries.append(try SyncRecordMapper.entry(from: r))
-                default:
+                switch try SyncRecordMapper.decode(r) {
+                case .clip(let s): clips.append(s)
+                case .pinboard(let s): boards.append(s)
+                case .entry(let s): entries.append(s)
+                case .appIdentity(let s): identities.append(s)
+                case nil:
                     Self.log.notice("Skipped record of unknown type \(r.recordType, privacy: .public)")
                     continue
                 }
-                if let id = UUID(uuidString: r.recordID.recordName) { fields[id] = SyncRecordMapper.archive(r) }
+                if let id = SyncRecordMapper.localID(r.recordID.recordName) { fields[id] = SyncRecordMapper.archive(r) }
             } catch {
                 Self.log.error("Skipped undecodable record \(r.recordID.recordName, privacy: .public): \(error.syncLogDescription, privacy: .public)")
             }
         }
-        let deletions = e.deletions.compactMap { UUID(uuidString: $0.recordID.recordName) }
+        let deletions = e.deletions.compactMap { SyncRecordMapper.localID($0.recordID.recordName) }
         // A remote deletion beats a local edit.
-        engine.state.remove(pendingRecordZoneChanges: deletions.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) })
+        engine.state.remove(pendingRecordZoneChanges: e.deletions.map {
+            .saveRecord(SyncRecordMapper.recordID(named: $0.recordID.recordName))
+        })
         // A newer version or a deletion replaces a held orphan.
         let superseded = Set(entries.map(\.id)).union(deletions)
         orphans.removeAll { superseded.contains($0.id) }
         orphanFields = orphanFields.filter { !superseded.contains($0.key) }
 
-        let out = applyRemote(clips: clips, pinboards: boards, entries: entries, deletions: deletions,
-                              fields: fields, engine: engine)
+        let out = applyRemote(clips: clips, pinboards: boards, entries: entries, identities: identities,
+                              deletions: deletions, fields: fields, engine: engine)
         #if os(iOS)
         arrivals.formUnion(out.arrivals)
         #endif
@@ -384,7 +396,7 @@ import SwiftData
     private func handleSent(_ e: CKSyncEngine.Event.SentRecordZoneChanges, engine: CKSyncEngine) {
         var fields: [UUID: Data?] = [:]  // a nil value clears the stored system fields
         var requeue: [CKSyncEngine.PendingRecordZoneChange] = []
-        var remoteDeleted: [UUID] = []
+        var remoteDeleted: [(id: UUID, save: CKSyncEngine.PendingRecordZoneChange)] = []
         var zoneMissing = false
         func resendLater(_ change: CKSyncEngine.PendingRecordZoneChange, _ id: UUID) {
             deferred.insert(id)
@@ -393,12 +405,13 @@ import SwiftData
 
         for r in e.savedRecords {
             removeAssets(of: r)
-            if let id = UUID(uuidString: r.recordID.recordName) { fields[id] = SyncRecordMapper.archive(r) }
+            if let id = SyncRecordMapper.localID(r.recordID.recordName) { fields[id] = SyncRecordMapper.archive(r) }
         }
         for f in e.failedRecordSaves {
             removeAssets(of: f.record)
-            guard let id = UUID(uuidString: f.record.recordID.recordName) else { continue }
-            let save = CKSyncEngine.PendingRecordZoneChange.saveRecord(SyncRecordMapper.recordID(for: id))
+            let name = f.record.recordID.recordName
+            guard let id = SyncRecordMapper.localID(name) else { continue }
+            let save = CKSyncEngine.PendingRecordZoneChange.saveRecord(SyncRecordMapper.recordID(named: name))
             switch f.error.code {
             case .serverRecordChanged:
                 // Local pending change wins: keep local values, resend on the server's system fields.
@@ -421,10 +434,10 @@ import SwiftData
                 }) {
                     resendLater(save, id)
                 } else {
-                    remoteDeleted.append(id)  // the clip or pinboard it references was deleted elsewhere
+                    remoteDeleted.append((id, save))  // the clip or pinboard it references was deleted elsewhere
                 }
             case .unknownItem:
-                remoteDeleted.append(id)  // another device deleted it
+                remoteDeleted.append((id, save))  // another device deleted it
             case .quotaExceeded:
                 status = .quotaExceeded
                 resendLater(save, id)
@@ -443,9 +456,9 @@ import SwiftData
             case .unknownItem, .zoneNotFound:
                 break  // already gone
             case .limitExceeded:
-                guard let id = UUID(uuidString: rid.recordName) else { continue }
+                guard let id = SyncRecordMapper.localID(rid.recordName) else { continue }
                 Self.log.error("Batch too large: delete of \(id, privacy: .public) resent in the next send")
-                resendLater(.deleteRecord(SyncRecordMapper.recordID(for: id)), id)
+                resendLater(.deleteRecord(SyncRecordMapper.recordID(named: rid.recordName)), id)
             case let code where Self.retryable.contains(code):
                 break
             default:
@@ -456,8 +469,8 @@ import SwiftData
 
         storeSystemFields(fields)
         if !remoteDeleted.isEmpty {
-            engine.state.remove(pendingRecordZoneChanges: remoteDeleted.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) })
-            applyRemote(deletions: remoteDeleted, fields: [:], engine: engine)
+            engine.state.remove(pendingRecordZoneChanges: remoteDeleted.map(\.save))
+            applyRemote(deletions: remoteDeleted.map(\.id), fields: [:], engine: engine)
         }
         if zoneMissing {
             engine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: SyncRecordMapper.zoneID))])
@@ -470,11 +483,13 @@ import SwiftData
     /// Applies remote changes, saves them without echo, and queues the uploads the merge produced.
     @discardableResult
     private func applyRemote(clips: [ClipSnapshot] = [], pinboards: [PinboardSnapshot] = [], entries: [EntrySnapshot] = [],
-                             deletions: [UUID] = [], fields: [UUID: Data], engine: CKSyncEngine) -> RemoteApplier.Outcome {
+                             identities: [AppIdentitySnapshot] = [], deletions: [UUID] = [], fields: [UUID: Data],
+                             engine: CKSyncEngine) -> RemoteApplier.Outcome {
         // One snapshot of the pending list: it cannot change during apply, and reading it per record is O(n).
         let pending = Set(engine.state.pendingRecordZoneChanges)
         let applier = RemoteApplier(context: modelContext) { pending.contains(.saveRecord(SyncRecordMapper.recordID(for: $0))) }
-        let out = applier.apply(clips: clips, pinboards: pinboards, entries: entries, deletions: deletions, systemFields: fields)
+        let out = applier.apply(clips: clips, pinboards: pinboards, entries: entries, identities: identities,
+                                deletions: deletions, systemFields: fields)
         save(suppressing: out.touched)
         engine.state.add(pendingRecordZoneChanges: out.saves.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) }
             + out.deletes.map { .deleteRecord(SyncRecordMapper.recordID(for: $0)) })
@@ -491,6 +506,8 @@ import SwiftData
                 m.syncSystemFields = data
             } else if let m = modelContext.syncEntry(id: id) {
                 m.syncSystemFields = data
+            } else if let m = modelContext.syncIdentity(id: id) {
+                m.syncSystemFields = data
             }
         }
         save(suppressing: Set(fields.keys))
@@ -502,6 +519,7 @@ import SwiftData
             ids.formUnion(try modelContext.fetch(FetchDescriptor<ClipboardItem>()).map(\.id))
             ids.formUnion(try modelContext.fetch(FetchDescriptor<Pinboard>()).map(\.id))
             ids.formUnion(try modelContext.fetch(FetchDescriptor<PinboardEntry>()).map(\.id))
+            ids.formUnion(try modelContext.fetch(FetchDescriptor<AppIdentity>()).map(\.id))
         } catch { Self.log.error("Could not list models to clear: \(error.syncLogDescription, privacy: .public)") }
         RemoteApplier.clearSystemFields(in: modelContext)
         save(suppressing: ids)
@@ -551,9 +569,9 @@ import SwiftData
         } else {
             // A save that failed with an unexpected error is dropped from pending for good; the missing system fields give it away.
             do {
-                let ids = try RemoteApplier.uploadableIDs(in: modelContext, onlyUnconfirmed: true)
+                let ids = try RemoteApplier.uploadableRecordIDs(in: modelContext, onlyUnconfirmed: true)
                 if !ids.isEmpty {
-                    engine.state.add(pendingRecordZoneChanges: ids.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) })
+                    engine.state.add(pendingRecordZoneChanges: ids.map { .saveRecord($0) })
                     Self.log.notice("Re-queued \(ids.count, privacy: .public) unconfirmed records")
                 }
             } catch {
@@ -562,17 +580,18 @@ import SwiftData
         }
     }
 
-    /// First enable, sign-in and encryptedDataReset: the zone, every eligible clip, every pinboard, every entry of an eligible clip.
+    /// First enable, sign-in and encryptedDataReset: the zone, every eligible clip, every pinboard, every entry of an
+    /// eligible clip, every app identity.
     private func queueEverything(on engine: CKSyncEngine) {
-        var ids: [UUID] = []
+        var ids: [CKRecord.ID] = []
         do {
             // Oversized clips (and their entries) are dropped when the batch is built.
-            ids = try RemoteApplier.uploadableIDs(in: modelContext, onlyUnconfirmed: false)
+            ids = try RemoteApplier.uploadableRecordIDs(in: modelContext, onlyUnconfirmed: false)
         } catch {
             Self.log.error("Could not list records to upload: \(error.syncLogDescription, privacy: .public)")
         }
         engine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: SyncRecordMapper.zoneID))])
-        engine.state.add(pendingRecordZoneChanges: ids.map { .saveRecord(SyncRecordMapper.recordID(for: $0)) })
+        engine.state.add(pendingRecordZoneChanges: ids.map { .saveRecord($0) })
     }
 
     private func loadState() -> CKSyncEngine.State.Serialization? {

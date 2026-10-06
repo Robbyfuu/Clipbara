@@ -28,6 +28,14 @@ final class AppModel {
     var toastText = String(localized: "Copied")
     /// A quick action or `copyd://` link the root view has not handled yet. Set before any view exists on a cold launch.
     var pendingRoute: QuickRoute?
+    /// Each app's icon and header color, from the identities the Mac synced (`AppIdentity`), by bundle id.
+    private(set) var appLooks: [String: AppLook] = [:]
+
+    struct AppLook: Sendable {
+        /// Decoded for a 28 pt row icon.
+        let icon: UIImage
+        let color: RGB?
+    }
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var isDraining = false
     /// The last Live Activity change. Each waits for the one before, so an older state never lands last.
@@ -49,7 +57,7 @@ final class AppModel {
         _ = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { Self.reloadWidgets() }
         }
-        let schema = Schema([ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self])
+        let schema = Schema(StoreSchema.models)
         var inMemory = false
         let configuration: ModelConfiguration
         if let group = SharedStore.groupContainer {
@@ -67,6 +75,7 @@ final class AppModel {
         Self.seedLinkClipIfRequested(container)
         Self.seedSecretClipIfRequested(container)
         Self.seedCodeClipsIfRequested(container)
+        Self.seedAppIdentityIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         // Before the engine starts, so the saves of its first fetch are indexed.
@@ -78,6 +87,7 @@ final class AppModel {
         linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         sync.onMirrorWiped = { [weak self] in self?.spotlight.removeAll() }
+        reloadAppLooks()
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
         Self.writeSampleInboxIfRequested()
@@ -291,9 +301,27 @@ final class AppModel {
     /// `shared` exists.
     private static func remoteChangesApplied() {
         reloadWidgets()
+        shared.reloadAppLooks()
         guard UIApplication.shared.applicationState == .active else { return }
         shared.imageText.fill()
         shared.linkPreviews.fill()
+    }
+
+    /// Reads every identity and decodes its icon at 84 px (28 pt at 3x), all off the main thread. There is one per
+    /// app the Mac copied from, so dozens at most.
+    func reloadAppLooks() {
+        let container = container
+        Task {
+            appLooks = await ImageTextQueue.offMain {
+                let identities = (try? ModelContext(container).fetch(FetchDescriptor<AppIdentity>())) ?? []
+                var looks: [String: AppLook] = [:]
+                for m in identities {
+                    guard let icon = Thumbnail.image(from: m.iconPNG, maxPixels: 84) else { continue }
+                    looks[m.bundleId] = AppLook(icon: UIImage(cgImage: icon), color: RGB(hex: m.colorHex))
+                }
+                return looks
+            }
+        }
     }
 
     static func reloadWidgets() {
@@ -387,15 +415,19 @@ final class AppModel {
               !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage"),
               !UserDefaults.standard.bool(forKey: "CopydSeedLinkClip"),
               !UserDefaults.standard.bool(forKey: "CopydSeedSecretClip"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
+        let seedApp = seedAppBundleID
+        let apps = (try? context.fetch(FetchDescriptor<AppIdentity>(predicate: #Predicate { $0.bundleId == seedApp }))) ?? []
+        apps.forEach(context.delete)
         // Pinboards have no contentHash; the seed board is recognised by its fixed id. Deleting it cascades its entries.
         let seedBoardID = Self.seedBoardID
         let boards = (try? context.fetch(FetchDescriptor<Pinboard>(
             predicate: #Predicate { $0.id == seedBoardID }))) ?? []
-        guard !seeds.isEmpty || !boards.isEmpty else { return }
+        guard !seeds.isEmpty || !boards.isEmpty || !apps.isEmpty else { return }
         seeds.forEach(context.delete)
         boards.forEach(context.delete)
         try? context.save()
@@ -403,6 +435,31 @@ final class AppModel {
     }
 
     private static let seedBoardID = UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!
+    private static let seedAppBundleID = "com.example.copyd-seed.atlas"
+
+    /// `-CopydSeedAppIdentity YES`: inserts an app identity, as the Mac would sync it, and one clip copied from that
+    /// app, for the row's icon and app color. Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch
+    /// without any seed flag deletes both.
+    private static func seedAppIdentityIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        guard (try? AppIdentity.find(seedAppBundleID, in: context)) == nil else { return }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let icon = UIGraphicsImageRenderer(size: CGSize(width: 128, height: 128), format: format).pngData { ctx in
+            UIColor(red: 0x2F / 255, green: 0x6B / 255, blue: 0xDB / 255, alpha: 1).setFill()
+            UIBezierPath(roundedRect: CGRect(x: 12, y: 12, width: 104, height: 104), cornerRadius: 24).fill()
+            UIColor.white.setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 40, y: 40, width: 48, height: 48))
+        }
+        context.insert(AppIdentity(bundleId: seedAppBundleID, name: "Atlas", iconPNG: icon, colorHex: "#2F6BDB"))
+        let text = "Meet at the north entrance, 10:30"
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text,
+                                     sourceAppName: "Atlas", sourceAppBundleId: seedAppBundleID, contentHash: "seed-app"))
+        try? context.save()
+        invalidateSpotlight()
+    }
 
     /// The seeds write through their own context, before the indexer exists, so it never sees them: dropping the stored
     /// index version makes it rebuild when it starts.

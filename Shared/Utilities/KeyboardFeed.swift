@@ -15,6 +15,8 @@ struct KeyboardClip: Identifiable, Equatable {
     var isClipboard = false
     /// A link shown by its page title: the host, for the line under it. Nil otherwise.
     var linkHost: String? = nil
+    /// For the card's corner icon, looked up once per app (`AppIdentity.icons`).
+    var sourceAppBundleId: String? = nil
 }
 
 extension KeyboardClip {
@@ -116,7 +118,8 @@ enum KeyboardFeed {
             id: item.id, contentType: type, preview: title ?? preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
-            sourceAppName: item.sourceAppName, linkHost: title == nil ? nil : text.flatMap(LinkParts.split)?.host)
+            sourceAppName: item.sourceAppName, linkHost: title == nil ? nil : text.flatMap(LinkParts.split)?.host,
+            sourceAppBundleId: item.sourceAppBundleId)
     }
 
     /// "Insert as…" for one card, worked out when it is long-pressed, never for the whole feed. `text` is the clip's

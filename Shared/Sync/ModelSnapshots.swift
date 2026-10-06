@@ -62,6 +62,20 @@ extension PinboardEntry {
     }
 }
 
+extension AppIdentity {
+    var snapshot: AppIdentitySnapshot {
+        AppIdentitySnapshot(bundleId: bundleId, name: name, iconPNG: iconPNG, colorHex: colorHex, updatedAt: updatedAt)
+    }
+
+    /// Every synced field; `id` follows from `bundleId`, which never changes for one record.
+    func update(from s: AppIdentitySnapshot) {
+        name = s.name
+        iconPNG = s.iconPNG
+        colorHex = s.colorHex
+        updatedAt = s.updatedAt
+    }
+}
+
 extension ModelContext {
     func syncClip(id: UUID) -> ClipboardItem? {
         var d = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
@@ -77,6 +91,12 @@ extension ModelContext {
 
     func syncEntry(id: UUID) -> PinboardEntry? {
         var d = FetchDescriptor<PinboardEntry>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try? fetch(d).first
+    }
+
+    func syncIdentity(id: UUID) -> AppIdentity? {
+        var d = FetchDescriptor<AppIdentity>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
         return try? fetch(d).first
     }

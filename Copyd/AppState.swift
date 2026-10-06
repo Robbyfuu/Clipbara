@@ -92,6 +92,7 @@ final class AppState {
         sweepSecrets()
 
         let engine = CloudSyncEngine(container: modelContainer) { [weak self] in
+            AppIconProvider.forgetLooks()  // an identity synced for an app not installed here
             self?.clipboardMonitor.refreshLatestItems()
             self?.imageText?.fill()
             self?.linkPreviews?.fill()

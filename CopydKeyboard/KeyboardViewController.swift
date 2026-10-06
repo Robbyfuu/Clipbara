@@ -93,8 +93,9 @@ final class KeyboardViewController: UIInputViewController {
             return model.state = .noStore
         }
         do {
+            // The app's own schema: a read-only open of a store holding an entity it lacks can fail.
             let container = try ModelContainer(
-                for: ClipboardItem.self, Pinboard.self, PinboardEntry.self, ExcludedApp.self,
+                for: Schema(StoreSchema.models),
                 configurations: ModelConfiguration(
                     url: SharedStore.url(groupContainer: group), allowsSave: false, cloudKitDatabase: .none))
             self.container = container
@@ -107,6 +108,11 @@ final class KeyboardViewController: UIInputViewController {
                 clipboard = nil
             }
             let items = try KeyboardFeed.items(in: context, mode: model.mode)
+            // Each app's icon, decoded once at 28 px and kept: never a 128 px icon per card.
+            let missing = Set(items.compactMap(\.sourceAppBundleId)).subtracting(model.icons.keys)
+            if let icons = try? AppIdentity.icons(for: missing, maxPixels: 28, in: context), !icons.isEmpty {
+                model.icons.merge(icons.mapValues { UIImage(cgImage: $0) }) { $1 }
+            }
             model.state = .loaded(model.mode == .recent ? (clipboard.map { [$0.card] } ?? []) + items : items)
         } catch {
             model.state = .error

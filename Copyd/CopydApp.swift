@@ -12,14 +12,8 @@ struct CopydApp: App {
     private var sharedModelContainer: ModelContainer { Self.sharedModelContainer }
 
     private static let sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            ClipboardItem.self,
-            Pinboard.self,
-            PinboardEntry.self,
-            ExcludedApp.self,
-            // Mac only, never synced: paste history for suggestions.
-            PasteEvent.self,
-        ])
+        // The shared models plus the Mac-only paste history (never synced).
+        let schema = Schema(StoreSchema.mac)
 
         let storeURL = StoreManager.resolveStoreURL()
         StoreManager.backupStore(at: storeURL)

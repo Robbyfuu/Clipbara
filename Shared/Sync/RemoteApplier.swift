@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import OSLog
 import SwiftData
@@ -28,7 +29,7 @@ struct RemoteApplier {
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "Sync")
 
     func apply(clips: [ClipSnapshot], pinboards: [PinboardSnapshot], entries: [EntrySnapshot],
-               deletions: [UUID], systemFields: [UUID: Data]) -> Outcome {
+               identities: [AppIdentitySnapshot] = [], deletions: [UUID], systemFields: [UUID: Data]) -> Outcome {
         var out = Outcome()
         for s in clips {
             do { try upsert(s, &out) } catch { Self.log.error("Clip \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
@@ -38,6 +39,9 @@ struct RemoteApplier {
         }
         for s in entries {
             do { try upsert(s, &out) } catch { Self.log.error("Entry \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
+        }
+        for s in identities {
+            do { try upsert(s, &out) } catch { Self.log.error("App identity \(s.id, privacy: .public) not applied: \(error.syncLogDescription, privacy: .public)") }
         }
         // After entries, so a same-batch entry of a losing clip is moved to the survivor, not orphaned.
         for s in clips {
@@ -55,6 +59,8 @@ struct RemoteApplier {
                     m.syncSystemFields = data
                 } else if let m = try entry(id) {
                     m.syncSystemFields = data
+                } else if let m = try identity(id) {
+                    m.syncSystemFields = data
                 } else {
                     continue
                 }
@@ -70,6 +76,7 @@ struct RemoteApplier {
             for m in try context.fetch(FetchDescriptor<ClipboardItem>()) { m.syncSystemFields = nil }
             for m in try context.fetch(FetchDescriptor<Pinboard>()) { m.syncSystemFields = nil }
             for m in try context.fetch(FetchDescriptor<PinboardEntry>()) { m.syncSystemFields = nil }
+            for m in try context.fetch(FetchDescriptor<AppIdentity>()) { m.syncSystemFields = nil }
         } catch { log.error("clearSystemFields failed: \(error.syncLogDescription, privacy: .public)") }
     }
 
@@ -90,7 +97,15 @@ struct RemoteApplier {
         return clips + boards + entries
     }
 
-    /// Deletes every clip, pinboard and entry and returns their ids. Does not save: the caller saves
+    /// `uploadableIDs` as record IDs, plus every app identity (an `app-` name, not a UUID).
+    static func uploadableRecordIDs(in context: ModelContext, onlyUnconfirmed: Bool) throws -> [CKRecord.ID] {
+        let identities = try context.fetch(FetchDescriptor<AppIdentity>())
+            .filter { !onlyUnconfirmed || $0.syncSystemFields == nil }
+            .map { SyncRecordMapper.recordID(named: AppIdentity.recordName(for: $0.bundleId)) }
+        return try uploadableIDs(in: context, onlyUnconfirmed: onlyUnconfirmed).map(SyncRecordMapper.recordID(for:)) + identities
+    }
+
+    /// Deletes every clip, pinboard, entry and app identity and returns their ids. Does not save: the caller saves
     /// inside `tracker.suppressing` over the returned ids.
     static func deleteAll(in context: ModelContext) -> Set<UUID> {
         var ids: Set<UUID> = []
@@ -98,6 +113,7 @@ struct RemoteApplier {
             for m in try context.fetch(FetchDescriptor<PinboardEntry>()) { ids.insert(m.id); context.delete(m) }
             for m in try context.fetch(FetchDescriptor<Pinboard>()) { ids.insert(m.id); context.delete(m) }
             for m in try context.fetch(FetchDescriptor<ClipboardItem>()) { ids.insert(m.id); context.delete(m) }
+            for m in try context.fetch(FetchDescriptor<AppIdentity>()) { ids.insert(m.id); context.delete(m) }
         } catch { log.error("deleteAll failed: \(error.syncLogDescription, privacy: .public)") }
         return ids
     }
@@ -118,6 +134,12 @@ struct RemoteApplier {
 
     private func entry(_ id: UUID) throws -> PinboardEntry? {
         var d = FetchDescriptor<PinboardEntry>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        return try context.fetch(d).first
+    }
+
+    private func identity(_ id: UUID) throws -> AppIdentity? {
+        var d = FetchDescriptor<AppIdentity>(predicate: #Predicate { $0.id == id })
         d.fetchLimit = 1
         return try context.fetch(d).first
     }
@@ -185,6 +207,19 @@ struct RemoteApplier {
         }
     }
 
+    /// Newest wins: two Macs may publish one app. No pending-save check: a local publish is newer, and if it is
+    /// older the pending upload resends what this wrote.
+    private func upsert(_ s: AppIdentitySnapshot, _ out: inout Outcome) throws {
+        if let m = try identity(s.id) {
+            guard s.updatedAt > m.updatedAt else { return }
+            m.update(from: s)
+        } else {
+            context.insert(AppIdentity(bundleId: s.bundleId, name: s.name, iconPNG: s.iconPNG, colorHex: s.colorHex,
+                                       updatedAt: s.updatedAt))
+        }
+        out.touched.insert(s.id)
+    }
+
     // MARK: Duplicates (spec section 10)
 
     /// A secret never merges: either side of the merge would queue a save or a delete of its id. It stays on this
@@ -248,6 +283,8 @@ struct RemoteApplier {
         } else if let e = try entry(id) {
             if let pid = e.pinboard?.id { out.touched.insert(pid) }
             context.delete(e)
+        } else if let a = try identity(id) {
+            context.delete(a)
         } else {
             return
         }

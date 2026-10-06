@@ -21,6 +21,8 @@ final class ClipboardMonitor {
     @ObservationIgnored var onNewImage: (() -> Void)?
     /// Called after a new link clip is saved, so its preview is fetched right away.
     @ObservationIgnored var onNewLink: (() -> Void)?
+    /// Apps whose identity is rendering, so two quick copies from one app render it once.
+    @ObservationIgnored private var publishing: Set<String> = []
 
     var isMonitoring: Bool = false
     var latestItems: [ClipboardItem] = []
@@ -131,11 +133,38 @@ final class ClipboardMonitor {
 
         modelContext?.insert(item)
         try? modelContext?.save()
+        publishIdentity(bundleId: sourceAppBundleId, name: sourceAppName)
         cleanupOldItems()
         refreshLatestItems()
         onCapture?(item.id)
         if content.contentType == .image { onNewImage?() }
         if content.contentType == .url { onNewLink?() }
+    }
+
+    /// Publishes the source app's name, icon and color for the iPhone and other Macs (`AppIdentity`): once per app,
+    /// again after 30 days, never for Copyd. The icon renders off the main thread; the save uploads through the tracker.
+    private func publishIdentity(bundleId: String?, name: String?) {
+        guard let bundleId, let modelContext, !publishing.contains(bundleId) else { return }
+        let existing = try? AppIdentity.find(bundleId, in: modelContext)
+        guard AppIdentityPublisher.needsPublish(existing: existing?.updatedAt, now: .now, bundleId: bundleId,
+                                                ownBundleId: Bundle.main.bundleIdentifier ?? "") else { return }
+        publishing.insert(bundleId)
+        Task { [weak self] in
+            let art = await Task.detached(priority: .utility) { AppIconProvider.identityArt(for: bundleId) }.value
+            guard let self else { return }
+            publishing.remove(bundleId)
+            guard let art, let modelContext = self.modelContext else { return }
+            let name = name ?? bundleId
+            if let m = try? AppIdentity.find(bundleId, in: modelContext) {
+                m.name = name
+                m.iconPNG = art.png
+                m.colorHex = art.color.hex
+                m.updatedAt = .now
+            } else {
+                modelContext.insert(AppIdentity(bundleId: bundleId, name: name, iconPNG: art.png, colorHex: art.color.hex))
+            }
+            try? modelContext.save()
+        }
     }
 
     /// 히스토리 제한 초과 시 오래된 아이템 삭제 (isPinned 아이템 보존)

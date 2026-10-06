@@ -274,6 +274,9 @@ targets:
       - path: Shared/Utilities/SyntaxHighlighter.swift
       - path: Shared/Design/Color+Hex.swift
       - path: Shared/Design/DesignTokens+Brand.swift
+      - path: Shared/Utilities/IconColor.swift
+      - path: Shared/Utilities/ContrastPicker.swift
+      - path: Shared/Utilities/StoreSchema.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:
