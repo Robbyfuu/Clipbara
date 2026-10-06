@@ -300,6 +300,13 @@ targets:
       - path: Shared/Utilities/MarkdownDetector.swift
       - path: Shared/Utilities/MarkdownConverter.swift
       - path: Shared/Design/MarkdownStyle.swift
+      # The local MCP server core; the loopback tests run it on an ephemeral port.
+      - path: Copyd/MCP/ClipLibrary.swift
+      - path: Copyd/MCP/HTTPRequestParser.swift
+      - path: Copyd/MCP/MCPRequestGuard.swift
+      - path: Copyd/MCP/MCPTools.swift
+      - path: Copyd/MCP/MCPRouter.swift
+      - path: Copyd/MCP/MCPServer.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:
