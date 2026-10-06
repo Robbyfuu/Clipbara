@@ -21,7 +21,7 @@ struct ClipSummary: Codable, Equatable, Sendable {
 struct ClipDetail: Codable, Equatable, Sendable {
     let id: UUID
     let type: ClipKind
-    /// The full text, capped at 100 KB; `truncated` says when it was cut.
+    /// The full text, capped at 100 KB like `ocrText`, with at most 500 `fileNames`; `truncated` says when any was cut.
     let text: String?
     let truncated: Bool
     let app: String?

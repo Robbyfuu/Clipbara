@@ -39,7 +39,7 @@ struct SettingsView: View {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        // Wide enough for seven tabs in the toolbar, in English and Spanish.
-        .frame(width: 560, height: 360)
+        // Wide enough for seven tabs in the toolbar, in English and Spanish; tall enough for Integrations without scrolling.
+        .frame(width: 560, height: 440)
     }
 }

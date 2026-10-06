@@ -269,6 +269,30 @@ final class StoreClipLibraryTests: XCTestCase {
         XCTAssertEqual(whole?.truncated, false)
     }
 
+    func testOCRTextIsCappedAt100KBToo() async throws {
+        let image = try insert(.image, nil, dt: 1) { $0.ocrText = String(repeating: "é", count: 60_000) }
+
+        let detail = try await library.clip(id: image.id)
+
+        let ocr = try XCTUnwrap(detail?.ocrText)
+        XCTAssertLessThanOrEqual(ocr.utf8.count, 100 * 1024)
+        XCTAssertTrue(ocr.allSatisfy { $0 == "é" })
+        XCTAssertEqual(detail?.truncated, true)
+    }
+
+    func testFileNamesAreCappedAt500() async throws {
+        let files = try insert(.files, "many", dt: 1) {
+            $0.fileManifestData = try? JSONEncoder().encode((0..<600).map {
+                FileManifestEntry(name: "file \($0).txt", size: 1, uti: "public.plain-text")
+            })
+        }
+
+        let detail = try await library.clip(id: files.id)
+
+        XCTAssertEqual(detail?.fileNames.count, 500)
+        XCTAssertEqual(detail?.fileNames.first, "file 0.txt")
+        XCTAssertEqual(detail?.truncated, true)
+    }
 
     // MARK: get_clip
 

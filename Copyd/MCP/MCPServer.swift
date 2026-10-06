@@ -55,6 +55,8 @@ final class MCPServer: @unchecked Sendable {
     private var retry: DispatchWorkItem?
     private var boundPort: UInt16 = 0
     private var clients: [ObjectIdentifier: Client] = [:]
+    /// Connections accepted so far: each client's place in line.
+    private var accepted = 0
 
     /// `port` 0 binds an ephemeral port, which `.running` reports.
     init(port: UInt16, token: String, router: MCPRouter, idleTimeout: TimeInterval = 30, maxConnections: Int = 8) {
@@ -177,16 +179,31 @@ final class MCPServer: @unchecked Sendable {
     /// One connection and its parser. Confined to the server's queue.
     private final class Client: @unchecked Sendable {
         let connection: NWConnection
+        /// Lower is older.
+        let order: Int
+        /// A request on it got past the guard (host, origin, token): it is never dropped to make room.
+        var passedGuard = false
         var parser = HTTPRequestParser()
         var idleTimer: DispatchWorkItem?
         /// The request the router is working on; dropping the client cancels it.
         var request: Task<Void, Never>?
-        init(_ connection: NWConnection) { self.connection = connection }
+        init(_ connection: NWConnection, order: Int) {
+            self.connection = connection
+            self.order = order
+        }
     }
 
+    /// At the limit, the oldest connection that never passed the guard makes room, so idle sockets can't lock the real
+    /// client out; with none, the new one is refused.
     private func accept(_ connection: NWConnection) {
-        guard clients.count < maxConnections else { return connection.cancel() }
-        let client = Client(connection)
+        if clients.count >= maxConnections {
+            guard let stranger = clients.values.filter({ !$0.passedGuard }).min(by: { $0.order < $1.order }) else {
+                return connection.cancel()
+            }
+            drop(stranger)
+        }
+        accepted += 1
+        let client = Client(connection, order: accepted)
         clients[ObjectIdentifier(client)] = client
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
@@ -237,6 +254,7 @@ final class MCPServer: @unchecked Sendable {
             if let refusal = refusal(for: head) {
                 return respond(client, status: refusal.status, headers: refusal.headers, keepAlive: false)
             }
+            client.passedGuard = true
             pump(client, Data(), atEnd: atEnd)
         case .complete(let request):
             armIdleTimer(client)

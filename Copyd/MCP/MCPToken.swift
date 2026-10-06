@@ -23,6 +23,14 @@ struct MCPToken: Sendable {
     #if DEBUG
     /// `-CopydMCPToken <value>` sets the token for local testing without saving it. Never compiled in Release.
     static let debugOverrideKey = "CopydMCPToken"
+
+    /// The value after `-CopydMCPToken` in the launch arguments. Never UserDefaults: a value saved there with
+    /// `defaults write` would outlive the launch and pin a known token.
+    static func debugOverride(in arguments: [String] = ProcessInfo.processInfo.arguments) -> String? {
+        guard let flag = arguments.firstIndex(of: "-" + debugOverrideKey), flag + 1 < arguments.count,
+              !arguments[flag + 1].isEmpty else { return nil }
+        return arguments[flag + 1]
+    }
     #endif
 
     /// `SystemRandomNumberGenerator` is cryptographically secure on Apple platforms and never fails.
@@ -35,7 +43,7 @@ struct MCPToken: Sendable {
     /// The saved token, or nil before the first enable. Throws on any other Keychain error.
     func saved() throws(KeychainError) -> String? {
         #if DEBUG
-        if let override = UserDefaults.standard.string(forKey: Self.debugOverrideKey), !override.isEmpty { return override }
+        if let override = Self.debugOverride() { return override }
         #endif
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query.merging([kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne]) { $1 }

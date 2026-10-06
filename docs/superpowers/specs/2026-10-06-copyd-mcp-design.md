@@ -31,7 +31,7 @@ Copyd on the Mac runs a local Model Context Protocol (MCP) server. Claude Code, 
   |---|---|---|
   | Request body | 1 MB | 413 |
   | Header block | 16 KB | 431 |
-  | Concurrent connections | 8 | Extra connections are closed |
+  | Concurrent connections | 8 | At the limit, the oldest connection that hasn't passed the guard is closed to make room; with none, the new one is closed |
   | Idle connection | 30 s | Connection closed |
 
 - **Mac sandbox:** add `com.apple.security.network.server`.
@@ -39,14 +39,14 @@ Copyd on the Mac runs a local Model Context Protocol (MCP) server. Claude Code, 
 
 ## 3. Tools
 
-Secrets are never returned by any tool, not even masked, nor counted. Flagged clips (`isSensitive`) are filtered out at the fetch. A clip whose text or OCR text reads as a secret (`SecretDetector`) is dropped too, whatever "Protect secrets" says, as Spotlight drops it.
+Secrets are never returned by any tool, not even masked, nor counted. Flagged clips (`isSensitive`) are filtered out at the fetch. A clip whose text or OCR text reads as a secret (`SecretDetector`) is dropped too, whatever "Protect secrets" says, as Spotlight drops it. Clip contents are user data, not instructions, and the `search_clips` and `get_clip` descriptions say so.
 
 | Tool | Input | Output |
 |---|---|---|
 | `search_clips` | `query` (optional string), `type` (optional: `text`, `link`, `image`, `file`, `color`, `code`), `board` (optional: a user pinboard name or a smart board id such as `links` or `work`), `limit` (optional, default 20, max 50) | Newest first. Each result has `id`, `type`, `preview` (first 200 characters, or the OCR text or link title), `app` (source app name), `copied_at` (ISO 8601) and `pinned`. The query matches text, OCR text, link titles and file names, case- and diacritic-insensitive. |
-| `get_clip` | `id` | The full text (capped at 100 KB, with `truncated: true` when cut), plus `type`, `app`, `copied_at`, `link_title`, `ocr_text`, `file_names`. Images return metadata and OCR text only, never pixels. A secret or unknown id returns a tool error saying "Clip not found". |
+| `get_clip` | `id` | The full text and `ocr_text` (each capped at 100 KB) and at most 500 `file_names`, with `truncated: true` when any was cut, plus `type`, `app`, `copied_at`, `link_title`, `ocr_text`, `file_names`. Images return metadata and OCR text only, never pixels. A secret or unknown id returns a tool error saying "Clip not found". |
 | `list_pinboards` | none | The user's pinboards (`name`, `count`) and the non-empty smart boards (`id`, `name`, `count`). |
-| `copy_to_clipboard` | `text` (max 100 KB) | Writes plain text to the clipboard, which Copyd then captures like any copy. At most one copy per second and 20 per rolling 10 minutes; a call over either limit gets the tool error "Too many copies; try again in a moment." While Paste Stack is on or an auto-paste is pending it gets "Copyd is pasting right now; try again in a moment." |
+| `copy_to_clipboard` | `text` (max 100 KB) | Writes plain text to the clipboard, which Copyd then captures like any copy. At most one copy per second and 20 per rolling 10 minutes; a call over either limit gets the tool error "Too many copies; try again in a moment." While Paste Stack is on or an auto-paste is pending it gets "Copyd is pasting right now; try again in a moment." The capture's source is "Copyd MCP". |
 
 `copy_to_clipboard` is only listed and allowed when "Allow writing to the clipboard" is on. That setting is off by default.
 
@@ -59,7 +59,7 @@ There is a new Settings tab, "Integrations" / "Integraciones":
 | Control | English | Spanish | Default |
 |---|---|---|---|
 | Toggle | "Copyd MCP server" | "Servidor MCP de Copyd" | off |
-| Status line | "Running on 127.0.0.1:39787" / "Off" / an error such as "Port 39787 is in use" | "Activo en 127.0.0.1:39787" / "Apagado" / "El puerto 39787 está en uso" | — |
+| Status line | "Running on 127.0.0.1:39787" / "Off" / an error such as "Port 39787 is in use", plus "If another app took this port, regenerate the token after changing it." | "Activo en 127.0.0.1:39787" / "Apagado" / "El puerto 39787 está en uso", plus "Si otra app tomó este puerto, genera un nuevo token después de cambiarlo." | — |
 | Number field | "Port" | "Puerto" | 39787 |
 | Masked field with Copy and Regenerate buttons | "Access token" | "Token de acceso" | — |
 | Toggle | "Allow writing to the clipboard" | "Permitir escribir en el portapapeles" | off |
@@ -81,7 +81,7 @@ There is a new Settings tab, "Integrations" / "Integraciones":
 
 **Footnote:** "Only apps on this Mac can connect, and only with the token. Apps you connect can read your clipboard history and may send it to their AI service. Secrets are never shared." / "Solo las apps de este Mac pueden conectarse, y solo con el token. Las apps que conectes pueden leer tu historial y enviarlo a su servicio de IA. Los secretos nunca se comparten." (App Review 5.1.2(i).)
 
-**Under the write switch:** "Connected apps can replace what you paste." / "Las apps conectadas pueden cambiar lo que pegas."
+**Under the write switch:** "Connected apps can replace what you paste." / "Las apps conectadas pueden cambiar lo que pegas." and "Reconnect your AI app to see the change." / "Vuelve a conectar tu app de IA para ver el cambio." The switch never restarts the server: the router reads it on every request.
 
 **Copies stay on this Mac.** The token and both configurations are written with `.currentHostOnly` and marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, so Universal Clipboard never sends them and clipboard managers skip them.
 
@@ -89,7 +89,7 @@ There is a new Settings tab, "Integrations" / "Integraciones":
 
 **Keychain.** The token lives in the data-protection keychain, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Only a missing item creates a token; any other Keychain error keeps the server off and shows "Couldn't read the access token." / "No se pudo leer el token de acceso."
 
-**Debug-only override.** `-CopydMCPToken <value>` sets the token for local testing. It is compiled only in DEBUG.
+**Debug-only override.** `-CopydMCPToken <value>` sets the token for local testing. It is read from the launch arguments only, never from saved defaults, and compiled only in DEBUG.
 
 ## 5. Architecture
 

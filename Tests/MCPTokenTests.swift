@@ -71,11 +71,19 @@ final class MCPTokenTests: XCTestCase {
     }
 
     #if DEBUG
-    func testTheDebugOverrideWinsWithoutBeingSaved() throws {
-        UserDefaults.standard.set("debug-token", forKey: MCPToken.debugOverrideKey)
-        XCTAssertEqual(try token.current(), "debug-token")
-        UserDefaults.standard.removeObject(forKey: MCPToken.debugOverrideKey)
-        XCTAssertNil(try token.saved(), "the override never reaches the Keychain")
+    func testTheDebugOverrideComesFromTheLaunchArgumentsOnly() {
+        XCTAssertEqual(MCPToken.debugOverride(in: ["Copyd", "-CopydMCPToken", "debug-token"]), "debug-token")
+        XCTAssertNil(MCPToken.debugOverride(in: ["Copyd"]))
+        XCTAssertNil(MCPToken.debugOverride(in: ["Copyd", "-CopydMCPToken"]), "no value")
+        XCTAssertNil(MCPToken.debugOverride(in: ["Copyd", "-CopydMCPToken", ""]), "an empty value")
+    }
+
+    /// `defaults write` once would otherwise pin a known token on every later Debug launch.
+    func testAPersistedOverrideIsIgnored() throws {
+        UserDefaults.standard.set("persisted-token", forKey: MCPToken.debugOverrideKey)
+        let created = try token.current()
+        XCTAssertNotEqual(created, "persisted-token")
+        XCTAssertEqual(try token.saved(), created)
     }
     #endif
 

@@ -18,7 +18,8 @@ struct IntegrationsSettingsTab: View {
         case .running(let port):
             String(localized: "Running on 127.0.0.1:\(String(port))")
         case .portInUse(let port):
-            String(localized: "Port \(String(port)) is in use")
+            String(localized: "Port \(String(port)) is in use") + " "
+                + String(localized: "If another app took this port, regenerate the token after changing it.")
         case .failed(let message):
             String(localized: "Couldn't start the server: \(message)")
         }
@@ -60,11 +61,11 @@ struct IntegrationsSettingsTab: View {
                     Text("Apps using the current token will stop connecting.")
                 }
 
+                // No restart: the router reads the switch on every request, and clients list the tools when they connect.
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Allow writing to the clipboard", isOn: $allowsWrite)
-                        // `tools/list` says its list never changes: a restart makes clients list the tools again.
-                        .onChange(of: allowsWrite) { _, _ in appState.applyMCPSettings() }
-                    Text("Connected apps can replace what you paste.")
+                    Text(verbatim: String(localized: "Connected apps can replace what you paste.") + " "
+                         + String(localized: "Reconnect your AI app to see the change."))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }

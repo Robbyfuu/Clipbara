@@ -10,6 +10,7 @@ struct StoreClipLibrary: ClipLibrary {
     static let searchWindow = 2000
     static let previewLength = 200
     static let maxTextBytes = 100 * 1024
+    static let maxFileNames = 500
 
     private let container: ModelContainer
     /// The automatic pinboards to list and resolve: none while "Automatic pinboards" is off, as in the panel.
@@ -59,10 +60,13 @@ struct StoreClipLibrary: ClipLibrary {
             fetch.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.sourceAppName, \.copiedAt, \.ocrText,
                                        \.linkTitle, \.fileManifestData, \.smartKinds]
             guard let clip = try context.fetch(fetch).first, !Self.readsAsSecret(clip) else { return nil }
-            let (text, truncated) = Self.capped(clip.contentType == .image ? nil : clip.textContent)
-            return ClipDetail(id: clip.id, type: Self.kind(of: clip), text: text, truncated: truncated, app: clip.sourceAppName,
-                              copiedAt: clip.copiedAt, linkTitle: clip.linkTitle, ocrText: clip.ocrText,
-                              fileNames: Self.fileNames(of: clip))
+            let (text, textCut) = Self.capped(clip.contentType == .image ? nil : clip.textContent)
+            let (ocrText, ocrCut) = Self.capped(clip.ocrText)
+            let names = Self.fileNames(of: clip)
+            return ClipDetail(id: clip.id, type: Self.kind(of: clip), text: text,
+                              truncated: textCut || ocrCut || names.count > Self.maxFileNames, app: clip.sourceAppName,
+                              copiedAt: clip.copiedAt, linkTitle: clip.linkTitle, ocrText: ocrText,
+                              fileNames: Array(names.prefix(Self.maxFileNames)))
         }
     }
 

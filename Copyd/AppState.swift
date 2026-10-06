@@ -170,8 +170,9 @@ final class AppState {
 
     // MARK: MCP server
 
-    /// Starts, restarts or stops the server to match Settings > Integrations: at launch, and when the switch, the port or
-    /// "Allow writing" changes. A busy port shows in `mcpState` and the switch stays on, so the user can pick another port.
+    /// Starts, restarts or stops the server to match Settings > Integrations: at launch, and when the switch or the port
+    /// changes. "Allow writing" needs no restart: the router reads it on every request. A busy port shows in `mcpState`
+    /// and the switch stays on, so the user can pick another port.
     func applyMCPSettings() {
         mcpServer?.onStateChange = nil
         mcpServer?.stop()
@@ -184,11 +185,12 @@ final class AppState {
             return
         }
         mcpToken = token
-        // copy_to_clipboard: plain text, captured like any copy. Refused while Copyd pastes: Paste
+        // copy_to_clipboard: plain text, captured like any copy but from "Copyd MCP". Refused while Copyd pastes: Paste
         // Stack and auto-paste write the clipboard and then post ⌘V, which would paste the agent's text instead.
         let library = StoreClipLibrary(container: container) { [weak self] text in
             guard let self else { return }
             if let busy = ToolError.busy(pasteStackActive: pasteStack.isActive, autoPastePending: autoPaster.isPasting) { throw busy }
+            clipboardMonitor.attributeNextCapture(to: "Copyd MCP")
             PasteService().pastePlainText(text)
         }
         let router = MCPRouter(library: library) { UserDefaults.standard.bool(forKey: MCPServer.allowsWriteDefaultsKey) }

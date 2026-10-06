@@ -435,6 +435,29 @@ final class MCPServerLoopbackTests: XCTestCase {
         let outcome = await extra.read(timeout: 3)
         XCTAssertEqual(outcome, .closed)
     }
+
+    /// Idle sockets can't lock the real client out: at the limit, the oldest connection that never passed the guard
+    /// makes room.
+    func testAtTheLimitTheOldestUnauthenticatedConnectionMakesRoom() async throws {
+        try await startServer(maxConnections: 2)
+        let oldest = RawHTTPClient(port: port)
+        defer { oldest.cancel() }
+        try await Task.sleep(for: .milliseconds(200))
+        let newer = RawHTTPClient(port: port)
+        defer { newer.cancel() }
+        try await Task.sleep(for: .milliseconds(200))
+
+        let client = RawHTTPClient(port: port)
+        defer { client.cancel() }
+        client.send(rawPing())
+        guard case .response(let text) = await client.read() else { return XCTFail("the new client is served") }
+        XCTAssertTrue(text.hasPrefix("HTTP/1.1 200"), text)
+
+        let oldestOutcome = await oldest.read(timeout: 3)
+        XCTAssertEqual(oldestOutcome, .closed, "the oldest silent connection was dropped")
+        let newerOutcome = await newer.read(timeout: 0.5)
+        XCTAssertEqual(newerOutcome, .timedOut, "only one connection makes room")
+    }
 }
 
 /// Records the first running port reported, across the server's queue and the test.

@@ -2265,6 +2265,22 @@
     "iCloud" : {
       "shouldTranslate" : false
     },
+    "If another app took this port, regenerate the token after changing it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If another app took this port, regenerate the token after changing it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si otra app tomó este puerto, genera un nuevo token después de cambiarlo."
+          }
+        }
+      }
+    },
     "Image" : {
       "localizations" : {
         "es" : {
@@ -3802,6 +3818,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出 Copyd"
+          }
+        }
+      }
+    },
+    "Reconnect your AI app to see the change." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnect your AI app to see the change."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelve a conectar tu app de IA para ver el cambio."
           }
         }
       }
