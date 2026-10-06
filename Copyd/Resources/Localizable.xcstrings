@@ -271,6 +271,22 @@
         }
       }
     },
+    "Access token" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access token"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token de acceso"
+          }
+        }
+      }
+    },
     "Accessibility" : {
       "localizations" : {
         "es" : {
@@ -401,6 +417,22 @@
         }
       }
     },
+    "Allow writing to the clipboard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow writing to the clipboard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir escribir en el portapapeles"
+          }
+        }
+      }
+    },
     "Allowed" : {
       "localizations" : {
         "es" : {
@@ -490,6 +522,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外观"
+          }
+        }
+      }
+    },
+    "Apps using the current token will stop connecting." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps using the current token will stop connecting."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las apps que usan el token actual dejarán de conectarse."
           }
         }
       }
@@ -873,6 +921,70 @@
         }
       }
     },
+    "Connected apps can replace what you paste." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected apps can replace what you paste."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las apps conectadas pueden cambiar lo que pegas."
+          }
+        }
+      }
+    },
+    "Copy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar"
+          }
+        }
+      }
+    },
+    "Copy Claude Code command" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Claude Code command"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar comando para Claude Code"
+          }
+        }
+      }
+    },
+    "Copy Cursor config" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Cursor config"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar configuración para Cursor"
+          }
+        }
+      }
+    },
     "Copyd" : {
       "shouldTranslate" : false
     },
@@ -1118,6 +1230,22 @@
         }
       }
     },
+    "Copyd MCP server" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copyd MCP server"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servidor MCP de Copyd"
+          }
+        }
+      }
+    },
     "Could not add clip" : {
       "localizations" : {
         "es" : {
@@ -1162,6 +1290,22 @@
         }
       }
     },
+    "Couldn't read the access token." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the access token."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer el token de acceso."
+          }
+        }
+      }
+    },
     "Couldn't restore purchases. Check your connection and try again." : {
       "localizations" : {
         "es" : {
@@ -1180,6 +1324,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法恢复购买项目。请检查网络连接后重试。"
+          }
+        }
+      }
+    },
+    "Couldn't start the server: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't start the server: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo iniciar el servidor: %@"
           }
         }
       }
@@ -2105,6 +2265,22 @@
     "iCloud" : {
       "shouldTranslate" : false
     },
+    "If another app took this port, regenerate the token after changing it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If another app took this port, regenerate the token after changing it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si otra app tomó este puerto, genera un nuevo token después de cambiarlo."
+          }
+        }
+      }
+    },
     "Image" : {
       "localizations" : {
         "es" : {
@@ -2325,6 +2501,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Monitoreo de entrada"
+          }
+        }
+      }
+    },
+    "Integrations" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integrations"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integraciones"
           }
         }
       }
@@ -2559,6 +2751,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Markdown"
+          }
+        }
+      }
+    },
+    "MCP.status.off" : {
+      "comment" : "Settings > Integrations: the MCP server isn't running",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apagado"
           }
         }
       }
@@ -2915,6 +3125,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一次性购买，无需订阅"
+          }
+        }
+      }
+    },
+    "Only apps on this Mac can connect, and only with the token. Apps you connect can read your clipboard history and may send it to their AI service. Secrets are never shared." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only apps on this Mac can connect, and only with the token. Apps you connect can read your clipboard history and may send it to their AI service. Secrets are never shared."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo las apps de este Mac pueden conectarse, y solo con el token. Las apps que conectes pueden leer tu historial y enviarlo a su servicio de IA. Los secretos nunca se comparten."
           }
         }
       }
@@ -3382,6 +3608,38 @@
         }
       }
     },
+    "Port" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Port"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puerto"
+          }
+        }
+      }
+    },
+    "Port %@ is in use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Port %@ is in use"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El puerto %@ está en uso"
+          }
+        }
+      }
+    },
     "Press a key…" : {
       "localizations" : {
         "es" : {
@@ -3560,6 +3818,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出 Copyd"
+          }
+        }
+      }
+    },
+    "Reconnect your AI app to see the change." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnect your AI app to see the change."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelve a conectar tu app de IA para ver el cambio."
+          }
+        }
+      }
+    },
+    "Regenerate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regenerate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regenerar"
+          }
+        }
+      }
+    },
+    "Regenerate the token?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regenerate the token?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Generar un nuevo token?"
           }
         }
       }
@@ -3771,6 +4077,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "富文本"
+          }
+        }
+      }
+    },
+    "Running on 127.0.0.1:%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running on 127.0.0.1:%@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activo en 127.0.0.1:%@"
           }
         }
       }

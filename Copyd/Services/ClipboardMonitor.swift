@@ -10,6 +10,8 @@ final class ClipboardMonitor {
     private var modelContext: ModelContext?
     private var excludedBundleIds: Set<String> = []
     private var shouldSkipNextChange: Bool = false
+    /// The source of the next change instead of the frontmost app; consumed by it, captured or not.
+    @ObservationIgnored private var nextSource: String?
     /// A copy is being prepared off the main thread.
     @ObservationIgnored private var isCapturing = false
     /// Gets the id of every clip the user copies, including a recent duplicate that is not saved
@@ -34,6 +36,10 @@ final class ClipboardMonitor {
     func start(modelContext: ModelContext) {
         self.modelContext = modelContext
         lastChangeCount = NSPasteboard.general.changeCount
+        // Any change so far is passed over, so a skip or a source set while paused is spent: kept, it would hit the
+        // first real copy after resuming.
+        shouldSkipNextChange = false
+        nextSource = nil
         loadExcludedApps()
         isMonitoring = true
 
@@ -72,22 +78,24 @@ final class ClipboardMonitor {
 
         guard currentCount != lastChangeCount else { return }
         lastChangeCount = currentCount
+        let attributed = nextSource
+        nextSource = nil
 
         if shouldSkipNextChange {
             shouldSkipNextChange = false
             return
         }
 
-        // Check excluded apps
-        if let frontApp = NSWorkspace.shared.frontmostApplication,
+        // Check excluded apps; not for an attributed write, which the frontmost app didn't make.
+        if attributed == nil, let frontApp = NSWorkspace.shared.frontmostApplication,
            let bundleId = frontApp.bundleIdentifier,
            excludedBundleIds.contains(bundleId) {
             return
         }
 
         guard let content = classifier.classify(pasteboard) else { return }
-        let sourceApp = NSWorkspace.shared.frontmostApplication
-        let source = (name: sourceApp?.localizedName, bundleId: sourceApp?.bundleIdentifier)
+        let sourceApp = attributed == nil ? NSWorkspace.shared.frontmostApplication : nil
+        let source = (name: attributed ?? sourceApp?.localizedName, bundleId: sourceApp?.bundleIdentifier)
 
         // Copied files (up to 48 MB), the hash and the thumbnail would stall the main thread: prepare them off it.
         isCapturing = true
@@ -226,9 +234,16 @@ final class ClipboardMonitor {
         shouldSkipNextChange = true
     }
 
-    /// Paste Stack staging its next clip: not captured, and not a pick.
+    /// Paste Stack staging its next clip, or Settings copying the MCP token or a client config: not captured, and not a
+    /// pick, so nothing pastes into the front app.
     func skipStagedChange() {
         shouldSkipNextChange = true
+    }
+
+    /// Copyd is about to write for an MCP client: the next change is captured as from `name`, with no app, instead of
+    /// from the frontmost app.
+    func attributeNextCapture(to name: String) {
+        nextSource = name
     }
 
     func loadExcludedApps() {

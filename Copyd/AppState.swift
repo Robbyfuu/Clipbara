@@ -63,6 +63,12 @@ final class AppState {
     /// Asks Apple Intelligence for the topic boards, at the same moments, while the model is available.
     @ObservationIgnored private(set) var topics: TopicQueue?
 
+    /// The local MCP server (Settings > Integrations); nil while it is switched off.
+    @ObservationIgnored private var mcpServer: MCPServer?
+    private(set) var mcpState: MCPServer.State = .off
+    /// The access token Settings shows and copies; nil before the server is first enabled.
+    private(set) var mcpToken: String?
+
     @ObservationIgnored private var hasStarted = false
 
     func start(modelContext: ModelContext, modelContainer: ModelContainer) {
@@ -148,12 +154,72 @@ final class AppState {
             MainActor.assumeIsolated { topics?.fill(retryingFailures: true) }
         }
 
+        applyMCPSettings()
+        _ = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil,
+                                                   queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.mcpServer?.stop() }
+        }
+
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(300))
             guard let self, let container = self.modelContainer else { return }
             self.panelController.prewarm(modelContainer: container, appState: self)
         }
+    }
+
+    // MARK: MCP server
+
+    /// Starts, restarts or stops the server to match Settings > Integrations: at launch, and when the switch or the port
+    /// changes. "Allow writing" needs no restart: the router reads it on every request. A busy port shows in `mcpState`
+    /// and the switch stays on, so the user can pick another port.
+    func applyMCPSettings() {
+        mcpServer?.onStateChange = nil
+        mcpServer?.stop()
+        mcpServer = nil
+        mcpState = .off
+        guard UserDefaults.standard.bool(forKey: MCPServer.enabledDefaultsKey), let container = modelContainer else { return }
+        // Created on first enable. Any other Keychain error keeps the server off and the saved token untouched.
+        guard let token = try? MCPToken.app.current() else {
+            mcpState = .failed(String(localized: "Couldn't read the access token."))
+            return
+        }
+        mcpToken = token
+        // copy_to_clipboard: plain text, captured like any copy but from "Copyd MCP". Refused while Copyd pastes: Paste
+        // Stack and auto-paste write the clipboard and then post ⌘V, which would paste the agent's text instead.
+        let library = StoreClipLibrary(container: container) { [weak self] text in
+            guard let self else { return }
+            if let busy = ToolError.busy(pasteStackActive: pasteStack.isActive, autoPastePending: autoPaster.isPasting) { throw busy }
+            clipboardMonitor.attributeNextCapture(to: "Copyd MCP")
+            PasteService().pastePlainText(text)
+        }
+        let router = MCPRouter(library: library) { UserDefaults.standard.bool(forKey: MCPServer.allowsWriteDefaultsKey) }
+        let server = MCPServer(port: UInt16(MCPServer.savedPort), token: token, router: router)
+        // Called on the server's queue. A stopped server's last report never overwrites the next one's.
+        server.onStateChange = { [weak self, weak server] state in
+            Task { @MainActor in
+                guard let self, let server, self.mcpServer === server else { return }
+                self.mcpState = state
+            }
+        }
+        mcpServer = server
+        do {
+            try server.start()
+        } catch {
+            mcpState = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Settings shows the token once it exists, without creating it.
+    func loadMCPToken() {
+        if mcpToken == nil { mcpToken = try? MCPToken.app.saved() }
+    }
+
+    /// Replaces the token; the running server takes it at once. Clients set up with the old one must be set up again.
+    func regenerateMCPToken() {
+        guard let token = try? MCPToken.app.regenerate() else { return NSSound.beep() }
+        mcpToken = token
+        mcpServer?.token = token
     }
 
     /// Paste history for suggestions. Whether the pick pastes directly or only copies, the clips go into the app the

@@ -33,6 +33,7 @@ Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPh
   - Create the provisioning profile "Copyd Mac App Store" for `com.robbyfuu.copyd`.
   - Create the in-app purchases `com.robbyfuu.copyd.trial7day` and `com.robbyfuu.copyd.lifetime`.
   - Deploy the CloudKit schema to Production, including the `AppIdentity` record type and the clip fields `fileManifest` and `fromUniversalClipboard`, and set `aps-environment` to `production`.
+  - App Review note for `com.apple.security.network.server` (Copyd MCP): "Copyd includes an optional local Model Context Protocol (MCP) server, off by default, that lets AI tools the user runs on the same Mac (such as Claude Code or Cursor) search their Copyd clipboard history; `com.apple.security.network.server` is used only for this. When the user turns on Settings > Integrations > "Copyd MCP server", Copyd listens on the loopback address 127.0.0.1 only (default port 39787) and never on any other interface, so no other device can connect. Every request must carry a random access token that is generated on the device and kept in the user's Keychain, and requests with a foreign Host or Origin header are refused, so web pages cannot reach the server. Clips detected as secrets are never returned, images are never sent as pixels, and writing to the clipboard is a separate setting that is also off by default. Copyd itself sends no clipboard data off the device; Settings tells the user that apps they connect may send what they read to their AI service."
   - Add a one-time `AppIdentity` backfill, so a device that updates after the Mac published still gets icons right away. Until then, the 7-day refresh heals it.
   - Resolve the GPL-3.0 licensing with upstream. The App Store build cannot ship until this is settled.
 - Version numbers live in `Copyd/Info.plist` (`CFBundleShortVersionString`, `CFBundleVersion`).
@@ -158,3 +159,15 @@ Copyd is a clipboard manager whose history syncs through iCloud across Macs, iPh
 - **View lifecycle.** Inside `NSHostingView`, never show or hide a view that has `@Query` with `if`/`else`. Use the ZStack + opacity pattern instead.
 - **Dependencies.** KeyboardShortcuts via SPM. Sparkle has been removed.
 - **Docs.** Specs, plans and test records live in `docs/superpowers/` and `docs/testing/`.
+
+## Copyd MCP (spec: `docs/superpowers/specs/2026-10-06-copyd-mcp-design.md`)
+
+- **What it is.** A local MCP server on the Mac only (`Copyd/MCP/`): Streamable HTTP with JSON responses on `127.0.0.1:39787`. It is off by default, and the toggle lives in Settings > Integrations.
+- **Who can connect.**
+  - The listener binds to loopback only, with `acceptLocalOnly`.
+  - Host and Origin are checked first (403), then the bearer token (401). Both checks run before the body is read.
+  - The token lives in the data-protection Keychain (`com.robbyfuu.copyd.mcp`). The DEBUG `-CopydMCPToken` launch argument overrides it.
+- **Tools.** `search_clips`, `get_clip` and `list_pinboards`. `copy_to_clipboard` exists only with "Allow writing to the clipboard" on, and is limited to 1 copy per second and 20 per 10 minutes. It is refused while Copyd itself is pasting.
+- **Secrets never leave.** A clip is excluded if it has `isSensitive`, or if `SecretDetector` flags its text or OCR text.
+- **Copy buttons.** They write `currentHostOnly` with the Concealed and Transient pasteboard types, so the token never syncs or lands in any clipboard history.
+
