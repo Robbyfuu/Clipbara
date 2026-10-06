@@ -11,10 +11,14 @@ enum TopicClassifier {
     /// The longest one answer may take, a cold model load included, before the clip is left for the next fill.
     static let timeout: TimeInterval = 15
 
-    /// Apple Intelligence is on and its model is ready: the pass runs. Always false before macOS 26 and iOS 26.
+    /// Apple Intelligence is on, its model is ready, and it reads the device's language: the pass runs. Always false
+    /// before macOS 26 and iOS 26.
     static var isAvailable: Bool {
         #if canImport(FoundationModels)
-        if #available(macOS 26, iOS 26, *) { return SystemLanguageModel.default.availability == .available }
+        if #available(macOS 26, iOS 26, *) {
+            let model = SystemLanguageModel.default
+            return isAvailable(model.availability, localeSupported: model.supportsLocale())
+        }
         #endif
         return false
     }
@@ -28,6 +32,11 @@ enum TopicClassifier {
     }
 
     #if canImport(FoundationModels)
+    @available(macOS 26, iOS 26, *)
+    static func isAvailable(_ availability: SystemLanguageModel.Availability, localeSupported: Bool) -> Bool {
+        availability == .available && localeSupported
+    }
+
     @available(macOS 26, iOS 26, *)
     static func isSupported(_ availability: SystemLanguageModel.Availability) -> Bool {
         switch availability {

@@ -98,6 +98,15 @@ final class TopicPlanTests: XCTestCase {
         XCTAssertFalse(TopicClassifier.isSupported(.unavailable(.deviceNotEligible)))
     }
 
+    /// The pass runs only while the model is ready and reads the device's language: otherwise every fill would make a
+    /// request that fails.
+    func testPassRunsOnlyWhenTheModelIsReadyAndReadsTheDeviceLanguage() throws {
+        guard #available(macOS 26, *) else { throw XCTSkip("FoundationModels needs macOS 26") }
+        XCTAssertTrue(TopicClassifier.isAvailable(.available, localeSupported: true))
+        XCTAssertFalse(TopicClassifier.isAvailable(.available, localeSupported: false), "the device's language")
+        XCTAssertFalse(TopicClassifier.isAvailable(.unavailable(.modelNotReady), localeSupported: true))
+    }
+
     /// An error the same text would meet again is final, with no topic (`other`); the rest are retried.
     func testErrorsTheSameTextWouldMeetAgainAreFinal() throws {
         guard #available(macOS 26, *) else { throw XCTSkip("FoundationModels needs macOS 26") }
