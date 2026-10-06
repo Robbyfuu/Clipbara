@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 /// Review focus 3: transforms never crash on odd input (empty, emoji, CRLF, giant or deep JSON).
@@ -159,9 +160,66 @@ final class TextTransformTests: XCTestCase {
         XCTAssertEqual(TextTransform.applicable(to: "hello there", type: .plainText), [.upper, .title])
     }
 
-    func testPlainOnlyForFormattedText() {
-        XCTAssertEqual(TextTransform.applicable(to: "Hello", type: .richText), [.plain, .upper, .lower])
-        XCTAssertEqual(TextTransform.applicable(to: "Hello", type: .html), [.plain, .upper, .lower])
+    func testPlainAndMarkdownOnlyForFormattedText() {
+        XCTAssertEqual(TextTransform.applicable(to: "Hello", type: .richText), [.plain, .markdown, .upper, .lower])
+        XCTAssertEqual(TextTransform.applicable(to: "Hello", type: .html), [.plain, .markdown, .upper, .lower])
+        XCTAssertFalse(TextTransform.applicable(to: "Hello", type: .plainText).contains(.markdown))
+        XCTAssertFalse(TextTransform.applicable(to: "https://a.example", type: .url).contains(.markdown))
+    }
+
+    // MARK: Markdown and formatted text
+
+    private let notes = "# Notes\n\n- **milk**\n- eggs"
+
+    /// Offered for plain text that reads as Markdown. A formatted clip already has its formatting.
+    func testFormattedTextOnlyForMarkdownPlainText() {
+        XCTAssertTrue(TextTransform.applicable(to: notes, type: .plainText).contains(.richText))
+        XCTAssertFalse(TextTransform.applicable(to: "Use a * for wildcards", type: .plainText).contains(.richText))
+        XCTAssertFalse(TextTransform.applicable(to: notes, type: .richText).contains(.richText))
+        XCTAssertFalse(TextTransform.applicable(to: notes, type: .html).contains(.richText))
+        XCTAssertFalse(TextTransform.applicable(to: notes, type: .url).contains(.richText))
+    }
+
+    /// Markdown is made from the clip's data at pick time, not from its text.
+    func testMarkdownFromHTMLData() throws {
+        let result = try XCTUnwrap(TextTransform.markdown.result(text: "Hi there", type: .html, data: Data("<b>Hi</b> there".utf8)))
+        XCTAssertEqual(result.text, "**Hi** there")
+        XCTAssertNil(result.rtf)
+    }
+
+    func testMarkdownFromRTFData() throws {
+        let string = NSMutableAttributedString(string: "Hi", attributes: [.font: NSFont(name: "Helvetica-Bold", size: 12)!])
+        string.append(NSAttributedString(string: " there", attributes: [.font: NSFont(name: "Helvetica", size: 12)!]))
+        let rtf = try string.data(from: NSRange(location: 0, length: string.length),
+                                  documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
+        XCTAssertEqual(TextTransform.markdown.result(text: "Hi there", type: .richText, data: rtf)?.text, "**Hi** there")
+        XCTAssertNil(TextTransform.markdown.result(text: "Hi there", type: .richText, data: Data("not rtf".utf8)))
+        XCTAssertNil(TextTransform.markdown.result(text: "Hi there", type: .plainText, data: Data("Hi there".utf8)))
+    }
+
+    /// RTF for apps that take formatting, and the formatted text without its Markdown for the rest.
+    func testFormattedTextGivesRTFAndPlainText() throws {
+        let result = try XCTUnwrap(TextTransform.richText.result(text: notes, type: .plainText, data: Data()))
+        XCTAssertEqual(result.text, "Notes\n• milk\n• eggs")
+        let rtf = try XCTUnwrap(result.rtf)
+        let string = try NSAttributedString(data: rtf, options: [.documentType: NSAttributedString.DocumentType.rtf],
+                                            documentAttributes: nil)
+        XCTAssertEqual(string.string.trimmingCharacters(in: .newlines), result.text)
+        let milk = (string.string as NSString).range(of: "milk").location
+        let font = try XCTUnwrap(string.attribute(.font, at: milk, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.bold))
+    }
+
+    /// The other transforms work on the text as before.
+    func testResultOfATextTransform() {
+        XCTAssertEqual(TextTransform.upper.result(text: "hi", type: .plainText, data: Data())?.text, "HI")
+        XCTAssertNil(TextTransform.upper.result(text: "HI", type: .plainText, data: Data()))
+        XCTAssertNil(TextTransform.upper.result(text: "hi", type: .plainText, data: Data())?.rtf)
+    }
+
+    func testMarkdownTransformsNeverApplyToTextAlone() {
+        XCTAssertNil(apply(.markdown, notes))
+        XCTAssertNil(apply(.richText, notes))
     }
 
     func testCleanLinkForLinksAndTextWithALink() {
@@ -224,12 +282,12 @@ final class TextTransformTests: XCTestCase {
     /// The test bundle carries the iPhone's catalog; its `es.lproj` picks Spanish whatever this Mac's language is.
     func testLabels() throws {
         XCTAssertEqual(TextTransform.allCases.map { $0.label() },
-                       ["Plain text", "UPPERCASE", "lowercase", "Title Case", "Trim whitespace", "Clean link",
-                        "Pretty JSON", "Compact JSON"])
+                       ["Plain text", "Markdown", "Formatted text", "UPPERCASE", "lowercase", "Title Case",
+                        "Trim whitespace", "Clean link", "Pretty JSON", "Compact JSON"])
         let path = try XCTUnwrap(Bundle(for: Self.self).path(forResource: "es", ofType: "lproj"))
         let es = try XCTUnwrap(Bundle(path: path))
         XCTAssertEqual(TextTransform.allCases.map { $0.label(bundle: es) },
-                       ["Texto sin formato", "MAYÚSCULAS", "minúsculas", "Tipo Título", "Quitar espacios sobrantes",
-                        "Limpiar link", "JSON legible", "JSON compacto"])
+                       ["Texto sin formato", "Markdown", "Texto con formato", "MAYÚSCULAS", "minúsculas", "Tipo Título",
+                        "Quitar espacios sobrantes", "Limpiar link", "JSON legible", "JSON compacto"])
     }
 }

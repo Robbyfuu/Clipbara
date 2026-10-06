@@ -1061,6 +1061,23 @@
         }
       }
     },
+    "Formatted text" : {
+      "comment" : "Paste or copy as: Markdown shown as bold, headings, lists and links",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formatted text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto con formato"
+          }
+        }
+      }
+    },
     "Full Access" : {
       "localizations" : {
         "en" : {
@@ -1334,6 +1351,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "minúsculas"
+          }
+        }
+      }
+    },
+    "Markdown" : {
+      "comment" : "Paste or copy as: Markdown made from the formatting",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown"
           }
         }
       }

@@ -14,6 +14,8 @@ struct ClipboardQuickLookView: View {
     @State private var cachedCharCount: Int = 0
     @State private var cachedIsCodeLike: Bool = false
     @State private var cachedCodeRanges: [(range: NSRange, kind: CodeTokenKind)] = []
+    /// The text formatted when it is Markdown, not code and not a secret.
+    @State private var cachedMarkdown: NSAttributedString?
     /// A secret shows its mask until Show. Every item change, ←/→ included, hides it again.
     @State private var isRevealed = false
     @AppStorage(LinkPreviewPlan.enabledDefaultsKey) private var linkPreviewsOn = true
@@ -68,6 +70,7 @@ struct ClipboardQuickLookView: View {
                 cachedCharCount = 0
                 cachedIsCodeLike = false
                 cachedCodeRanges = []
+                cachedMarkdown = nil
             } else {
                 // A link's fetched image; the bubble keeps its fixed size, so `imageMetadata` stays nil.
                 cachedImage = item.contentType == .url ? item.linkImageData.flatMap(NSImage.init(data:)) : nil
@@ -80,6 +83,10 @@ struct ClipboardQuickLookView: View {
                 cachedCodeRanges = cachedIsCodeLike
                     ? SyntaxHighlighter.tokens(in: text, limit: Self.codeColorLimit).map { (NSRange($0.range, in: text), $0.kind) }
                     : []
+                // Code wins over Markdown. A longer text shows plain: parsing it whole here would hold up the panel.
+                cachedMarkdown = !cachedIsCodeLike && !item.isSensitive && text.utf8.count <= Self.markdownLimit
+                    && [.plainText, .richText, .html].contains(item.contentType) && MarkdownDetector.isMarkdown(text)
+                    ? MarkdownConverter.attributed(fromMarkdown: text, baseSize: 14) : nil
             }
         }
     }
@@ -92,6 +99,8 @@ struct ClipboardQuickLookView: View {
     private static let imageTextHeight: CGFloat = 120
     /// Characters of code that get colors: about 1 ms of highlighting, bounded however long the clip is.
     private static let codeColorLimit = 20_000
+    /// Bytes of Markdown shown formatted: parsed once per clip, in a few milliseconds.
+    private static let markdownLimit = 64_000
 
     /// Text and other types keep the large fixed bubble. Images get a bubble shaped
     /// like the image at its fitted size, so there is no dead checkerboard around it.
@@ -298,7 +307,8 @@ struct ClipboardQuickLookView: View {
             isMonospaced: cachedIsCodeLike,
             fontSize: 14,
             lineSpacing: 5,
-            codeRanges: cachedCodeRanges
+            codeRanges: cachedCodeRanges,
+            formatted: cachedMarkdown
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(contentBackground)

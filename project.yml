@@ -293,6 +293,9 @@ targets:
       - path: Shared/Services/SmartKindsQueue.swift
       - path: Shared/Utilities/TopicPlan.swift
       - path: Shared/Services/TopicClassifier.swift
+      - path: Shared/Utilities/MarkdownDetector.swift
+      - path: Shared/Utilities/MarkdownConverter.swift
+      - path: Shared/Design/MarkdownStyle.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

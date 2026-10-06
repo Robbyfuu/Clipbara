@@ -266,6 +266,17 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(KeyboardFeed.menu(for: clips[2], text: fetch("a")), [.upper, .title])
     }
 
+    /// The keyboard inserts plain text only: Markdown from a formatted clip, never "Formatted text".
+    func testInsertAsNeverOffersFormattedText() throws {
+        let markdown = "# Notes\n\n- milk\n- eggs"
+        add(markdown, dt: 1)
+        add("Hello", type: .html, dt: 0, raw: Data("<b>Hello</b>".utf8))
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        XCTAssertTrue(TextTransform.applicable(to: markdown, type: .plainText).contains(.richText), "the apps offer it")
+        XCTAssertFalse(KeyboardFeed.menu(for: clips[0], text: markdown).contains(.richText))
+        XCTAssertTrue(KeyboardFeed.menu(for: clips[1], text: "Hello").contains(.markdown))
+    }
+
     /// The menu comes from the real text, not the masked preview.
     func testClipboardCardMenuUsesTheRealText() throws {
         let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(FakeSecret.stripe)), now: t0, protects: true)

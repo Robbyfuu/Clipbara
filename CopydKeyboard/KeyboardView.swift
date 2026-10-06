@@ -23,8 +23,8 @@ final class KeyboardModel {
     @ObservationIgnored var onModeChange: () -> Void = {}
     /// Pastes or copies the clip; returns a toast message when the clip was copied instead of inserted.
     @ObservationIgnored var onSelect: (KeyboardClip) -> String? = { _ in nil }
-    /// "Insert as…": the same, with the clip's text transformed.
-    @ObservationIgnored var onInsertAs: (KeyboardClip, TextTransform) -> String? = { _, _ in nil }
+    /// "Insert as…": the same, with the clip's text transformed. Async: Markdown is made off the main thread.
+    @ObservationIgnored var onInsertAs: @MainActor (KeyboardClip, TextTransform) async -> String? = { _, _ in nil }
     /// The "Insert as…" choices for one card, worked out when it is long-pressed.
     @ObservationIgnored var onMenu: (KeyboardClip) -> [TextTransform] = { _ in [] }
     @ObservationIgnored var onText: (String) -> Void = { _ in }
@@ -54,7 +54,7 @@ final class KeyboardModel {
     }
 
     func insert(_ clip: KeyboardClip, as transform: TextTransform) {
-        show(onInsertAs(clip, transform))
+        Task { show(await onInsertAs(clip, transform)) }
     }
 
     private func show(_ message: String?) {

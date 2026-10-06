@@ -149,6 +149,9 @@ struct ClipRow: View {
                 if title == nil, let code = codePreview {
                     Text(code).brandFont(14, design: .monospaced).lineSpacing(3).lineLimit(4)
                         .foregroundStyle(DesignTokens.Brand.ink)
+                } else if title == nil, let markdown = markdownPreview {
+                    Text(markdown).brandFont(16).lineSpacing(3).lineLimit(4)
+                        .foregroundStyle(DesignTokens.Brand.ink)
                 } else {
                     mainLine(title ?? item.textContent ?? "")
                 }
@@ -163,6 +166,12 @@ struct ClipRow: View {
     private var codePreview: AttributedString? {
         guard let text = item.textContent else { return nil }
         return CodeStyle.attributed(String(text.prefix(2048)), key: item.contentHash)
+    }
+
+    /// The text formatted when it is Markdown and not code; nil otherwise. Same 2 KB and cache as `codePreview`.
+    private var markdownPreview: AttributedString? {
+        guard let text = item.textContent else { return nil }
+        return MarkdownStyle.attributed(String(text.prefix(2048)), key: item.contentHash, size: 16)
     }
 
     private func mainLine(_ text: String) -> some View {
@@ -313,11 +322,7 @@ private struct CopyAsMenu: View {
         if !transforms.isEmpty {
             Menu("Copy as…") {
                 ForEach(transforms, id: \.self) { transform in
-                    Button(transform.label()) {
-                        // The sweep or a sync may have deleted the clip while the menu was open.
-                        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return }
-                        model.copy(item, text: text)
-                    }
+                    Button(transform.label()) { model.copy(item, as: transform) }
                 }
             }
         }

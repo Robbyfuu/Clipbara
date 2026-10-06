@@ -217,23 +217,33 @@ final class AppState {
     /// - Parameter text: Plain text written in place of the clip: a "Paste as…" result, or an image's "Paste text".
     ///   Direct paste and the focus hand-back run as usual; the paste history counts the clip only when the text is
     ///   its own (`MultiPaste.pickedIDs`), so an image's text never counts as a pick of the image.
-    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil) {
+    /// - Parameter rtf: Written beside `text`: "Paste as → Formatted text".
+    func paste(_ item: ClipboardItem, asPlainText: Bool? = nil, text: String? = nil, rtf: Data? = nil) {
         // The sweep or a remote delete may land while a menu is open.
         guard !item.isGone else { return NSSound.beep() }
         clipboardMonitor.skipNextChange(picking: text == nil ? [item.id] : MultiPaste.pickedIDs([item]))
         if let text {
             ReviewPrompter.recordPaste()
-            pasteService.pastePlainText(text)
+            pasteService.pastePlainText(text, rtf: rtf)
         } else {
             pasteService.paste(item: item, asPlainText: asPlainText)
         }
         hidePanel()
     }
 
-    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Beeps if the transform no longer applies.
+    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Worked out off the main actor: Markdown may
+    /// decode the clip's RTF. Beeps if the transform no longer applies, or the clip went meanwhile.
     func paste(_ item: ClipboardItem, as transform: TextTransform) {
-        guard !item.isGone, let text = item.textContent.flatMap(transform.apply(to:)) else { return NSSound.beep() }
-        paste(item, text: text)
+        guard !item.isGone, let text = item.textContent else { return NSSound.beep() }
+        let type = item.contentType
+        let data = transform == .markdown ? item.rawData : Data()
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                transform.result(text: text, type: type, data: data)
+            }.value
+            guard let result, !item.isGone else { return NSSound.beep() }
+            paste(item, text: result.text, rtf: result.rtf)
+        }
     }
 
     /// "Paste text" and ⌥Return: the text read in an image, as plain text, through the pick funnel, so the monitor

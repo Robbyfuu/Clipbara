@@ -85,6 +85,7 @@ final class AppModel {
         Self.seedAppIdentityIfRequested(container)
         Self.seedSmartClipsIfRequested(container)
         Self.seedTopicClipsIfRequested(container)
+        Self.seedMarkdownClipIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         // Before the engine starts, so the saves of its first fetch are indexed.
@@ -245,8 +246,9 @@ final class AppModel {
     /// Returns false, with no toast, when there was nothing to write, or the clip is gone (the sweep or a remote delete
     /// landed while a menu was open).
     /// - Parameter transformed: A "Copy as…" result, copied in place of the clip's own content.
+    /// - Parameter rtf: Copied beside `transformed`: "Copy as → Formatted text".
     @discardableResult
-    func copy(_ item: ClipboardItem, text transformed: String? = nil) -> Bool {
+    func copy(_ item: ClipboardItem, text transformed: String? = nil, rtf: Data? = nil) -> Bool {
         guard !item.isGone else { return false }
         switch item.contentType {
         case .image where transformed == nil:
@@ -254,12 +256,31 @@ final class AppModel {
             UIPasteboard.general.setData(image.data, forPasteboardType: image.uti)
         default:
             guard let text = transformed ?? item.textContent, !text.isEmpty else { return false }
-            UIPasteboard.general.string = text
+            if let rtf {
+                UIPasteboard.general.items = [["public.rtf": rtf, "public.utf8-plain-text": text]]
+            } else {
+                UIPasteboard.general.string = text
+            }
         }
         // Covers a row tap, the widget's `copy` route and Copy Latest Clip: all of them copy through here.
         PasteboardCapture.markHandled()
         flash("Copied")
         return true
+    }
+
+    /// "Copy as…". Worked out off the main actor: Markdown may decode the clip's RTF. Nothing is copied when the
+    /// transform no longer applies, or the clip went meanwhile.
+    func copy(_ item: ClipboardItem, as transform: TextTransform) {
+        guard !item.isGone, let text = item.textContent else { return }
+        let type = item.contentType
+        let data = transform == .markdown ? item.rawData : Data()
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                transform.result(text: text, type: type, data: data)
+            }.value
+            guard let result, !item.isGone else { return }
+            copy(item, text: result.text, rtf: result.rtf)
+        }
     }
 
     /// Where `share` writes a file clip's files, one `<clip-id>` folder per share.
@@ -448,7 +469,8 @@ final class AppModel {
               !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips"),
               !UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity"),
               !UserDefaults.standard.bool(forKey: "CopydSeedSmartClips"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedTopicClips") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedTopicClips"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedMarkdownClip") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
@@ -540,6 +562,21 @@ final class AppModel {
             clip.topicDone = true
             context.insert(clip)
         }
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedMarkdownClip YES`: inserts one Markdown text clip, for the row that renders it. Refuses to run unless
+    /// sync is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes it.
+    private static func seedMarkdownClipIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedMarkdownClip"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-markdown"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let text = "# Groceries\n- **Oat milk**, 2 cartons\n- Beans from [Café Altura](https://example.com)\n- *Ripe* avocados, `x3`"
+        context.insert(ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text, contentHash: hash))
         try? context.save()
         invalidateSpotlight()
     }

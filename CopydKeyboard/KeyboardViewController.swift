@@ -13,7 +13,7 @@ final class KeyboardViewController: UIInputViewController {
         configureGlobe()
         model.onModeChange = { [weak self] in self?.reload() }
         model.onSelect = { [weak self] in self?.select($0) }
-        model.onInsertAs = { [weak self] in self?.insert($0, as: $1) }
+        model.onInsertAs = { [weak self] in await self?.insert($0, as: $1) }
         model.onMenu = { [weak self] clip in
             guard let self else { return [] }
             return KeyboardFeed.menu(for: clip, text: self.text(of: clip))
@@ -135,12 +135,24 @@ final class KeyboardViewController: UIInputViewController {
 
     /// "Insert as…": the clip's whole text, transformed, inserted as plain text, or copied when too long to insert.
     /// The menu came from the text's first 4 KB: when the whole text doesn't support the pick (JSON that turns invalid
-    /// later), nothing happens.
-    private func insert(_ clip: KeyboardClip, as transform: TextTransform) -> String? {
+    /// later), nothing happens. Markdown reads the clip's RTF or HTML, up to `markdownSourceLimit`, and is made off the
+    /// main thread.
+    private func insert(_ clip: KeyboardClip, as transform: TextTransform) async -> String? {
         guard let text = text(of: clip) else { return Self.failure }
-        guard let result = transform.apply(to: text) else { return nil }
-        return paste(.plainText, text: result, data: Data())
+        var data = Data()
+        if transform == .markdown {
+            guard let raw = item(for: clip)?.rawData, raw.count <= Self.markdownSourceLimit else { return Self.failure }
+            data = raw
+        }
+        let type = clip.contentType
+        let result = await Task.detached(priority: .userInitiated) { transform.result(text: text, type: type, data: data) }.value
+        guard let result else { return nil }
+        return paste(.plainText, text: result.text, data: Data())
     }
+
+    // ponytail: a flat cap keeps the decode inside the keyboard's memory budget; a larger formatted clip says it
+    // couldn't be read. Raise it if real RTF clips with short text go over.
+    private static let markdownSourceLimit = 512 * 1024
 
     /// The clip's whole text. A masked clipboard card has its real text.
     private func text(of clip: KeyboardClip) -> String? {
