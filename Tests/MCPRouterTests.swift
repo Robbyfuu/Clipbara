@@ -8,16 +8,20 @@ actor FakeClipLibrary: ClipLibrary {
     var details: [UUID: ClipDetail] = [:]
     var boardList: [BoardSummary] = []
     var fails = false
+    /// Thrown by `copy` only.
+    var copyError: ToolError?
     private(set) var searches: [Search] = []
     private(set) var copied: [String] = []
 
     struct Failure: Error {}
 
-    func configure(summaries: [ClipSummary] = [], details: [ClipDetail] = [], boards: [BoardSummary] = [], fails: Bool = false) {
+    func configure(summaries: [ClipSummary] = [], details: [ClipDetail] = [], boards: [BoardSummary] = [], fails: Bool = false,
+                   copyError: ToolError? = nil) {
         self.summaries = summaries
         self.details = Dictionary(uniqueKeysWithValues: details.map { ($0.id, $0) })
         self.boardList = boards
         self.fails = fails
+        self.copyError = copyError
     }
 
     func search(query: String?, type: ClipKind?, board: String?, limit: Int) async throws -> [ClipSummary] {
@@ -38,6 +42,7 @@ actor FakeClipLibrary: ClipLibrary {
 
     func copy(text: String) async throws {
         if fails { throw Failure() }
+        if let copyError { throw copyError }
         copied.append(text)
     }
 }
@@ -174,6 +179,7 @@ final class MCPRouterTests: XCTestCase {
         let get = tools.first { $0["name"] as? String == "get_clip" }
         XCTAssertEqual((get?["inputSchema"] as? [String: Any])?["required"] as? [String], ["id"])
     }
+
 
     func testTheWriteSwitchIsReadOnEveryRequest() async {
         let toggle = WriteSwitch(false)
@@ -329,6 +335,54 @@ final class MCPRouterTests: XCTestCase {
 
         let copied = await library.copied
         XCTAssertEqual(copied, ["hi", "hi"])
+    }
+
+    /// One copy a second still adds up: at most 20 in any 10 minutes, so a client can't push the history out.
+    func testCopiesAreLimitedTo20PerRolling10Minutes() async {
+        let clock = TestClock()
+        let library = FakeClipLibrary()
+        let r = MCPRouter(library: library, allowsWrite: { true }, now: { clock.now })
+        let copy = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"copy_to_clipboard","arguments":{"text":"hi"}}}"#
+        func message(at time: TimeInterval) async -> String? {
+            clock.now = time
+            let result = toolResult(await send(copy, to: r))
+            return result["isError"] as? Bool == true ? (result["content"] as? [[String: Any]])?.first?["text"] as? String : nil
+        }
+
+        for second in 0..<20 {
+            let refusal = await message(at: TimeInterval(second))
+            XCTAssertNil(refusal, "copy \(second + 1) is within the budget")
+        }
+        let twentyFirst = await message(at: 20)
+        XCTAssertEqual(twentyFirst, "Too many copies; try again in a moment.")
+        let justBefore = await message(at: 599.999)
+        XCTAssertEqual(justBefore, "Too many copies; try again in a moment.", "the first copy still counts")
+        let once10MinutesPass = await message(at: 600)
+        XCTAssertNil(once10MinutesPass, "the first copy has left the window")
+        let next = await message(at: 601)
+        XCTAssertNil(next, "rolling: the second copy has left too")
+
+        let copied = await library.copied
+        XCTAssertEqual(copied.count, 22)
+    }
+
+    /// The library's own refusal reaches the client word for word.
+    func testAToolErrorFromTheLibraryIsShownAsIs() async {
+        let library = FakeClipLibrary()
+        await library.configure(copyError: .pasting)
+        let result = toolResult(await call("copy_to_clipboard", #"{"text":"hi"}"#, library: library, write: true))
+        XCTAssertEqual(result["isError"] as? Bool, true)
+        XCTAssertEqual((result["content"] as? [[String: Any]])?.first?["text"] as? String,
+                       "Copyd is pasting right now; try again in a moment.")
+    }
+
+    /// An agent's copy landing between Copyd's own clipboard write and its ⌘V would be pasted instead of the user's pick.
+    func testWritesWaitWhileCopydIsPasting() {
+        XCTAssertNil(ToolError.busy(pasteStackActive: false, autoPastePending: false))
+        XCTAssertEqual(ToolError.busy(pasteStackActive: true, autoPastePending: false), .pasting)
+        XCTAssertEqual(ToolError.busy(pasteStackActive: false, autoPastePending: true), .pasting)
+        XCTAssertEqual(ToolError.busy(pasteStackActive: true, autoPastePending: true), .pasting)
+        XCTAssertEqual(ToolError.pasting.message, "Copyd is pasting right now; try again in a moment.")
     }
 
     func testCopyIsAnUnknownToolWhileWritingIsOff() async {

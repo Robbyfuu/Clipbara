@@ -16,8 +16,11 @@ struct MCPRouter: Sendable {
     /// Only 2025-06-18: 2025-03-26 also allowed JSON-RPC batches, which this server doesn't accept.
     static let supportedVersions: Set<String> = [latestVersion]
 
-    /// At most one `copy_to_clipboard` this often, so a runaway client can't flood the clipboard and the history.
+    /// At most one `copy_to_clipboard` this often, and `copyBudget` within any `copyWindow`, so a runaway client can't
+    /// flood the clipboard, nor push the history out through the history limit (which syncs).
     static let copyInterval: TimeInterval = 1
+    static let copyBudget = 20
+    static let copyWindow: TimeInterval = 600
 
     private let library: any ClipLibrary
     private let allowsWrite: @Sendable () -> Bool
@@ -92,16 +95,19 @@ struct MCPRouter: Sendable {
 
     // MARK: tools
 
-    /// When the last copy was allowed. Shared by every copy of this router.
+    /// When the copies within the last `copyWindow` were allowed, oldest first. Shared by every copy of this router.
     private final class LastCopy: @unchecked Sendable {
         private let lock = NSLock()
-        private var time: TimeInterval?
+        private var times: [TimeInterval] = []
 
-        /// True, and recorded, when `interval` has passed since the last allowed copy.
-        func claim(at now: TimeInterval, interval: TimeInterval) -> Bool {
+        /// True, and recorded, when `copyInterval` has passed since the last allowed copy and fewer than `copyBudget`
+        /// were allowed within the last `copyWindow`.
+        func claim(at now: TimeInterval) -> Bool {
             lock.withLock {
-                if let time, now - time < interval { return false }
-                time = now
+                times.removeAll { now - $0 >= MCPRouter.copyWindow }
+                if let last = times.last, now - last < MCPRouter.copyInterval { return false }
+                guard times.count < MCPRouter.copyBudget else { return false }
+                times.append(now)
                 return true
             }
         }
@@ -125,12 +131,14 @@ struct MCPRouter: Sendable {
                 let boards = try await library.boards()
                 return try success(Boards(pinboards: boards.filter { $0.id == nil }, smartBoards: boards.filter { $0.id != nil }))
             case .copy(let text):
-                guard lastCopy.claim(at: now(), interval: Self.copyInterval) else {
+                guard lastCopy.claim(at: now()) else {
                     return failure("Too many copies; try again in a moment.")
                 }
                 try await library.copy(text: text)
                 return try success(["copied": true])
             }
+        } catch let error as ToolError {
+            return failure(error.message)
         } catch {
             return failure("Copyd couldn't complete this request. Try again.")
         }

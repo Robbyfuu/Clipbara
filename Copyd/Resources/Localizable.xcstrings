@@ -921,6 +921,22 @@
         }
       }
     },
+    "Connected apps can replace what you paste." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected apps can replace what you paste."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las apps conectadas pueden cambiar lo que pegas."
+          }
+        }
+      }
+    },
     "Copy" : {
       "localizations" : {
         "en" : {
@@ -3097,18 +3113,18 @@
         }
       }
     },
-    "Only apps on this Mac can connect, and only with the token. Secrets are never shared." : {
+    "Only apps on this Mac can connect, and only with the token. Apps you connect can read your clipboard history and may send it to their AI service. Secrets are never shared." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Only apps on this Mac can connect, and only with the token. Secrets are never shared."
+            "value" : "Only apps on this Mac can connect, and only with the token. Apps you connect can read your clipboard history and may send it to their AI service. Secrets are never shared."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Solo las apps de este Mac pueden conectarse, y solo con el token. Los secretos nunca se comparten."
+            "value" : "Solo las apps de este Mac pueden conectarse, y solo con el token. Las apps que conectes pueden leer tu historial y enviarlo a su servicio de IA. Los secretos nunca se comparten."
           }
         }
       }

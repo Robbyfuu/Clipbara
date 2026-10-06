@@ -60,11 +60,17 @@ struct IntegrationsSettingsTab: View {
                     Text("Apps using the current token will stop connecting.")
                 }
 
-                Toggle("Allow writing to the clipboard", isOn: $allowsWrite)
-                    // `tools/list` says its list never changes: a restart makes clients list the tools again.
-                    .onChange(of: allowsWrite) { _, _ in appState.applyMCPSettings() }
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Allow writing to the clipboard", isOn: $allowsWrite)
+                        // `tools/list` says its list never changes: a restart makes clients list the tools again.
+                        .onChange(of: allowsWrite) { _, _ in appState.applyMCPSettings() }
+                    Text("Connected apps can replace what you paste.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             } footer: {
-                Text("Only apps on this Mac can connect, and only with the token. Secrets are never shared.")
+                // App Review 5.1.2(i): say that history may go to a third-party AI service.
+                Text("Only apps on this Mac can connect, and only with the token. Apps you connect can read your clipboard history and may send it to their AI service. Secrets are never shared.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }

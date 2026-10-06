@@ -184,8 +184,13 @@ final class AppState {
             return
         }
         mcpToken = token
-        // copy_to_clipboard: plain text, captured like any copy.
-        let library = StoreClipLibrary(container: container) { PasteService().pastePlainText($0) }
+        // copy_to_clipboard: plain text, captured like any copy. Refused while Copyd pastes: Paste
+        // Stack and auto-paste write the clipboard and then post ⌘V, which would paste the agent's text instead.
+        let library = StoreClipLibrary(container: container) { [weak self] text in
+            guard let self else { return }
+            if let busy = ToolError.busy(pasteStackActive: pasteStack.isActive, autoPastePending: autoPaster.isPasting) { throw busy }
+            PasteService().pastePlainText(text)
+        }
         let router = MCPRouter(library: library) { UserDefaults.standard.bool(forKey: MCPServer.allowsWriteDefaultsKey) }
         let server = MCPServer(port: UInt16(MCPServer.savedPort), token: token, router: router)
         // Called on the server's queue. A stopped server's last report never overwrites the next one's.

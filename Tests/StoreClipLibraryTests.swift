@@ -75,6 +75,57 @@ final class StoreClipLibraryTests: XCTestCase {
                        "the pinboard counts the visible clip only, and no smart board shows for the secret alone")
     }
 
+    /// With "Protect secrets" off nothing is flagged, yet a key never leaves Copyd: the text is checked itself, as
+    /// Spotlight does.
+    func testTextThatReadsAsASecretIsInvisibleWithProtectionOff() async throws {
+        let visible = try insert(.plainText, "plain words", dt: 1)
+        let key = try insert(.plainText, FakeSecret.stripe, dt: 2) {
+            $0.smartKinds = SmartBoard.code.bit
+            $0.topicRaw = SmartBoard.work.rawValue
+        }
+        try pinboard("Keys", [key, visible])
+
+        let all = try await ids()
+        XCTAssertEqual(all, [visible.id])
+        let byQuery = try await ids(query: "sk_live")
+        XCTAssertEqual(byQuery, [])
+        let onPinboard = try await ids(board: "Keys")
+        XCTAssertEqual(onPinboard, [visible.id])
+        let onCode = try await ids(board: "code")
+        XCTAssertEqual(onCode, [])
+        let detail = try await library.clip(id: key.id)
+        XCTAssertNil(detail)
+
+        let boards = try await library.boards()
+        XCTAssertEqual(boards, [BoardSummary(id: nil, name: "Keys", count: 1)],
+                       "no board counts the key, and no smart board shows for it alone")
+    }
+
+    func testAnImageWhoseTextReadsAsASecretIsInvisible() async throws {
+        let visible = try insert(.image, nil, dt: 1) {
+            $0.ocrText = "Receipt 42"
+            $0.smartKinds = SmartBoard.images.bit
+        }
+        let screenshot = try insert(.image, nil, dt: 2) {
+            $0.ocrText = FakeSecret.stripe
+            $0.smartKinds = SmartBoard.images.bit
+        }
+        try pinboard("Shots", [screenshot, visible])
+
+        let all = try await ids()
+        XCTAssertEqual(all, [visible.id])
+        let images = try await ids(type: .image)
+        XCTAssertEqual(images, [visible.id])
+        let onBoard = try await ids(board: "images")
+        XCTAssertEqual(onBoard, [visible.id])
+        let detail = try await library.clip(id: screenshot.id)
+        XCTAssertNil(detail)
+
+        let boards = try await library.boards()
+        XCTAssertEqual(boards, [BoardSummary(id: nil, name: "Shots", count: 1),
+                                BoardSummary(id: SmartBoard.images.rawValue, name: SmartBoard.images.title, count: 1)])
+    }
+
     // MARK: search
 
     func testSearchMatchesTextOCRLinkTitlesAndFileNamesIgnoringCaseAndAccents() async throws {
@@ -217,6 +268,7 @@ final class StoreClipLibraryTests: XCTestCase {
         XCTAssertEqual(whole?.text, "short")
         XCTAssertEqual(whole?.truncated, false)
     }
+
 
     // MARK: get_clip
 

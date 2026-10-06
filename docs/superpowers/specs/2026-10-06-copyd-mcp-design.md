@@ -39,14 +39,14 @@ Copyd on the Mac runs a local Model Context Protocol (MCP) server. Claude Code, 
 
 ## 3. Tools
 
-Secrets (`isSensitive`) are never returned by any tool, not even masked. They are filtered out at the fetch.
+Secrets are never returned by any tool, not even masked, nor counted. Flagged clips (`isSensitive`) are filtered out at the fetch. A clip whose text or OCR text reads as a secret (`SecretDetector`) is dropped too, whatever "Protect secrets" says, as Spotlight drops it.
 
 | Tool | Input | Output |
 |---|---|---|
 | `search_clips` | `query` (optional string), `type` (optional: `text`, `link`, `image`, `file`, `color`, `code`), `board` (optional: a user pinboard name or a smart board id such as `links` or `work`), `limit` (optional, default 20, max 50) | Newest first. Each result has `id`, `type`, `preview` (first 200 characters, or the OCR text or link title), `app` (source app name), `copied_at` (ISO 8601) and `pinned`. The query matches text, OCR text, link titles and file names, case- and diacritic-insensitive. |
 | `get_clip` | `id` | The full text (capped at 100 KB, with `truncated: true` when cut), plus `type`, `app`, `copied_at`, `link_title`, `ocr_text`, `file_names`. Images return metadata and OCR text only, never pixels. A secret or unknown id returns a tool error saying "Clip not found". |
 | `list_pinboards` | none | The user's pinboards (`name`, `count`) and the non-empty smart boards (`id`, `name`, `count`). |
-| `copy_to_clipboard` | `text` (max 100 KB) | Writes plain text to the clipboard, which Copyd then captures like any copy. At most one copy per second; a faster call gets the tool error "Too many copies; try again in a moment." |
+| `copy_to_clipboard` | `text` (max 100 KB) | Writes plain text to the clipboard, which Copyd then captures like any copy. At most one copy per second and 20 per rolling 10 minutes; a call over either limit gets the tool error "Too many copies; try again in a moment." While Paste Stack is on or an auto-paste is pending it gets "Copyd is pasting right now; try again in a moment." |
 
 `copy_to_clipboard` is only listed and allowed when "Allow writing to the clipboard" is on. That setting is off by default.
 
@@ -79,7 +79,9 @@ There is a new Settings tab, "Integrations" / "Integraciones":
   {"mcpServers": {"copyd": {"url": "http://127.0.0.1:<port>/mcp", "headers": {"Authorization": "Bearer <token>"}}}}
   ```
 
-**Footnote:** "Only apps on this Mac can connect, and only with the token. Secrets are never shared." / "Solo las apps de este Mac pueden conectarse, y solo con el token. Los secretos nunca se comparten."
+**Footnote:** "Only apps on this Mac can connect, and only with the token. Apps you connect can read your clipboard history and may send it to their AI service. Secrets are never shared." / "Solo las apps de este Mac pueden conectarse, y solo con el token. Las apps que conectes pueden leer tu historial y enviarlo a su servicio de IA. Los secretos nunca se comparten." (App Review 5.1.2(i).)
+
+**Under the write switch:** "Connected apps can replace what you paste." / "Las apps conectadas pueden cambiar lo que pegas."
 
 **Copies stay on this Mac.** The token and both configurations are written with `.currentHostOnly` and marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, so Universal Clipboard never sends them and clipboard managers skip them.
 

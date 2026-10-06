@@ -19,6 +19,8 @@ final class AutoPaster {
     var hasAccess: Bool { CGPreflightPostEventAccess() }
 
     private var pasteTask: Task<Void, Never>?
+    /// A pick's ⌘V is pending, from the pick until it is posted or given up. MCP writes wait meanwhile.
+    private(set) var isPasting = false
     private var hint: NSPanel?
     private var hintTask: Task<Void, Never>?
     /// The last app other than Copyd to become active: where a pick from the menu bar list pastes.
@@ -44,7 +46,10 @@ final class AutoPaster {
     func pasteIntoFrontApp() {
         guard isEnabled else { return }
         pasteTask?.cancel()
+        isPasting = true
         pasteTask = Task { @MainActor [weak self] in
+            // Cancelled only by a newer pick, which owns the flag from then on.
+            defer { if !Task.isCancelled { self?.isPasting = false } }
             // The panel is non-activating, yet it holds keyboard focus until it is ordered out at the end
             // of its 0.2 s slide; a ⌘V posted before that would land in the panel. Wait for it (max 1 s).
             var waited = 0
