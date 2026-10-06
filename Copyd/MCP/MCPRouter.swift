@@ -5,14 +5,16 @@ enum MCPResponse: Equatable, Sendable {
     case json(Data)
     /// 202 with no body: a notification, or a response from the client.
     case accepted
+    /// 400 with this JSON-RPC error: a message that can't be accepted (unparseable, or no readable id).
+    case invalid(Data)
 }
 
 /// JSON-RPC 2.0 in, JSON-RPC out, for the MCP methods Copyd serves (spec §2, MCP 2025-06-18): `initialize`,
 /// `ping`, `tools/list` and `tools/call`. Anything else is `-32601`.
 struct MCPRouter: Sendable {
     static let latestVersion = "2025-06-18"
-    /// Streamable HTTP exists from 2025-03-26; both share the shapes served here.
-    static let supportedVersions: Set<String> = ["2025-06-18", "2025-03-26"]
+    /// Only 2025-06-18: 2025-03-26 also allowed JSON-RPC batches, which this server doesn't accept.
+    static let supportedVersions: Set<String> = [latestVersion]
 
     private let library: any ClipLibrary
     private let allowsWrite: @Sendable () -> Bool
@@ -25,18 +27,22 @@ struct MCPRouter: Sendable {
 
     func handle(_ body: Data) async -> MCPResponse {
         guard let message = try? JSONSerialization.jsonObject(with: body, options: .fragmentsAllowed) else {
-            return error(id: NSNull(), code: -32700, "Parse error")
+            return .invalid(encode(id: NSNull(), code: -32700, "Parse error"))
         }
-        guard let object = message as? [String: Any], object["jsonrpc"] as? String == "2.0" else {
-            return error(id: NSNull(), code: -32600, "Invalid Request")
-        }
+        let unacceptable = MCPResponse.invalid(encode(id: NSNull(), code: -32600, "Invalid Request"))
+        guard let object = message as? [String: Any] else { return unacceptable }
+        // An id that isn't a string or an exact integer is never echoed: it can't be answered, and an infinite one
+        // would raise when written back.
+        let id = object["id"].flatMap(Self.validID)
+        if object["id"] != nil, id == nil { return unacceptable }
+        let invalidRequest = id.map { error(id: $0, code: -32600, "Invalid Request") } ?? unacceptable
+        guard object["jsonrpc"] as? String == "2.0" else { return invalidRequest }
         guard let rawMethod = object["method"] else {
-            let isClientResponse = object["id"] != nil && (object["result"] != nil || object["error"] != nil)
-            return isClientResponse ? .accepted : error(id: NSNull(), code: -32600, "Invalid Request")
+            let isClientResponse = id != nil && (object["result"] != nil || object["error"] != nil)
+            return isClientResponse ? .accepted : invalidRequest
         }
-        guard let method = rawMethod as? String else { return error(id: NSNull(), code: -32600, "Invalid Request") }
-        guard let rawID = object["id"] else { return .accepted }
-        guard let id = Self.validID(rawID) else { return error(id: NSNull(), code: -32600, "Invalid Request") }
+        guard let method = rawMethod as? String else { return invalidRequest }
+        guard let id else { return .accepted }
 
         var params: [String: Any] = [:]
         if let raw = object["params"], !(raw is NSNull) {
@@ -125,22 +131,27 @@ struct MCPRouter: Sendable {
 
     /// MCP ids are strings or integers, never null; JSON booleans bridge to NSNumber, so they are refused explicitly.
     private static func validID(_ raw: Any) -> Any? {
-        if raw is String { return raw }
-        if let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() { return number }
-        return nil
+        if let text = raw as? String { return text }
+        guard let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              let whole = Int64(exactly: number.doubleValue)
+        else { return nil }
+        return whole
     }
 
     private func result(id: Any, _ result: [String: Any]) -> MCPResponse {
-        encode(["jsonrpc": "2.0", "id": id, "result": result])
+        .json(encode(["jsonrpc": "2.0", "id": id, "result": result]))
     }
 
     private func error(id: Any, code: Int, _ message: String) -> MCPResponse {
+        .json(encode(id: id, code: code, message))
+    }
+
+    private func encode(id: Any, code: Int, _ message: String) -> Data {
         encode(["jsonrpc": "2.0", "id": id, "error": ["code": code, "message": message]])
     }
 
-    private func encode(_ object: [String: Any]) -> MCPResponse {
-        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.withoutEscapingSlashes]))
+    private func encode(_ object: [String: Any]) -> Data {
+        (try? JSONSerialization.data(withJSONObject: object, options: [.withoutEscapingSlashes]))
             ?? Data(#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Internal error"}}"#.utf8)
-        return .json(data)
     }
 }

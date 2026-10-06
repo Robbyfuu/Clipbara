@@ -108,6 +108,8 @@ final class MCPServer: @unchecked Sendable {
         let parameters = NWParameters.tcp
         // Lets a restart bind past connections in TIME_WAIT. A port another listener holds still fails as in use.
         parameters.allowLocalEndpointReuse = true
+        // Defense in depth on top of the loopback-only endpoint.
+        parameters.acceptLocalOnly = true
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port) ?? .any)
         return try NWListener(using: parameters)
     }
@@ -199,8 +201,9 @@ final class MCPServer: @unchecked Sendable {
         receive(client)
     }
 
-    /// The timer runs from connect, or from the last response, until a whole request has arrived: a client that
-    /// trickles its headers is cut off like a silent one.
+    /// The timer runs from connect, or from the last response, until a whole request has arrived, and again from then
+    /// until its response is sent: a client that trickles its headers, or never reads its answer, is cut off like a
+    /// silent one, and so is a request the library never finishes.
     private func armIdleTimer(_ client: Client) {
         client.idleTimer?.cancel()
         let timer = DispatchWorkItem { [weak self, weak client] in
@@ -232,32 +235,39 @@ final class MCPServer: @unchecked Sendable {
             atEnd ? drop(client) : receive(client)
         case .failure(let status):
             respond(client, status: status, keepAlive: false)
+        case .head(let head):
+            if let refusal = refusal(for: head) {
+                return respond(client, status: refusal.status, headers: refusal.headers, keepAlive: false)
+            }
+            pump(client, Data(), atEnd: atEnd)
         case .complete(let request):
-            client.idleTimer?.cancel()
+            armIdleTimer(client)
             serve(client, request, keepAlive: request.keepAlive && !atEnd)
         }
     }
 
     // MARK: requests
 
-    private func serve(_ client: Client, _ request: HTTPRequest, keepAlive: Bool) {
-        switch MCPRequestGuard.check(host: request.header("host"), origin: request.header("origin"),
-                                     authorization: request.header("authorization"), port: boundPort, token: token) {
+    /// The checks that need only the headers, run before any body is buffered. `nil` lets the request through.
+    private func refusal(for head: HTTPRequest) -> (status: Int, headers: [(String, String)])? {
+        switch MCPRequestGuard.check(host: head.header("host"), origin: head.header("origin"),
+                                     authorization: head.header("authorization"), port: boundPort, token: token) {
         case .forbidden:
             Self.log.notice("MCP request refused: foreign host or origin")
-            return respond(client, status: 403, keepAlive: false)
+            return (403, [])
         case .unauthorized:
             Self.log.notice("MCP request refused: missing or wrong token")
-            return respond(client, status: 401, keepAlive: false)
+            return (401, [])
         case .ok:
             break
         }
-        guard request.path == "/mcp" else { return respond(client, status: 404, keepAlive: false) }
-        guard request.method == "POST" else { return respond(client, status: 405, headers: [("Allow", "POST")], keepAlive: false) }
-        if let version = request.header("mcp-protocol-version"), !MCPRouter.supportedVersions.contains(version) {
-            return respond(client, status: 400, keepAlive: false)
-        }
+        if head.path != "/mcp" { return (404, []) }
+        if head.method != "POST" { return (405, [("Allow", "POST")]) }
+        if let version = head.header("mcp-protocol-version"), !MCPRouter.supportedVersions.contains(version) { return (400, []) }
+        return nil
+    }
 
+    private func serve(_ client: Client, _ request: HTTPRequest, keepAlive: Bool) {
         let router = router
         client.request = Task {
             let response = await router.handle(request.body)
@@ -269,6 +279,8 @@ final class MCPServer: @unchecked Sendable {
                                  body: body, keepAlive: keepAlive)
                 case .accepted:
                     self.respond(client, status: 202, keepAlive: keepAlive)
+                case .invalid(let body):
+                    self.respond(client, status: 400, headers: [("Content-Type", "application/json")], body: body, keepAlive: keepAlive)
                 }
             }
         }

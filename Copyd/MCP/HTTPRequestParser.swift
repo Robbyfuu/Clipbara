@@ -20,6 +20,7 @@ struct HTTPRequest: Equatable, Sendable {
 
 /// Incremental HTTP/1.1 request parser for the MCP server. Bounded: a header block over 16 KB is 431, a body over
 /// 1 MB is 413 before any of it is read, a POST needs `Content-Length` (411) and chunked bodies are refused (411).
+/// Each request yields `.head` first, so the server can refuse it before buffering its body, then `.complete`.
 /// After a `.failure` the connection must be closed.
 struct HTTPRequestParser {
     static let maxHeaderBytes = 16 * 1024
@@ -27,6 +28,8 @@ struct HTTPRequestParser {
 
     enum Outcome: Equatable {
         case incomplete
+        /// The headers, before the body is read. Feed again (with no data) to go on.
+        case head(HTTPRequest)
         case complete(HTTPRequest)
         /// The HTTP status to answer with before closing.
         case failure(Int)
@@ -38,6 +41,10 @@ struct HTTPRequestParser {
         let version: String
         let headers: [String: String]
         let length: Int
+
+        func request(body: Data) -> HTTPRequest {
+            HTTPRequest(method: method, path: path, version: version, headers: headers, body: body)
+        }
     }
 
     private static let terminator = Data("\r\n\r\n".utf8)
@@ -47,7 +54,8 @@ struct HTTPRequestParser {
     private var buffer = Data()
     private var head: Head?
 
-    /// Appends `data` and returns the next request once whole. Bytes past it stay for the next call (pipelining).
+    /// Appends `data` and returns the next step: the head once its headers are in, then the whole request. Bytes past
+    /// it stay for the next call (pipelining).
     mutating func feed(_ data: Data) -> Outcome {
         buffer.append(data)
         if head == nil {
@@ -56,16 +64,19 @@ struct HTTPRequestParser {
             }
             guard end.lowerBound - buffer.startIndex <= Self.maxHeaderBytes else { return .failure(431) }
             switch Self.parseHead(buffer[buffer.startIndex..<end.lowerBound]) {
-            case .success(let parsed): head = parsed
-            case .failure(let status): return .failure(status.code)
+            case .success(let parsed):
+                head = parsed
+                buffer = Data(buffer[end.upperBound...])
+                return .head(parsed.request(body: Data()))
+            case .failure(let status):
+                return .failure(status.code)
             }
-            buffer = Data(buffer[end.upperBound...])
         }
         guard let head, buffer.count >= head.length else { return .incomplete }
         let body = Data(buffer.prefix(head.length))
         buffer = Data(buffer.dropFirst(head.length))
         self.head = nil
-        return .complete(HTTPRequest(method: head.method, path: head.path, version: head.version, headers: head.headers, body: body))
+        return .complete(head.request(body: body))
     }
 
     private struct Status: Error { let code: Int }

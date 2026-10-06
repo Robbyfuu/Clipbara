@@ -8,9 +8,16 @@ final class HTTPRequestParserTests: XCTestCase {
 
     private let post = "POST /mcp HTTP/1.1\nHost: 127.0.0.1:39787\nContent-Length: 2\n"
 
+    /// Feeds `data` and steps past the head, as the server does once it accepts the headers.
+    private func next(_ parser: inout HTTPRequestParser, _ data: Data = Data()) -> HTTPRequestParser.Outcome {
+        let outcome = parser.feed(data)
+        if case .head = outcome { return parser.feed(Data()) }
+        return outcome
+    }
+
     func testParsesACompletePost() {
         var parser = HTTPRequestParser()
-        guard case .complete(let req) = parser.feed(request(post, body: "{}")) else { return XCTFail("expected a request") }
+        guard case .complete(let req) = next(&parser, request(post, body: "{}")) else { return XCTFail("expected a request") }
         XCTAssertEqual(req.method, "POST")
         XCTAssertEqual(req.path, "/mcp")
         XCTAssertEqual(req.header("host"), "127.0.0.1:39787")
@@ -20,27 +27,45 @@ final class HTTPRequestParserTests: XCTestCase {
 
     func testDropsTheQueryFromThePath() {
         var parser = HTTPRequestParser()
-        guard case .complete(let req) = parser.feed(request("GET /mcp?x=1 HTTP/1.1\nHost: a\n")) else { return XCTFail() }
+        guard case .complete(let req) = next(&parser, request("GET /mcp?x=1 HTTP/1.1\nHost: a\n")) else { return XCTFail() }
         XCTAssertEqual(req.path, "/mcp")
     }
 
     func testWaitsForTheRestOfASplitRequest() {
         var parser = HTTPRequestParser()
         let bytes = request(post, body: "{}")
+        let headEnd = bytes.count - 2
         for i in 0..<(bytes.count - 1) {
-            XCTAssertEqual(parser.feed(bytes.subdata(in: i..<(i + 1))), .incomplete, "byte \(i) alone completes nothing")
+            let outcome = parser.feed(bytes.subdata(in: i..<(i + 1)))
+            if i == headEnd - 1 {
+                guard case .head(let head) = outcome else { return XCTFail("the head ends at byte \(i)") }
+                XCTAssertEqual(head.header("content-length"), "2")
+            } else {
+                XCTAssertEqual(outcome, .incomplete, "byte \(i) alone completes nothing")
+            }
         }
         guard case .complete(let req) = parser.feed(bytes.suffix(1)) else { return XCTFail("the last byte completes it") }
         XCTAssertEqual(req.body, Data("{}".utf8))
+    }
+
+    /// The server authenticates on the head, so a 1 MB body from a stranger is never buffered.
+    func testReportsTheHeadBeforeTheBodyArrives() {
+        var parser = HTTPRequestParser()
+        let size = HTTPRequestParser.maxBodyBytes
+        guard case .head(let head) = parser.feed(request("POST /mcp HTTP/1.1\nHost: a\nAuthorization: Bearer t\nContent-Length: \(size)\n"))
+        else { return XCTFail("the head comes first") }
+        XCTAssertEqual(head.header("authorization"), "Bearer t")
+        XCTAssertTrue(head.body.isEmpty)
+        XCTAssertEqual(parser.feed(Data()), .incomplete, "the body is still to come")
     }
 
     func testKeepsPipelinedBytesForTheNextRequest() {
         var parser = HTTPRequestParser()
         var both = request(post, body: "{}")
         both.append(request(post, body: "[]"))
-        guard case .complete(let first) = parser.feed(both) else { return XCTFail() }
+        guard case .complete(let first) = next(&parser, both) else { return XCTFail() }
         XCTAssertEqual(first.body, Data("{}".utf8))
-        guard case .complete(let second) = parser.feed(Data()) else { return XCTFail("the leftover is a whole request") }
+        guard case .complete(let second) = next(&parser) else { return XCTFail("the leftover is a whole request") }
         XCTAssertEqual(second.body, Data("[]".utf8))
         XCTAssertEqual(parser.feed(Data()), .incomplete)
     }
@@ -69,7 +94,7 @@ final class HTTPRequestParserTests: XCTestCase {
         var parser = HTTPRequestParser()
         let size = HTTPRequestParser.maxBodyBytes
         let body = String(repeating: "a", count: size)
-        guard case .complete(let req) = parser.feed(request("POST /mcp HTTP/1.1\nHost: a\nContent-Length: \(size)\n", body: body))
+        guard case .complete(let req) = next(&parser, request("POST /mcp HTTP/1.1\nHost: a\nContent-Length: \(size)\n", body: body))
         else { return XCTFail() }
         XCTAssertEqual(req.body.count, size)
     }
@@ -79,6 +104,13 @@ final class HTTPRequestParserTests: XCTestCase {
         let filler = "X-Filler: " + String(repeating: "a", count: HTTPRequestParser.maxHeaderBytes) + "\r\n"
         XCTAssertEqual(parser.feed(Data(("POST /mcp HTTP/1.1\r\n" + filler).utf8)), .failure(431),
                        "a client that never ends its headers must not grow the buffer")
+    }
+
+    func testAWholeHeaderBlockOver16KBIs431() {
+        var parser = HTTPRequestParser()
+        let filler = "X-Filler: " + String(repeating: "a", count: HTTPRequestParser.maxHeaderBytes) + "\r\n"
+        XCTAssertEqual(parser.feed(Data(("POST /mcp HTTP/1.1\r\nContent-Length: 0\r\n" + filler + "\r\n").utf8)), .failure(431),
+                       "a block that ends in the same read is still too large")
     }
 
     func testMalformedContentLengthIs400() {
@@ -106,10 +138,10 @@ final class HTTPRequestParserTests: XCTestCase {
 
     func testAsksToCloseWhenTheClientSaysSo() {
         var parser = HTTPRequestParser()
-        guard case .complete(let req) = parser.feed(request("GET /mcp HTTP/1.1\nHost: a\nConnection: close\n")) else { return XCTFail() }
+        guard case .complete(let req) = next(&parser, request("GET /mcp HTTP/1.1\nHost: a\nConnection: close\n")) else { return XCTFail() }
         XCTAssertFalse(req.keepAlive)
         var other = HTTPRequestParser()
-        guard case .complete(let kept) = other.feed(request("GET /mcp HTTP/1.1\nHost: a\n")) else { return XCTFail() }
+        guard case .complete(let kept) = next(&other, request("GET /mcp HTTP/1.1\nHost: a\n")) else { return XCTFail() }
         XCTAssertTrue(kept.keepAlive)
     }
 }

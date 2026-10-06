@@ -12,8 +12,8 @@ final class RawHTTPClient: @unchecked Sendable {
     private var waiter: CheckedContinuation<Outcome, Never>?
     private var reads = 0
 
-    init(port: UInt16) {
-        connection = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
+    init(host: String = "127.0.0.1", port: UInt16) {
+        connection = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
         connection.start(queue: queue)
     }
 
@@ -72,6 +72,11 @@ final class MCPServerLoopbackTests: XCTestCase {
     private var port: UInt16 = 0
     private let session = URLSession(configuration: .ephemeral)
     private let library = FakeClipLibrary()
+
+    override func tearDown() {
+        session.invalidateAndCancel()
+        super.tearDown()
+    }
 
     private func startServer(library: (any ClipLibrary)? = nil, idleTimeout: TimeInterval = 30,
                              maxConnections: Int = 8) async throws {
@@ -315,7 +320,78 @@ final class MCPServerLoopbackTests: XCTestCase {
         XCTAssertEqual(after, .closed, "the connection is closed after an error")
     }
 
+    /// Authentication runs on the headers: a stranger is refused before sending, or the server buffering, a body.
+    func testAStrangerIs401BeforeTheBodyIsSent() async throws {
+        try await startServer()
+        let client = RawHTTPClient(port: port)
+        defer { client.cancel() }
+        client.send("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:\(port)\r\nContent-Length: \(HTTPRequestParser.maxBodyBytes)\r\n\r\n")
+        guard case .response(let text) = await client.read(timeout: 3) else { return XCTFail("expected a response") }
+        XCTAssertTrue(text.hasPrefix("HTTP/1.1 401"), text)
+    }
+
+    func testAMegabyteOfOpenBracketsIs400() async throws {
+        try await startServer()
+        let (code, response, data) = try await status(request(body: String(repeating: "[", count: HTTPRequestParser.maxBodyBytes)))
+        XCTAssertEqual(code, 400)
+        XCTAssertEqual(response.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((json["error"] as? [String: Any])?["code"] as? Int, -32700)
+        let (after, _, _) = try await status(request(body: ping))
+        XCTAssertEqual(after, 200, "the server still serves")
+    }
+
+    // MARK: binding
+
+    func testIPv6LoopbackGetsNoAnswer() async throws {
+        try await startServer()
+        let client = RawHTTPClient(host: "::1", port: port)
+        defer { client.cancel() }
+        client.send(rawPing())
+        let outcome = await client.read(timeout: 2)
+        if case .response(let text) = outcome { XCTFail("the server answered on ::1: \(text)") }
+    }
+
+    func testANonLoopbackAddressGetsNoAnswer() async throws {
+        guard let address = Self.nonLoopbackIPv4() else { throw XCTSkip("this Mac has no non-loopback IPv4 address") }
+        try await startServer()
+        let client = RawHTTPClient(host: address, port: port)
+        defer { client.cancel() }
+        client.send(rawPing())
+        if case .response(let text) = await client.read(timeout: 2) { XCTFail("the server answered on \(address): \(text)") }
+    }
+
+    private static func nonLoopbackIPv4() -> String? {
+        var list: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&list) == 0, let first = list else { return nil }
+        defer { freeifaddrs(list) }
+        for entry in sequence(first: first, next: { $0.pointee.ifa_next }).map(\.pointee) {
+            guard let address = entry.ifa_addr, address.pointee.sa_family == UInt8(AF_INET),
+                  entry.ifa_flags & UInt32(IFF_UP) != 0, entry.ifa_flags & UInt32(IFF_LOOPBACK) == 0
+            else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            guard getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0
+            else { continue }
+            return host.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
+        }
+        return nil
+    }
+
     // MARK: connections
+
+    /// The idle timer runs until the response is sent: a request that never completes loses its slot.
+    func testAHungRequestLosesItsSlotAfterTheIdleTimeout() async throws {
+        let hanging = HangingLibrary(started: expectation(description: "started"), cancelled: expectation(description: "cancelled"))
+        try await startServer(library: hanging, idleTimeout: 0.3)
+        let client = RawHTTPClient(port: port)
+        defer { client.cancel() }
+        let call = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_clips","arguments":{}}}"#
+        client.send("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:\(port)\r\nAuthorization: Bearer \(token)\r\n"
+                    + "Content-Length: \(call.utf8.count)\r\n\r\n\(call)")
+        let outcome = await client.read(timeout: 3)
+        XCTAssertEqual(outcome, .closed)
+        await fulfillment(of: [hanging.started, hanging.cancelled], timeout: 3)
+    }
 
     func testKeepAliveServesSeveralRequestsOnOneConnection() async throws {
         try await startServer()

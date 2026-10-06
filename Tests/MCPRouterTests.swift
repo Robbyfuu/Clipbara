@@ -98,15 +98,14 @@ final class MCPRouterTests: XCTestCase {
         XCTAssertNotNil(info?["version"] as? String)
     }
 
-    func testInitializeEchoesAnOlderSupportedVersion() async {
-        let response = await send(#"{"jsonrpc":"2.0","id":"a","method":"initialize","params":{"protocolVersion":"2025-03-26"}}"#,
+    func testInitializeEchoesAStringId() async {
+        let response = await send(#"{"jsonrpc":"2.0","id":"a","method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#,
                                   to: router(FakeClipLibrary()))
         XCTAssertEqual(response["id"] as? String, "a", "string ids are echoed")
-        XCTAssertEqual(toolResult(response)["protocolVersion"] as? String, "2025-03-26")
     }
 
     func testInitializeAnswersItsOwnVersionForAnUnknownOne() async {
-        for version in [#""2099-01-01""#, #""""#, "7"] {
+        for version in [#""2025-03-26""#, #""2099-01-01""#, #""""#, "7"] {
             let response = await send(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":\#(version)}}"#,
                                       to: router(FakeClipLibrary()))
             XCTAssertEqual(toolResult(response)["protocolVersion"] as? String, "2025-06-18", version)
@@ -344,20 +343,57 @@ final class MCPRouterTests: XCTestCase {
         XCTAssertEqual(response["id"] as? Int, 6)
     }
 
-    func testInvalidJSONIsAParseError() async {
+    /// The HTTP status the server sends for a router answer, and its JSON body.
+    private func reply(_ body: String, to router: MCPRouter) async -> (status: Int, body: [String: Any]) {
+        switch await router.handle(Data(body.utf8)) {
+        case .accepted: return (202, [:])
+        case .json(let data): return (200, (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:])
+        case .invalid(let data): return (400, (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:])
+        }
+    }
+
+    func testInvalidJSONIsAParseErrorSentAs400() async {
         for body in ["{", "", "not json", #"{"jsonrpc":"2.0","id":1,"method":"ping""#] {
-            let response = await send(body, to: router(FakeClipLibrary()))
+            let (status, response) = await reply(body, to: router(FakeClipLibrary()))
+            XCTAssertEqual(status, 400, body)
             XCTAssertEqual(errorCode(response), -32700, body)
             XCTAssertTrue(response["id"] is NSNull, "a parse error answers with a null id")
         }
     }
 
-    func testWrongShapesAreInvalidRequests() async {
-        for body in [#"[{"jsonrpc":"2.0","id":1,"method":"ping"}]"#, #"{"id":1,"method":"ping"}"#, #"{"jsonrpc":"1.0","id":1,"method":"ping"}"#,
-                     #"{"jsonrpc":"2.0","id":null,"method":"ping"}"#, #"{"jsonrpc":"2.0","id":true,"method":"ping"}"#,
-                     #"{"jsonrpc":"2.0","id":1,"method":7}"#, #"{"jsonrpc":"2.0","id":1}"#, "42", #""ping""#] {
-            let response = await send(body, to: router(FakeClipLibrary()))
+    func testAMessageWithoutAReadableIdIsAnInvalidRequestSentAs400() async {
+        for body in [#"[{"jsonrpc":"2.0","id":1,"method":"ping"}]"#, #"{"jsonrpc":"2.0","id":null,"method":"ping"}"#,
+                     #"{"jsonrpc":"2.0","id":true,"method":"ping"}"#, #"{"jsonrpc":"2.0","id":1.5,"method":"ping"}"#,
+                     #"{"jsonrpc":"2.0","id":{},"method":"ping"}"#, #"{"jsonrpc":"2.0","method":7}"#, "42", #""ping""#] {
+            let (status, response) = await reply(body, to: router(FakeClipLibrary()))
+            XCTAssertEqual(status, 400, body)
             XCTAssertEqual(errorCode(response), -32600, body)
+            XCTAssertTrue(response["id"] is NSNull, body)
         }
+    }
+
+    func testAMessageWithAReadableIdIsAnInvalidRequestForThatId() async {
+        for body in [#"{"id":1,"method":"ping"}"#, #"{"jsonrpc":"1.0","id":1,"method":"ping"}"#,
+                     #"{"jsonrpc":"2.0","id":1,"method":7}"#, #"{"jsonrpc":"2.0","id":1}"#] {
+            let (status, response) = await reply(body, to: router(FakeClipLibrary()))
+            XCTAssertEqual(status, 200, body)
+            XCTAssertEqual(errorCode(response), -32600, body)
+            XCTAssertEqual(response["id"] as? Int, 1, body)
+        }
+    }
+
+    /// An id that isn't an exact integer would be echoed into the response, and writing an infinite number raises.
+    func testAnInfiniteOrHugeIdNeverCrashes() async {
+        for id in ["1e309", "-1e309", "1e300"] {
+            let (status, response) = await reply(#"{"jsonrpc":"2.0","id":\#(id),"method":"ping"}"#, to: router(FakeClipLibrary()))
+            XCTAssertEqual(status, 400, id)
+            XCTAssertTrue([-32600, -32700].contains(errorCode(response) ?? 0), id)
+        }
+    }
+
+    func testAMegabyteOfOpenBracketsIsAParseError() async {
+        let (status, response) = await reply(String(repeating: "[", count: 1_048_576), to: router(FakeClipLibrary()))
+        XCTAssertEqual(status, 400)
+        XCTAssertEqual(errorCode(response), -32700)
     }
 }
