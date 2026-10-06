@@ -7,6 +7,8 @@ struct SelectableTextView: NSViewRepresentable {
     var fontSize: CGFloat = 14
     var lineSpacing: CGFloat = 5
     var contentInsets: NSEdgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
+    /// Code colors, as UTF-16 ranges of `text`.
+    var codeRanges: [(range: NSRange, kind: CodeTokenKind)] = []
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -83,7 +85,12 @@ struct SelectableTextView: NSViewRepresentable {
             .paragraphStyle: paragraph
         ]
 
-        let attributed = NSAttributedString(string: text, attributes: attributes)
+        let attributed = NSMutableAttributedString(string: text, attributes: attributes)
+        for (range, kind) in codeRanges where NSMaxRange(range) <= attributed.length {
+            attributed.addAttribute(.foregroundColor, value: NSColor(DesignTokens.Brand.code(kind)), range: range)
+        }
+        // The Brand colors are dynamic: resolve them for the SwiftUI color scheme (Quick Look forces dark), not the app's.
+        textView.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
         textView.textStorage?.setAttributedString(attributed)
     }
 }

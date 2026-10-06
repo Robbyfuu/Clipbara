@@ -62,16 +62,22 @@ struct ClipRow: View {
             }
             .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
         } else if item.contentType == .color {
+            // HEX as the title, RGB as the subtitle. The swatch matches the other rows' 60 pt thumbnails.
+            let hex = item.textContent ?? ""
             HStack(spacing: 14) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(hex: item.textContent ?? "") ?? DesignTokens.Brand.chip)
+                    .fill(Color(hex: hex) ?? DesignTokens.Brand.chip)
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(DesignTokens.Brand.line, lineWidth: 1))
                     .frame(width: 60, height: 60)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     if let title { mainLine(title) }
-                    Text(item.textContent ?? "").brandFont(14, design: .monospaced)
+                    Text(verbatim: hex).brandFont(16, .semibold, design: .monospaced).lineLimit(1)
                         .foregroundStyle(DesignTokens.Brand.ink)
+                    if let rgb = ColorFormat.rgbString(hex: hex) {
+                        Text(verbatim: rgb).brandFont(13, design: .monospaced, relativeTo: .footnote).lineLimit(1)
+                            .foregroundStyle(DesignTokens.Brand.ink2)
+                    }
                     meta
                 }
             }
@@ -135,11 +141,23 @@ struct ClipRow: View {
                                   : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                mainLine(title ?? item.textContent ?? "")
+                if title == nil, let code = codePreview {
+                    Text(code).brandFont(14, design: .monospaced).lineSpacing(3).lineLimit(4)
+                        .foregroundStyle(DesignTokens.Brand.ink)
+                } else {
+                    mainLine(title ?? item.textContent ?? "")
+                }
                 meta
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         }
+    }
+
+    /// The text with code colors when it is code; nil otherwise. Secrets never get here: they show their mask above.
+    /// Four lines show, so the first 2 KB is plenty, and the cache keeps it from being worked out on every body.
+    private var codePreview: AttributedString? {
+        guard let text = item.textContent else { return nil }
+        return CodeStyle.attributed(String(text.prefix(2048)), key: item.contentHash)
     }
 
     private func mainLine(_ text: String) -> some View {

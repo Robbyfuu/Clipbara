@@ -13,6 +13,7 @@ struct ClipboardQuickLookView: View {
     @State private var imageMetadata: (width: Int, height: Int)?
     @State private var cachedCharCount: Int = 0
     @State private var cachedIsCodeLike: Bool = false
+    @State private var cachedCodeRanges: [(range: NSRange, kind: CodeTokenKind)] = []
     /// A secret shows its mask until Show. Every item change, ←/→ included, hides it again.
     @State private var isRevealed = false
     @AppStorage(LinkPreviewPlan.enabledDefaultsKey) private var linkPreviewsOn = true
@@ -65,6 +66,7 @@ struct ClipboardQuickLookView: View {
                 }
                 cachedCharCount = 0
                 cachedIsCodeLike = false
+                cachedCodeRanges = []
             } else {
                 // A link's fetched image; the bubble keeps its fixed size, so `imageMetadata` stays nil.
                 cachedImage = item.contentType == .url ? item.linkImageData.flatMap(NSImage.init(data:)) : nil
@@ -72,9 +74,11 @@ struct ClipboardQuickLookView: View {
 
                 let text = item.textContent ?? ""
                 cachedCharCount = text.count
-                let sample = text.prefix(2000)
-                let codeKeywords = ["func ", "var ", "let ", "class ", "struct ", "import ", "def ", "return ", "if ", "for ", "{", "}"]
-                cachedIsCodeLike = codeKeywords.contains { sample.contains($0) }
+                cachedIsCodeLike = CodeDetector.isCode(text)
+                // Worked out once per clip here, never per body. Quick Look scrolls, so it colors past the cards' 2 KB.
+                cachedCodeRanges = cachedIsCodeLike
+                    ? SyntaxHighlighter.tokens(in: text, limit: Self.codeColorLimit).map { (NSRange($0.range, in: text), $0.kind) }
+                    : []
             }
         }
     }
@@ -85,6 +89,8 @@ struct ClipboardQuickLookView: View {
     private static let minImageBubbleHeight: CGFloat = 300
     /// The recognized text under an image: selectable, scrolling past this height.
     private static let imageTextHeight: CGFloat = 120
+    /// Characters of code that get colors: about 1 ms of highlighting, bounded however long the clip is.
+    private static let codeColorLimit = 20_000
 
     /// Text and other types keep the large fixed bubble. Images get a bubble shaped
     /// like the image at its fitted size, so there is no dead checkerboard around it.
@@ -290,7 +296,8 @@ struct ClipboardQuickLookView: View {
             text: item.textContent ?? "...",
             isMonospaced: cachedIsCodeLike,
             fontSize: 14,
-            lineSpacing: 5
+            lineSpacing: 5,
+            codeRanges: cachedCodeRanges
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(contentBackground)
