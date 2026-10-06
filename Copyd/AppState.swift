@@ -35,6 +35,8 @@ final class AppState {
     var firstVisibleIndex: Int = 0
     var isCommandHeld: Bool = false
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    /// A "Paste as…" pick being worked out. Another pick or the panel hiding cancels it.
+    @ObservationIgnored private var pasteAsTask: Task<Void, Never>?
     private(set) var modelContainer: ModelContainer?
 
     /// Cached filtered items for keyboard navigation (updated by CardGridView)
@@ -90,6 +92,7 @@ final class AppState {
         ReviewPrompter.noteLaunch()
         Entitlements.shared.start()
         panelController.onPanelWillHide = { [weak self] in
+            self?.pasteAsTask?.cancel()
             self?.searchState.reset()
             self?.previewItem = nil
             self?.suggestionModel.cancel()
@@ -242,19 +245,29 @@ final class AppState {
         hidePanel()
     }
 
-    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Worked out off the main actor: Markdown may
-    /// decode the clip's RTF. Beeps if the transform no longer applies, or the clip went meanwhile.
+    /// "Paste as…" from the card menu or ⇧⌥Return. The clip stays as it is. Worked out off the main actor, where
+    /// Markdown reads and decodes the clip's RTF or HTML. Another pick, or the panel hiding, cancels it. Beeps if the
+    /// transform no longer applies, or the clip went meanwhile.
     func paste(_ item: ClipboardItem, as transform: TextTransform) {
+        pasteAsTask?.cancel()
         guard !item.isGone, let text = item.textContent else { return NSSound.beep() }
-        let type = item.contentType
-        let data = transform == .markdown ? item.rawData : Data()
-        Task {
+        let id = item.id, type = item.contentType
+        let container = transform == .markdown ? modelContainer : nil
+        pasteAsTask = Task {
             let result = await Task.detached(priority: .userInitiated) {
-                transform.result(text: text, type: type, data: data)
+                transform.result(text: text, type: type, data: container.map { Self.rawData(of: id, in: $0) } ?? Data())
             }.value
+            guard !Task.isCancelled else { return }
             guard let result, !item.isGone else { return NSSound.beep() }
             paste(item, text: result.text, rtf: result.rtf)
         }
+    }
+
+    /// One clip's data, read in a context of its own, off the main actor.
+    nonisolated private static func rawData(of id: UUID, in container: ModelContainer) -> Data {
+        var fetch = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.id == id })
+        fetch.fetchLimit = 1
+        return (try? ModelContext(container).fetch(fetch).first?.rawData) ?? Data()
     }
 
     /// "Paste text" and ⌥Return: the text read in an image, as plain text, through the pick funnel, so the monitor

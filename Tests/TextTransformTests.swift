@@ -178,6 +178,10 @@ final class TextTransformTests: XCTestCase {
         XCTAssertFalse(TextTransform.applicable(to: notes, type: .richText).contains(.richText))
         XCTAssertFalse(TextTransform.applicable(to: notes, type: .html).contains(.richText))
         XCTAssertFalse(TextTransform.applicable(to: notes, type: .url).contains(.richText))
+        // Code wins, as on the cards: a script with `#` comments is not offered as formatted text.
+        let script = "# Build\n# Run\nmake all;\nmake test;\nmake install;"
+        XCTAssertTrue(MarkdownDetector.isMarkdown(script) && CodeDetector.isCode(script))
+        XCTAssertFalse(TextTransform.applicable(to: script, type: .plainText).contains(.richText))
     }
 
     /// Markdown is made from the clip's data at pick time, not from its text.
@@ -200,7 +204,7 @@ final class TextTransformTests: XCTestCase {
     /// RTF for apps that take formatting, and the formatted text without its Markdown for the rest.
     func testFormattedTextGivesRTFAndPlainText() throws {
         let result = try XCTUnwrap(TextTransform.richText.result(text: notes, type: .plainText, data: Data()))
-        XCTAssertEqual(result.text, "Notes\n• milk\n• eggs")
+        XCTAssertEqual(result.text, "Notes\n\n• milk\n• eggs")
         let rtf = try XCTUnwrap(result.rtf)
         let string = try NSAttributedString(data: rtf, options: [.documentType: NSAttributedString.DocumentType.rtf],
                                             documentAttributes: nil)

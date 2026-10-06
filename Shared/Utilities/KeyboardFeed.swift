@@ -132,11 +132,12 @@ enum KeyboardFeed {
 
     /// "Insert as…" for one card, worked out when it is long-pressed, never for the whole feed. `text` is the clip's
     /// whole text, fetched only for a text clip short enough to insert: a longer one is copied instead.
-    /// Never "Formatted text": a keyboard inserts plain text only.
+    /// Neither Markdown transform (ruling R5): "Formatted text" can't be inserted, and Markdown would decode the clip's
+    /// RTF or HTML in the keyboard's memory. The app's "Copy as → Markdown" covers it.
     static func menu(for clip: KeyboardClip, text: @autoclosure () -> String?) -> [TextTransform] {
         guard TextTransform.textTypes.contains(clip.contentType), clip.textByteCount <= PasteAction.insertByteLimit,
               let text = text() else { return [] }
-        return TextTransform.applicable(to: text, type: clip.contentType).filter { $0 != .richText }
+        return TextTransform.applicable(to: text, type: clip.contentType).filter { $0 != .richText && $0 != .markdown }
     }
 
     private static func preview(_ type: ContentType, _ text: String?) -> String {

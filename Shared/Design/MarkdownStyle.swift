@@ -61,12 +61,14 @@ enum MarkdownStyle {
             out += line
         }
         // The view's font and color would hide inline code and links: code gets a monospaced font, links an underline.
+        // A link is shown, never followed: a click on the card picks it, never opens a browser.
         for run in out.runs {
             if run.inlinePresentationIntent?.contains(.code) == true {
                 out[run.range][AttributeScopes.SwiftUIAttributes.FontAttribute.self] = .system(size: size, design: .monospaced)
             }
             if run.link != nil {
                 out[run.range][AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute.self] = .single
+                out[run.range].link = nil
             }
         }
         return out

@@ -28,8 +28,9 @@ enum MarkdownConverter {
     // MARK: HTML
 
     /// A tag subset: `h1`–`h6`, `p`, `br`, `b`/`strong`, `i`/`em`, `a`, `ul`/`ol`/`li` (nested), `code`, `pre` and
-    /// `blockquote`. Other tags are dropped and their text kept; scripts, styles and the head are dropped whole.
-    /// Entities are decoded. Malformed HTML gives its text, never a crash.
+    /// `blockquote`, plus bold and italic `span` styles (Google Docs). Other tags are dropped and their text kept;
+    /// scripts, styles and titles are skipped whole. Entities are decoded. Malformed HTML gives its text, never a crash,
+    /// and any nesting stays bounded: indents stop at 32 spaces, quotes at 8 levels, and each style is one counter.
     static func markdown(fromHTML html: String) -> String {
         var writer = HTMLWriter()
         var index = html.startIndex
@@ -53,8 +54,16 @@ enum MarkdownConverter {
             }
             // A tag never closed ends the document.
             guard let close = tagEnd(html, from: next) else { break }
-            writer.tag(html[next..<close])
             index = html.index(after: close)
+            guard let tag = Tag(html[next..<close]) else { continue }
+            if rawTextTags.contains(tag.name), !tag.closing {
+                // Its text is never read as tags: skipped to its end tag, or the end of the document.
+                guard !tag.selfClosing else { continue }
+                let endTag = html.range(of: "</" + tag.name, options: .caseInsensitive, range: index..<end)
+                index = endTag.flatMap { html[$0.upperBound...].firstIndex(of: ">") }.map(html.index(after:)) ?? end
+                continue
+            }
+            writer.tag(tag)
         }
         return writer.finish()
     }
@@ -79,19 +88,41 @@ enum MarkdownConverter {
         return nil
     }
 
-    private static let skippedTags: Set<String> = ["script", "style", "head", "title", "template", "noscript"]
+    private struct Tag {
+        let name: String
+        let closing: Bool
+        let selfClosing: Bool
+        let attributes: Substring
+
+        /// Nil for a comment, a doctype or a processing instruction.
+        init?(_ raw: Substring) {
+            var body = raw
+            closing = body.first == "/"
+            if closing { body = body.dropFirst() }
+            name = body.prefix { $0.isLetter || $0.isNumber }.lowercased()
+            guard !name.isEmpty else { return nil }
+            attributes = body.dropFirst(name.count)
+            selfClosing = attributes.last { !$0.isWhitespace } == "/"
+        }
+    }
+
+    private static let maxIndent = 32
+    private static let maxQuoteDepth = 8
+    private static let rawTextTags: Set<String> = ["script", "style", "title"]
     private static let blockTags: Set<String> = [
         "p", "div", "section", "article", "header", "footer", "main", "aside", "nav", "figure", "figcaption", "table",
         "tr", "thead", "tbody", "tfoot", "hr", "dl", "dt", "dd", "address", "center", "form", "fieldset", "details", "summary",
     ]
 
+    /// A link's URL as Markdown takes it: spaces and parentheses escaped.
+    fileprivate static func escapedURL(_ url: String) -> String {
+        url.replacingOccurrences(of: " ", with: "%20")
+            .replacingOccurrences(of: "(", with: "%28").replacingOccurrences(of: ")", with: "%29")
+    }
+
     private struct HTMLWriter {
-        enum Kind { case bold, italic, code, link }
-        struct Inline {
-            let kind: Kind
-            let open: String
-            let close: String
-        }
+        /// The inline styles, in nesting order: a link outside, code inside.
+        enum Style: Int, CaseIterable { case link, bold, italic, code }
         struct List {
             let ordered: Bool
             var count = 0
@@ -102,19 +133,24 @@ enum MarkdownConverter {
         var blocks: [Block] = []
         var line = ""
         var pendingSpace = false
-        /// Open inline elements. Those at `emitted` and above have not written their opening marker yet: it goes in
-        /// before the next character, so `<b> </b>` writes nothing and `<b>a </b>` writes `**a**`.
-        var inlines: [Inline] = []
-        var emitted = 0
+        /// Open elements giving each style. A style is on while its count is above 0.
+        var depth = [Int](repeating: 0, count: Style.allCases.count)
+        /// The outermost open link's URL.
+        var linkURL = ""
+        /// Styles whose opening marker is in `line`, in the order written: at most one each. A style that is on but not
+        /// here writes its marker before the next character, so `<b> </b>` writes nothing and `<b>a </b>` writes `**a**`.
+        var written: [Style] = []
+        /// What each open element turned on, per tag name, so its end tag turns the same off. Run-length:
+        /// a thousand `<b>` are one entry.
+        var opened: [String: [(styles: [Style], count: Int)]] = [:]
         var lists: [List] = []
         var listGroup = 0
         var heading: Int?
         var quoteDepth = 0
         var preDepth = 0
-        var skipDepth = 0
 
         mutating func text(_ raw: Substring) {
-            guard skipDepth == 0, !raw.isEmpty else { return }
+            guard !raw.isEmpty else { return }
             let text = MarkdownConverter.decodeEntities(raw)
             if preDepth > 0 { return line += text }
             for character in text {
@@ -126,48 +162,54 @@ enum MarkdownConverter {
                     line.append(" ")
                     pendingSpace = false
                 }
-                for inline in inlines[emitted...] { line += inline.open }
-                emitted = inlines.count
+                writeOpeningMarkers()
                 line.append(character)
             }
         }
 
-        mutating func tag(_ raw: Substring) {
-            var body = raw
-            let closing = body.first == "/"
-            if closing { body = body.dropFirst() }
-            let name = body.prefix { $0.isLetter || $0.isNumber }.lowercased()
-            guard !name.isEmpty else { return }
-            if MarkdownConverter.skippedTags.contains(name) {
-                skipDepth = closing ? max(0, skipDepth - 1) : skipDepth + 1
-                return
+        /// No markers inside code: a style turned on there waits until the code ends.
+        private mutating func writeOpeningMarkers() {
+            for style in Style.allCases where depth[style.rawValue] > 0 && !written.contains(style) {
+                if written.contains(.code) { break }
+                line += opening(style)
+                written.append(style)
             }
-            guard skipDepth == 0 else { return }
+        }
+
+        private func opening(_ style: Style) -> String {
+            switch style {
+            case .link: "["
+            case .bold: "**"
+            case .italic: "*"
+            case .code: "`"
+            }
+        }
+
+        private func closing(_ style: Style) -> String {
+            switch style {
+            case .link: "](\(linkURL))"
+            case .bold: "**"
+            case .italic: "*"
+            case .code: "`"
+            }
+        }
+
+        mutating func tag(_ tag: Tag) {
+            let name = tag.name
             switch name {
-            case "b", "strong": closing ? closeInline(.bold) : openInline(.bold, "**", "**")
-            case "i", "em": closing ? closeInline(.italic) : openInline(.italic, "*", "*")
-            case "code": closing ? closeInline(.code) : openInline(.code, "`", "`")
-            case "a":
-                if closing { return closeInline(.link) }
-                let href = MarkdownConverter.attribute("href", in: body.dropFirst(name.count))
-                    .map { MarkdownConverter.decodeEntities($0[...]).trimmingCharacters(in: .whitespaces) }
-                    .flatMap { $0.isEmpty ? nil : $0 }
-                if let href {
-                    let escaped = href.replacingOccurrences(of: " ", with: "%20")
-                        .replacingOccurrences(of: "(", with: "%28").replacingOccurrences(of: ")", with: "%29")
-                    openInline(.link, "[", "](\(escaped))")
-                } else {
-                    openInline(.link, "", "")
-                }
+            case "b", "strong", "i", "em", "code", "a", "span":
+                // A self-closing inline tag holds nothing.
+                guard !tag.selfClosing else { return }
+                tag.closing ? close(name) : open(name, styles(of: tag))
             case "br":
                 if preDepth > 0 || !line.isEmpty { line += "\n" }
                 pendingSpace = false
             case "h1", "h2", "h3", "h4", "h5", "h6":
                 flush()
-                heading = closing ? nil : Int(name.dropFirst())
+                heading = tag.closing ? nil : Int(name.dropFirst())
             case "ul", "ol":
                 flush()
-                if closing {
+                if tag.closing {
                     if !lists.isEmpty { lists.removeLast() }
                 } else {
                     if lists.isEmpty { listGroup += 1 }
@@ -180,14 +222,14 @@ enum MarkdownConverter {
                     lists.append(List(ordered: false))
                 }
                 let last = lists.count - 1
-                if closing { return lists[last].prefix = nil }
+                if tag.closing { return lists[last].prefix = nil }
                 lists[last].count += 1
                 let marker = lists[last].ordered ? "\(lists[last].count). " : "- "
                 // Under the parent item's text: its prefix holds its own indent already.
                 let indent = last > 0 ? lists[last - 1].prefix?.count ?? 2 * last : 0
-                lists[last].prefix = String(repeating: " ", count: indent) + marker
+                lists[last].prefix = String(repeating: " ", count: min(indent, MarkdownConverter.maxIndent)) + marker
             case "pre":
-                if closing {
+                if tag.closing {
                     guard preDepth > 0 else { return }
                     preDepth -= 1
                     if preDepth == 0 { closePre() }
@@ -197,7 +239,7 @@ enum MarkdownConverter {
                 }
             case "blockquote":
                 flush()
-                quoteDepth = closing ? max(0, quoteDepth - 1) : quoteDepth + 1
+                quoteDepth = tag.closing ? max(0, quoteDepth - 1) : quoteDepth + 1
             case "td", "th":
                 if !line.isEmpty { pendingSpace = true }
             default:
@@ -205,25 +247,57 @@ enum MarkdownConverter {
             }
         }
 
-        /// No markers inside code; a kind already open nests as a no-op, so its close still matches.
-        private mutating func openInline(_ kind: Kind, _ open: String, _ close: String) {
-            let literal = preDepth > 0 || inlines.contains { $0.kind == .code || $0.kind == kind }
-            inlines.append(Inline(kind: kind, open: literal ? "" : open, close: literal ? "" : close))
+        /// What an inline element turns on. A `b` or `strong` styled normal is neutral (Google Docs wraps a whole copy
+        /// in one), and a `span` styled bold or italic counts as `**` or `*`. A link needs an `href`.
+        private mutating func styles(of tag: Tag) -> [Style] {
+            let style = MarkdownConverter.attribute("style", in: tag.attributes)?.lowercased().filter { !$0.isWhitespace } ?? ""
+            let bold = ["font-weight:700", "font-weight:bold"].contains { style.contains($0) }
+            let normal = ["font-weight:normal", "font-weight:400"].contains { style.contains($0) }
+            switch tag.name {
+            case "b", "strong": return normal ? [] : [.bold]
+            case "i", "em": return [.italic]
+            case "code": return [.code]
+            case "span": return (bold ? [.bold] : []) + (style.contains("font-style:italic") ? [.italic] : [])
+            default:
+                guard let href = MarkdownConverter.attribute("href", in: tag.attributes)
+                    .map({ MarkdownConverter.decodeEntities($0[...]).trimmingCharacters(in: .whitespaces) }),
+                    !href.isEmpty else { return [] }
+                if depth[Style.link.rawValue] == 0 { linkURL = MarkdownConverter.escapedURL(href) }
+                return [.link]
+            }
         }
 
-        /// Closes the innermost `kind` and the elements opened inside it; those reopen before the next character.
-        private mutating func closeInline(_ kind: Kind) {
-            guard let index = inlines.lastIndex(where: { $0.kind == kind }) else { return }
-            for inner in (index..<inlines.count).reversed() where inner < emitted { line += inlines[inner].close }
-            inlines.remove(at: index)
-            emitted = min(emitted, index)
+        private mutating func open(_ name: String, _ styles: [Style]) {
+            for style in styles { depth[style.rawValue] += 1 }
+            if let last = opened[name]?.last, last.styles == styles {
+                opened[name]![opened[name]!.count - 1].count += 1
+            } else {
+                opened[name, default: []].append((styles, 1))
+            }
         }
 
-        /// Ends the current block. Open inline elements close here and reopen in the next one.
+        /// Ends the innermost open `name`, a stray end tag nothing. A style turned off closes its marker, and the
+        /// markers written after it, which reopen before the next character.
+        private mutating func close(_ name: String) {
+            guard let last = opened[name]?.last else { return }
+            if last.count > 1 {
+                opened[name]![opened[name]!.count - 1].count -= 1
+            } else {
+                opened[name]!.removeLast()
+            }
+            for style in last.styles {
+                depth[style.rawValue] -= 1
+                guard depth[style.rawValue] == 0, let index = written.firstIndex(of: style) else { continue }
+                for inner in written[index...].reversed() { line += closing(inner) }
+                written.removeSubrange(index...)
+            }
+        }
+
+        /// Ends the current block. Its markers close here; styles still on reopen in the next one.
         mutating func flush() {
             guard preDepth == 0 else { return }
-            for inline in inlines[..<emitted].reversed() { line += inline.close }
-            emitted = 0
+            for style in written.reversed() { line += closing(style) }
+            written = []
             let body = line.trimmingCharacters(in: .whitespacesAndNewlines)
             line = ""
             pendingSpace = false
@@ -237,11 +311,15 @@ enum MarkdownConverter {
                 rest = String(repeating: " ", count: prefix.count)
                 lists[lists.count - 1].prefix = rest
             }
-            let quote = String(repeating: "> ", count: quoteDepth)
+            let quote = quotePrefix
             let text = body.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
                 .map { quote + ($0.offset == 0 ? first : rest) + $0.element }
                 .joined(separator: "\n")
             blocks.append(Block(text: text, list: lists.isEmpty || heading != nil ? nil : listGroup))
+        }
+
+        private var quotePrefix: String {
+            String(repeating: "> ", count: min(quoteDepth, MarkdownConverter.maxQuoteDepth))
         }
 
         private mutating func closePre() {
@@ -250,7 +328,7 @@ enum MarkdownConverter {
             if code.hasPrefix("\n") { code.removeFirst() }
             while code.last?.isNewline == true { code.removeLast() }
             guard !code.isEmpty else { return }
-            let quote = String(repeating: "> ", count: quoteDepth)
+            let quote = quotePrefix
             let text = ("```\n" + code + "\n```").split(separator: "\n", omittingEmptySubsequences: false)
                 .map { quote + $0 }.joined(separator: "\n")
             blocks.append(Block(text: text, list: nil))
@@ -325,7 +403,7 @@ enum MarkdownConverter {
     static func markdown(from string: NSAttributedString) -> String {
         let text = string.string as NSString
         guard text.length > 0 else { return "" }
-        let body = bodySize(of: string)
+        let body = predominantSize(of: string, in: NSRange(location: 0, length: text.length))
         var blocks: [Block] = []
         var counts: [Int] = []
         var group = 0
@@ -351,10 +429,11 @@ enum MarkdownConverter {
             if lists.isEmpty {
                 inList = false
                 counts = []
-                let largest = maxSize(of: string, in: range) / body
-                if largest >= 1.3 {
-                    let title = text.substring(with: range).trimmingCharacters(in: .whitespaces)
-                    blocks.append(Block(text: (largest >= 1.6 ? "# " : "## ") + title, list: nil))
+                let size = predominantSize(of: string, in: range) / body
+                if size >= 1.3 {
+                    // A heading is bold already: its links stay, its bold and italic go.
+                    blocks.append(Block(text: (size >= 1.6 ? "# " : "## ") + inlineMarkdown(string, range, styled: false),
+                                        list: nil))
                 } else {
                     blocks.append(Block(text: inlineMarkdown(string, range), list: nil))
                 }
@@ -380,25 +459,19 @@ enum MarkdownConverter {
 
     private static func isOrdered(_ list: NSTextList) -> Bool { !unorderedMarkers.contains(list.markerFormat) }
 
-    /// The most common font size by character count; the smaller one on a tie. 12 pt where no font is set, as RTF.
-    private static func bodySize(of string: NSAttributedString) -> CGFloat {
+    /// The font size most characters in `range` have; the smaller one on a tie. 12 pt where no font is set, as RTF.
+    /// Over the whole text it is the body size; over a paragraph, the paragraph's size.
+    private static func predominantSize(of string: NSAttributedString, in range: NSRange) -> CGFloat {
         var counts: [CGFloat: Int] = [:]
-        string.enumerateAttribute(.font, in: NSRange(location: 0, length: string.length)) { value, range, _ in
-            counts[(value as? MarkdownFont)?.pointSize ?? 12, default: 0] += range.length
+        string.enumerateAttribute(.font, in: range) { value, piece, _ in
+            counts[(value as? MarkdownFont)?.pointSize ?? 12, default: 0] += piece.length
         }
         return counts.max { ($0.value, -$0.key) < ($1.value, -$1.key) }?.key ?? 12
     }
 
-    private static func maxSize(of string: NSAttributedString, in range: NSRange) -> CGFloat {
-        var size: CGFloat = 0
-        string.enumerateAttribute(.font, in: range) { value, _, _ in
-            size = max(size, (value as? MarkdownFont)?.pointSize ?? 12)
-        }
-        return size
-    }
-
     /// Runs with the same bold, italic and link join, so a color change inside bold text writes one `**…**`.
-    private static func inlineMarkdown(_ string: NSAttributedString, _ range: NSRange) -> String {
+    /// `styled: false` writes links only.
+    private static func inlineMarkdown(_ string: NSAttributedString, _ range: NSRange, styled: Bool = true) -> String {
         var out = ""
         var run: (text: String, bold: Bool, italic: Bool, link: String?)?
         func emit() {
@@ -407,10 +480,10 @@ enum MarkdownConverter {
             guard !core.isEmpty else { return out += run.text }
             let lead = run.text.prefix { $0 == " " || $0 == "\t" }
             let trail = String(run.text.reversed().prefix { $0 == " " || $0 == "\t" })
-            let marker = run.bold && run.italic ? "***" : run.bold ? "**" : run.italic ? "*" : ""
-            var styled = marker + core + marker
-            if let link = run.link { styled = "[" + styled + "](" + link + ")" }
-            out += String(lead) + styled + trail
+            let marker = !styled ? "" : run.bold && run.italic ? "***" : run.bold ? "**" : run.italic ? "*" : ""
+            var text = marker + core + marker
+            if let link = run.link { text = "[" + text + "](" + escapedURL(link) + ")" }
+            out += String(lead) + text + trail
         }
         string.enumerateAttributes(in: range) { attributes, piece, _ in
             let traits = traits(of: attributes[.font] as? MarkdownFont)
@@ -441,18 +514,25 @@ enum MarkdownConverter {
     private static let headingScale: [CGFloat] = [1.7, 1.4, 1.2, 1.1, 1, 1]
 
     /// Full Markdown parsing into Helvetica (Menlo for code), which every app reading the RTF has. Headings are bold and
-    /// larger, list items get "• " or "1. ", and links keep their URL. Nil for empty text.
+    /// larger, list items get "• " or "1. ", and links keep their URL. Blocks are a blank line apart, except the items of
+    /// one list. Nil for empty text.
     static func attributed(fromMarkdown markdown: String, baseSize: CGFloat = 13) -> NSAttributedString? {
         guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let parsed = try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .full)) else { return nil }
         let out = NSMutableAttributedString()
         var block: PresentationIntent?
         var item: Int?
+        var list: Int?
         for run in parsed.runs {
             let intent = run.presentationIntent
             let kinds = intent?.components.map(\.kind) ?? []
             if out.length == 0 || intent != block {
-                if out.length > 0 { out.append(NSAttributedString(string: "\n", attributes: [.font: font(baseSize)])) }
+                let outermostList = intent?.components.last { $0.kind == .orderedList || $0.kind == .unorderedList }?.identity
+                if out.length > 0 {
+                    let separator = outermostList != nil && outermostList == list ? "\n" : "\n\n"
+                    out.append(NSAttributedString(string: separator, attributes: [.font: font(baseSize)]))
+                }
+                list = outermostList
                 let listItem = intent?.components.first { if case .listItem = $0.kind { true } else { false } }
                 if let listItem, listItem.identity != item, case .listItem(let ordinal) = listItem.kind {
                     let lists = kinds.filter { $0 == .orderedList || $0 == .unorderedList }

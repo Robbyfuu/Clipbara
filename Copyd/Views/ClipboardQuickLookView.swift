@@ -59,7 +59,8 @@ struct ClipboardQuickLookView: View {
             }
         }
         // A link's preview may land while Quick Look shows it: the fetch marks the link done, which runs this again.
-        .task(id: "\(item.id) \(item.linkPreviewDone)") {
+        // So does an edit, which changes the hash.
+        .task(id: "\(item.id) \(item.linkPreviewDone) \(item.contentHash)") {
             isRevealed = false
             if item.contentType == .image {
                 let image = cachedImage ?? NSImage(data: item.rawData)

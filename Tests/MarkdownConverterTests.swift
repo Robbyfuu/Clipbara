@@ -51,10 +51,10 @@ final class MarkdownConverterTests: XCTestCase {
         XCTAssertEqual(md("<p>one<br>two<br/>three</p><blockquote><p>Quoted</p></blockquote>"), "one\ntwo\nthree\n\n> Quoted")
     }
 
-    /// What a browser puts on the Mac pasteboard: a meta tag, styles and spans.
+    /// What a browser puts on the Mac pasteboard: a meta tag, styles and spans. A bold span is bold; other tags go.
     func testPasteboardHTMLDropsStylesAndUnknownTags() {
-        XCTAssertEqual(md("<meta charset='utf-8'><style>p { color: red }</style><span style=\"font-weight: 700\">Hello</span> <font>world</font><script>alert(1)</script>"),
-                       "Hello world")
+        XCTAssertEqual(md("<meta charset='utf-8'><style>p { color: red }</style><span style=\"font-weight: 700\">Hello</span> <font>world</font> <span style=\"color: red\">red</span><script>alert(1)</script>"),
+                       "**Hello** world red")
     }
 
     func testMalformedHTMLNeverCrashesAndKeepsTheText() {
@@ -68,6 +68,54 @@ final class MarkdownConverterTests: XCTestCase {
                      String(repeating: "<b>", count: 1_000)] {
             _ = md(html)
         }
+    }
+
+    /// Indents stop at 32 spaces and quotes at 8 levels, so deep nesting never multiplies the output.
+    func testNestingIsCapped() {
+        XCTAssertEqual(md(String(repeating: "<ul><li>x", count: 40)).components(separatedBy: "\n").last,
+                       String(repeating: " ", count: 32) + "- x")
+        XCTAssertEqual(md(String(repeating: "<blockquote>x", count: 12)).components(separatedBy: "\n").last,
+                       String(repeating: "> ", count: 8) + "x")
+        XCTAssertEqual(md(String(repeating: "<b>", count: 1_000) + "x"), "**x**")
+    }
+
+    /// Review focus 5: a megabyte of pathological nesting converts in under 2 s, into under 4 MB.
+    private func assertBounded(_ html: String, file: StaticString = #filePath, line: UInt = #line) {
+        var out = ""
+        let elapsed = ContinuousClock().measure { out = md(html) }
+        XCTAssertLessThan(elapsed, .seconds(2), "\(elapsed)", file: file, line: line)
+        XCTAssertLessThan(out.utf8.count, 4 << 20, file: file, line: line)
+    }
+
+    func testAMegabyteOfNestedListsStaysBounded() {
+        assertBounded(String(repeating: "<ul><li>x", count: 1_000_000 / 9))
+    }
+
+    func testAMegabyteOfNestedQuotesStaysBounded() {
+        assertBounded(String(repeating: "<blockquote>x", count: 1_000_000 / 13))
+    }
+
+    func testHalfAMegabyteOfOpenBoldStaysBounded() {
+        assertBounded(String(repeating: "<b>", count: 500_000 / 3) + String(repeating: "<p>x", count: 500_000 / 4))
+    }
+
+    /// Google Docs wraps the whole copy in a `<b>` styled normal and marks bold on spans.
+    func testGoogleDocsBold() {
+        let docs = #"<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-1a2b3c4d-7fff-1234-5678-9abcdef01234"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:700;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;">Bold</span><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;font-variant:normal;text-decoration:none;vertical-align:baseline;white-space:pre;white-space:pre-wrap;"> plain</span></p></b><br>"#
+        XCTAssertEqual(md(docs), "**Bold** plain")
+        XCTAssertEqual(md(#"<b>bold <strong style="font-weight: 400">still</strong> on</b>"#), "**bold still on**",
+                       "a neutral wrapper never closes the bold around it")
+        XCTAssertEqual(md(#"<span style="font-style: italic">soft</span> and <span style="font-weight: bold">firm</span>"#),
+                       "*soft* and **firm**")
+    }
+
+    /// Script and style text is skipped whole, never read as tags; a self-closing script or an unclosed head hides nothing.
+    func testScriptsAndStylesAreSkippedWhole() {
+        XCTAssertEqual(md("<script>if (a < b && c > d) { x = '<p>no</p>' }</script>Kept"), "Kept")
+        XCTAssertEqual(md("<STYLE>p > a { color: red }</Style>Kept"), "Kept")
+        XCTAssertEqual(md(#"<script src="x.js"/>Kept"#), "Kept")
+        XCTAssertEqual(md("<head><meta charset=utf-8><title>Page</title>Kept"), "Kept")
+        XCTAssertEqual(md("<script>never closed"), "")
     }
 
     // MARK: Attributed string (RTF)
@@ -104,6 +152,18 @@ final class MarkdownConverterTests: XCTestCase {
         let string = text([("See ", [:]), ("docs", [.link: URL(string: "https://example.com/docs")!]), (" or ", [:]),
                            ("this", [.link: "https://example.com/this"]), (".", [:])])
         XCTAssertEqual(MarkdownConverter.markdown(from: string), "See [docs](https://example.com/docs) or [this](https://example.com/this).")
+        let spaced = text([("Open ", [:]), ("this", [.link: "https://e.com/a b(c)"])])
+        XCTAssertEqual(MarkdownConverter.markdown(from: spaced), "Open [this](https://e.com/a%20b%28c%29)", "escaped as from HTML")
+    }
+
+    /// A paragraph's size is the one most of its characters have, and a heading keeps its links.
+    func testHeadingUsesThePredominantSizeAndKeepsLinks() {
+        let string = text([("Big", [.font: font(30)]), (" then a long run of body text\n", [:]),
+                           ("Title with ", [.font: font(24, bold: true)]),
+                           ("link", [.font: font(24, bold: true), .link: URL(string: "https://e.com")!]), ("\n", [.font: font(24)]),
+                           ("Body text that is long enough to be the body", [:])])
+        XCTAssertEqual(MarkdownConverter.markdown(from: string),
+                       "Big then a long run of body text\n\n# Title with [link](https://e.com)\n\nBody text that is long enough to be the body")
     }
 
     func testListsThroughRTF() throws {
@@ -145,7 +205,8 @@ final class MarkdownConverterTests: XCTestCase {
     func testFormattedTextFromMarkdown() throws {
         let source = "# Title\n\nSome **bold** and *it* with [link](https://e.com)\n\n- one\n- two\n  - inner\n\n1. a\n2. b\n\n```\ncode\n```"
         let string = try XCTUnwrap(MarkdownConverter.attributed(fromMarkdown: source))
-        XCTAssertEqual(string.string, "Title\nSome bold and it with link\n• one\n• two\n    • inner\n1. a\n2. b\ncode")
+        XCTAssertEqual(string.string, "Title\n\nSome bold and it with link\n\n• one\n• two\n    • inner\n\n1. a\n2. b\n\ncode",
+                       "a blank line between blocks; one list's items stay together")
         let ns = string.string as NSString
         func font(of word: String) -> NSFont? {
             string.attribute(.font, at: ns.range(of: word).location, effectiveRange: nil) as? NSFont
@@ -184,6 +245,7 @@ final class MarkdownConverterTests: XCTestCase {
                        .system(size: 13, design: .monospaced))
         XCTAssertEqual(inline[try XCTUnwrap(inline.range(of: "docs"))][AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute.self],
                        .single)
+        XCTAssertNil(inline[try XCTUnwrap(inline.range(of: "docs"))].link, "a click picks the card, never opens a browser")
     }
 
     func testProseIsNotRenderedAsMarkdown() {

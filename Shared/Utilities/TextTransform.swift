@@ -39,7 +39,8 @@ enum TextTransform: CaseIterable {
 
     /// The transforms that change this clip's text, in menu order, judged from its first `menuProbeLimit` bytes.
     /// `plain` and `markdown` only for formatted text, by its type alone: its data is read only when picked.
-    /// `richText` for plain text that reads as Markdown. Longer JSON is offered when it starts like an object or an array.
+    /// `richText` for plain text that reads as Markdown and not as code, as cards show it. Longer JSON is offered when it
+    /// starts like an object or an array.
     static func applicable(to text: String, type: ContentType) -> [TextTransform] {
         guard textTypes.contains(type) else { return [] }
         let probe = menuProbe(text)
@@ -48,7 +49,7 @@ enum TextTransform: CaseIterable {
         return allCases.filter { transform in
             switch transform {
             case .plain, .markdown: return formatted && !text.isEmpty
-            case .richText: return type == .plainText && MarkdownDetector.isMarkdown(probe)
+            case .richText: return type == .plainText && MarkdownDetector.isMarkdown(probe) && !CodeDetector.isCode(probe)
             default: break
             }
             if cut, transform == .prettyJSON || transform == .compactJSON {
