@@ -128,6 +128,8 @@ targets:
           - Services/LinkPreviewFetcher.swift
           # Clips are sorted into automatic pinboards by the apps only; extensions read the result.
           - Services/SmartKindsQueue.swift
+          # Topics are asked of Apple Intelligence by the apps only: no FoundationModels in an extension.
+          - Services/TopicClassifier.swift
     resources:
       - CopydKeyboard/Resources
     settings:
@@ -162,6 +164,8 @@ targets:
           - Services/LinkPreviewFetcher.swift
           # Clips are sorted into automatic pinboards by the apps only; extensions read the result.
           - Services/SmartKindsQueue.swift
+          # Topics are asked of Apple Intelligence by the apps only: no FoundationModels in an extension.
+          - Services/TopicClassifier.swift
       # Controls and the Lock Screen button run these intents. The system opens the app only when an intent is a
       # member of both targets; WIDGET_EXTENSION compiles out the app-only `perform` body.
       - path: CopydiOS/Intents/OpenAppIntents.swift
@@ -201,6 +205,8 @@ targets:
           - Services/LinkPreviewFetcher.swift
           # Clips are sorted into automatic pinboards by the apps only; extensions read the result.
           - Services/SmartKindsQueue.swift
+          # Topics are asked of Apple Intelligence by the apps only: no FoundationModels in an extension.
+          - Services/TopicClassifier.swift
     resources:
       - CopydShare/Resources
     settings:
@@ -285,6 +291,8 @@ targets:
       - path: Shared/Utilities/StoreSchema.swift
       - path: Shared/Utilities/SmartKinds.swift
       - path: Shared/Services/SmartKindsQueue.swift
+      - path: Shared/Utilities/TopicPlan.swift
+      - path: Shared/Services/TopicClassifier.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

@@ -24,9 +24,11 @@ extension ClipboardItem {
             linkTitle = nil
             linkImageData = nil
             linkPreviewDone = false
-            // And it is sorted into the automatic pinboards again.
+            // And it is sorted into the automatic pinboards again, and asked about its topic.
             smartKinds = 0
             smartKindsVersion = 0
+            topicRaw = nil
+            topicDone = false
         }
         fileManifestData = s.fileManifest
         contentTypeRaw = s.contentType

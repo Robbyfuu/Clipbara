@@ -6,8 +6,9 @@ struct PinboardsView: View {
     @Query(sort: \Pinboard.displayOrder) private var boards: [Pinboard]
     @Environment(\.modelContext) private var modelContext
     @AppStorage(SmartKinds.enabledDefaultsKey, store: SharedDefaults.store) private var smartBoardsEnabled = true
-    /// The type boards holding a clip History shows, with their counts, in order. Each device sorts its own clips
-    /// (`SmartKindsQueue`); they are counted in the store.
+    @AppStorage(TopicPlan.enabledDefaultsKey, store: SharedDefaults.store) private var smartTopicsEnabled = true
+    /// The type boards, then the topic boards, holding a clip History shows, with their counts, in order. Each device
+    /// sorts its own clips (`SmartKindsQueue`, `TopicQueue`); they are counted in the store.
     @State private var automatic: [(board: SmartBoard, count: Int)] = []
     @State private var path = NavigationPath()
 
@@ -55,14 +56,16 @@ struct PinboardsView: View {
         }
         .onAppear(perform: refreshCounts)
         .onChange(of: smartBoardsEnabled) { refreshCounts() }
+        .onChange(of: smartTopicsEnabled) { refreshCounts() }
         // A sort pass saves every 50 clips: one recount once the saves pause.
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in refreshCounts() }
     }
 
-    /// One `fetchCount` per type board, leaving out the Mac's file links as History does. None while the setting is off.
+    /// One `fetchCount` per board, leaving out the Mac's file links as History does. None while the setting is off.
     private func refreshCounts() {
-        automatic = smartBoardsEnabled ? (try? SmartKinds.counts(in: modelContext, excluding: [.fileURL])) ?? [] : []
+        automatic = smartBoardsEnabled
+            ? (try? SmartKinds.counts(in: modelContext, boards: SmartBoard.listed, excluding: [.fileURL])) ?? [] : []
     }
 
     private func card(_ name: String, count: Int, @ViewBuilder leading: () -> some View) -> some View {

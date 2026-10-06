@@ -366,6 +366,7 @@ private struct EditClipSheet: View {
                             // The sweep or a sync may have deleted the clip meanwhile. A secret edit deletes it.
                             if !item.isGone, item.saveEdit(text, in: modelContext) {
                                 model.smartKinds.fill()  // the new text's automatic pinboards
+                                model.topics.fill()  // and its topic
                                 if !item.isGone, item.contentType == .url {
                                     model.linkPreviews.fill()  // the new link's preview
                                 }

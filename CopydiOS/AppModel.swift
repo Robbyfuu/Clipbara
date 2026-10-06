@@ -22,6 +22,8 @@ final class AppModel {
     let linkPreviews: LinkPreviewQueue
     /// Sorts clips into the automatic pinboards, foreground only like `imageText`.
     let smartKinds: SmartKindsQueue
+    /// Asks Apple Intelligence for the topic boards, foreground only like `imageText`.
+    let topics: TopicQueue
     /// Keeps the clips in Spotlight, following every main-context save.
     let spotlight: SpotlightIndexer
     /// True when the App Group container was unavailable and the store lives in memory only.
@@ -82,6 +84,7 @@ final class AppModel {
         Self.seedCodeClipsIfRequested(container)
         Self.seedAppIdentityIfRequested(container)
         Self.seedSmartClipsIfRequested(container)
+        Self.seedTopicClipsIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         // Before the engine starts, so the saves of its first fetch are indexed.
@@ -93,6 +96,8 @@ final class AppModel {
         linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         // Nor do the automatic pinboards: each device sorts its own clips.
         smartKinds = SmartKindsQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
+        // Nor do the topics: each device asks its own model.
+        topics = TopicQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         sync.onMirrorWiped = { [weak self] in
             self?.spotlight.removeAll()
@@ -317,6 +322,7 @@ final class AppModel {
         shared.imageText.fill()
         shared.linkPreviews.fill()
         shared.smartKinds.fill()
+        shared.topics.fill()
     }
 
     /// Reads every identity and decodes its icon at 84 px (28 pt at 3x), all off the main thread. There is one per
@@ -398,6 +404,7 @@ final class AppModel {
         // Only the foreground app reads the pasteboard, so this runs in the foreground.
         if item.contentType == .url { linkPreviews.fill() }
         smartKinds.fill()
+        topics.fill()
     }
 
     /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.
@@ -440,7 +447,8 @@ final class AppModel {
               !UserDefaults.standard.bool(forKey: "CopydSeedSecretClip"),
               !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips"),
               !UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedSmartClips") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedSmartClips"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedTopicClips") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
@@ -504,6 +512,33 @@ final class AppModel {
             let files = ClipboardItem(contentType: .files, rawData: bundle, textContent: "Notes.txt", contentHash: "seed-smart-files")
             files.fileManifestData = FileBundle.manifestJSON(bundle)
             context.insert(files)
+        }
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedTopicClips YES`: inserts text clips whose topic is already set, as the model would set it, for the
+    /// topic boards in the Automatic section where the model is unavailable (the simulator). Refuses to run unless sync
+    /// is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes them.
+    private static func seedTopicClipsIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedTopicClips"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentHash.starts(with: "seed-topic-") }))) ?? 0) == 0 else { return }
+        for (topic, text) in [(SmartBoard.work, "Move the design review to Thursday 3 pm"),
+                              (.work, "Q4 roadmap: ship topic boards, then Markdown"),
+                              (.shopping, "Order: 2x oat milk, coffee beans, AA batteries"),
+                              (.travel, "Flight LA 800, gate 14, boarding 9:40"),
+                              (.finance, "Invoice 2026-114: $1,240 due Friday"),
+                              (.study, "Chapter 6 notes: Swift concurrency and actors"),
+                              (.social, "Ana's birthday dinner, Saturday 8 pm"),
+                              (.personal, "Dentist appointment Tuesday at 10")] {
+            let clip = ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text,
+                                     contentHash: "seed-topic-\(UUID().uuidString)")
+            clip.topicRaw = topic.rawValue
+            clip.topicDone = true
+            context.insert(clip)
         }
         try? context.save()
         invalidateSpotlight()

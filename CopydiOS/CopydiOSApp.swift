@@ -115,6 +115,7 @@ struct CopydiOSApp: App {
                     model.imageText.stop()
                     model.linkPreviews.stop()
                     model.smartKinds.stop()
+                    model.topics.stop()
                 }
                 guard phase == .active else { return }
                 model.drainInbox()
@@ -125,6 +126,7 @@ struct CopydiOSApp: App {
                 model.imageText.fill()
                 model.linkPreviews.fill()
                 model.smartKinds.fill()
+                model.topics.fill()
                 model.reloadAppLooksIfStale()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()

@@ -48,6 +48,15 @@ final class SearchStateTests: XCTestCase {
         XCTAssertEqual(state.filteredItems(from: items, board: .code), [], "filters apply on top")
     }
 
+    func testTopicBoardKeepsItsTopicOnly() {
+        let trip = clip(.url), work = clip(.plainText), none = clip(.plainText)
+        trip.topicRaw = SmartBoard.travel.rawValue
+        work.topicRaw = SmartBoard.work.rawValue
+        let state = SearchState()
+        XCTAssertEqual(state.filteredItems(from: [trip, work, none], board: .travel).map(\.id), [trip.id])
+        XCTAssertEqual(state.filteredItems(from: [trip, work, none], board: .work).map(\.id), [work.id])
+    }
+
     /// Multi-select picks from the row as shown, so the suggestions stay put while it's active.
     func testSuggestionsHideWhileSearchingOrFilteringButNotWhileMultiSelecting() {
         let state = SearchState()

@@ -94,6 +94,19 @@ final class ClipEditTests: XCTestCase {
         XCTAssertFalse(context.hasChanges, "saved")
     }
 
+    /// The topic was the old text's: an edit clears it, so the next fill asks the model about the new one.
+    func testEditResetsTheTopic() throws {
+        let context = try makeContext()
+        let clip = try saved(text("Flight AA 100 to Lisbon"), in: context)
+        clip.topicRaw = SmartBoard.travel.rawValue
+        clip.topicDone = true
+        try context.save()
+        XCTAssertTrue(clip.saveEdit("Invoice 2026-114 due Friday", in: context))
+        XCTAssertNil(clip.topicRaw)
+        XCTAssertFalse(clip.topicDone, "asked again by the next fill")
+        XCTAssertFalse(context.hasChanges, "saved")
+    }
+
     /// An edit that turns a link into a secret replaces it: the new local clip carries no preview and is never fetched.
     func testLinkEditedIntoASecretHasNoPreview() throws {
         let context = try makeContext()

@@ -41,6 +41,11 @@ final class ClipboardItem {
     var smartKinds: Int = 0
     /// The `SmartKinds.version` that sorted `smartKinds`; 0 until sorted. Local only.
     var smartKindsVersion: Int = 0
+    /// The topic board (`SmartBoard.rawValue`) Apple Intelligence put the clip in, by `TopicQueue`; nil for none.
+    /// Local only, like `smartKinds`: each device asks its own model. Additive, so existing stores migrate lightweight.
+    var topicRaw: String?
+    /// The model answered, with a topic or none, so the clip is never asked again. Local only.
+    var topicDone: Bool = false
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }

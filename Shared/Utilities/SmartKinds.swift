@@ -9,6 +9,8 @@ enum SmartBoard: String, CaseIterable, Hashable, Sendable {
 
     /// The type boards, sorted by `SmartKinds.classify`, in display order.
     static let types: [SmartBoard] = [.links, .code, .addresses, .contacts, .images, .colors, .files]
+    /// The boards the Mac and iPhone list: the topic boards too, while "Group by topic" is on.
+    static var listed: [SmartBoard] { TopicPlan.isEnabled ? allCases : types }
 
     var isTopic: Bool { !Self.types.contains(self) }
 
@@ -41,8 +43,8 @@ enum SmartBoard: String, CaseIterable, Hashable, Sendable {
 /// Sorts a clip into the type boards. Pure: the fill pass (`SmartKindsQueue`) stores the result in the clip's local-only
 /// `smartKinds`, with `version` in `smartKindsVersion`.
 enum SmartKinds {
-    /// Bump to sort every clip again, after a change to `classify`.
-    static let version = 1
+    /// Bump to sort every clip again, after a change to `classify`. 2: secrets are in no board.
+    static let version = 2
     /// Only the start of a long text is scanned.
     static let sampleBytes = 4096
     /// The fill pass sorts this many of the newest clips, `batchSize` at a time.
@@ -106,23 +108,43 @@ enum SmartKinds {
         board.isTopic ? [] : (0..<(1 << SmartBoard.types.count)).filter { $0 & board.bit != 0 }
     }
 
-    /// A board's clips, matched in the store, so a count or a list never loads every clip. `excluding`: types the
-    /// caller's list leaves out. `includesSecrets`: false where secrets never show (the keyboard).
+    /// A board's clips, matched in the store, so a count or a list never loads every clip: a type board by its masks,
+    /// a topic board by `topicRaw`. `excluding`: types the caller's list leaves out. `includesSecrets`: false where
+    /// secrets never show (the keyboard). Each case is its own literal predicate: a captured Bool, or a `contains` on an
+    /// empty array, is unreliable in a store predicate on macOS 14 and iOS 17.
     static func predicate(for board: SmartBoard, excluding types: [ContentType] = [],
                           includesSecrets: Bool = true) -> Predicate<ClipboardItem> {
-        // Topic boards (Task 3) go here: a match on `topicRaw == board.rawValue` in place of the masks.
-        let masks = masks(for: board), excluded = types.map(\.rawValue)
-        return #Predicate {
-            masks.contains($0.smartKinds) && !excluded.contains($0.contentTypeRaw)
-                && (includesSecrets || $0.isSensitive == false)
+        let excluded = types.map(\.rawValue)
+        if board.isTopic {
+            let topic: String? = board.rawValue
+            switch (excluded.isEmpty, includesSecrets) {
+            case (true, true): return #Predicate { $0.topicRaw == topic }
+            case (true, false): return #Predicate { $0.topicRaw == topic && $0.isSensitive == false }
+            case (false, true): return #Predicate { $0.topicRaw == topic && !excluded.contains($0.contentTypeRaw) }
+            case (false, false):
+                return #Predicate {
+                    $0.topicRaw == topic && $0.isSensitive == false && !excluded.contains($0.contentTypeRaw)
+                }
+            }
+        }
+        let masks = masks(for: board)
+        switch (excluded.isEmpty, includesSecrets) {
+        case (true, true): return #Predicate { masks.contains($0.smartKinds) }
+        case (true, false): return #Predicate { masks.contains($0.smartKinds) && $0.isSensitive == false }
+        case (false, true): return #Predicate { masks.contains($0.smartKinds) && !excluded.contains($0.contentTypeRaw) }
+        case (false, false):
+            return #Predicate {
+                masks.contains($0.smartKinds) && $0.isSensitive == false && !excluded.contains($0.contentTypeRaw)
+            }
         }
     }
 
-    /// The type boards holding a clip, in display order, with how many. `limit` caps each count: 1 is enough to know
-    /// a board shows. One `fetchCount` per board.
-    static func counts(in context: ModelContext, excluding types: [ContentType] = [], includesSecrets: Bool = true,
+    /// The `boards` holding a clip, in display order, with how many. `limit` caps each count: 1 is enough to know a
+    /// board shows. One `fetchCount` per board.
+    static func counts(in context: ModelContext, boards: [SmartBoard] = SmartBoard.types,
+                       excluding types: [ContentType] = [], includesSecrets: Bool = true,
                        limit: Int? = nil) throws -> [(board: SmartBoard, count: Int)] {
-        try SmartBoard.types.compactMap { board in
+        try boards.compactMap { board in
             var descriptor = FetchDescriptor(predicate: predicate(for: board, excluding: types, includesSecrets: includesSecrets))
             descriptor.fetchLimit = limit
             let count = try context.fetchCount(descriptor)

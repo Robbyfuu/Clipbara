@@ -58,6 +58,8 @@ final class AppState {
     /// Sorts clips into the automatic pinboards: right after a capture or an edit, at launch, after a sync, and when
     /// turned on.
     @ObservationIgnored private(set) var smartKinds: SmartKindsQueue?
+    /// Asks Apple Intelligence for the topic boards, at the same moments, while the model is available.
+    @ObservationIgnored private(set) var topics: TopicQueue?
 
     @ObservationIgnored private var hasStarted = false
 
@@ -75,6 +77,7 @@ final class AppState {
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)
             self?.smartKinds?.fill()
+            self?.topics?.fill()
         }
         // Every pick in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) comes through here, right
         // before the clip is written. It ends Paste Stack, then pastes into the app the user was in once
@@ -104,6 +107,7 @@ final class AppState {
             self?.imageText?.fill()
             self?.linkPreviews?.fill()
             self?.smartKinds?.fill()
+            self?.topics?.fill()
         }
         cloudSync = engine
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) {
@@ -123,6 +127,10 @@ final class AppState {
         let smartKinds = SmartKindsQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
         self.smartKinds = smartKinds
         smartKinds.fill()
+        // Nor do the topics: each device asks its own model.
+        let topics = TopicQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        self.topics = topics
+        topics.fill()
 
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in
@@ -245,6 +253,7 @@ final class AppState {
         EditClipWindowController.shared.show(item, in: context, returnTo: app) { [weak self] in
             self?.linkPreviews?.fill()
             self?.smartKinds?.fill()
+            self?.topics?.fill()
         }
     }
 

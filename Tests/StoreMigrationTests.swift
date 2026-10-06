@@ -67,6 +67,10 @@ final class StoreMigrationTests: XCTestCase {
         XCTAssertEqual(clip.smartKindsVersion, 0, "existing clips are sorted by the first fill pass")
         let unsorted = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.smartKinds == 0 && $0.smartKindsVersion < 1 })
         XCTAssertEqual(try new.mainContext.fetchCount(unsorted), 1)
+        XCTAssertNil(clip.topicRaw)
+        XCTAssertFalse(clip.topicDone, "existing clips are asked about by the first fill pass")
+        let unasked = FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.topicDone == false && $0.topicRaw == nil })
+        XCTAssertEqual(try new.mainContext.fetchCount(unasked), 1)
     }
 
     /// Paste history is a new Mac-only entity: today's store must open in place with it, keeping every clip.

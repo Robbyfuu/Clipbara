@@ -1937,6 +1937,22 @@
         }
       }
     },
+    "Group by topic with Apple Intelligence" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group by topic with Apple Intelligence"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agrupar por tema con Apple Intelligence"
+          }
+        }
+      }
+    },
     "HTML" : {
       "localizations" : {
         "es" : {

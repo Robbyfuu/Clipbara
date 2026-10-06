@@ -16,7 +16,9 @@ struct NavigationBarView: View {
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse) private var historyItems: [ClipboardItem]
     @Query private var pinboardEntries: [PinboardEntry]
     @AppStorage(SmartKinds.enabledDefaultsKey) private var smartBoardsEnabled = true
-    /// The type boards holding a clip, in order; none while "Automatic pinboards" is off. Counted in the store.
+    @AppStorage(TopicPlan.enabledDefaultsKey) private var smartTopicsEnabled = true
+    /// The type boards, then the topic boards, holding a clip, in order; none while "Automatic pinboards" is off.
+    /// Counted in the store.
     @State private var smartBoards: [SmartBoard] = []
 
     @State private var isAddingPinboard = false
@@ -39,6 +41,7 @@ struct NavigationBarView: View {
             appState.orderedSmartBoards = smartBoards
         }
         .onChange(of: smartBoardsEnabled) { _, _ in refreshSmartBoards() }
+        .onChange(of: smartTopicsEnabled) { _, _ in refreshSmartBoards() }
         // A sort pass saves every 50 clips: one refetch once the saves pause.
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in refreshSmartBoards() }
@@ -318,9 +321,10 @@ struct NavigationBarView: View {
         OptionsMenuButton(searchState: appState.searchState)
     }
 
-    /// One `fetchCount` per type board, never a pass over every clip.
+    /// One `fetchCount` per board, never a pass over every clip.
     private func refreshSmartBoards() {
-        let boards = smartBoardsEnabled ? ((try? SmartKinds.counts(in: modelContext, limit: 1)) ?? []).map(\.board) : []
+        let boards = smartBoardsEnabled
+            ? ((try? SmartKinds.counts(in: modelContext, boards: SmartBoard.listed, limit: 1)) ?? []).map(\.board) : []
         if boards != smartBoards { smartBoards = boards }
     }
 

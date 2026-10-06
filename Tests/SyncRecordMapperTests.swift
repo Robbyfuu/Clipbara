@@ -195,6 +195,26 @@ final class SyncRecordMapperTests: XCTestCase {
                        "ClipSnapshot carries no smart field")
     }
 
+    /// Topics never sync either: each device asks its own model.
+    @MainActor
+    func testTopicsAreNeverMapped() throws {
+        let container = try ModelContainer(for: ClipboardItem.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let text = "Flight AA 100 to Lisbon"
+        let clip = ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text, contentHash: "h")
+        container.mainContext.insert(clip)
+        clip.topicRaw = SmartBoard.travel.rawValue
+        clip.topicDone = true
+        let rec = record(for: clip.snapshot)
+        try SyncRecordMapper.populate(rec, from: clip.snapshot, assetDirectory: dir)
+        let keys = Set(rec.allKeys()).union(rec.encryptedValues.allKeys())
+        XCTAssertTrue(keys.filter { $0.lowercased().contains("topic") }.isEmpty, "\(keys)")
+        let values = rec.allKeys().compactMap { rec[$0] as? String } + rec.encryptedValues.allKeys().compactMap { rec.encryptedValues[$0] as? String }
+        XCTAssertFalse(values.contains("travel"), "no field carries the topic")
+        XCTAssertEqual(try SyncRecordMapper.clip(from: rec), clip.snapshot)
+        XCTAssertFalse(Mirror(reflecting: clip.snapshot).children.contains { ($0.label ?? "").lowercased().contains("topic") },
+                       "ClipSnapshot carries no topic field")
+    }
+
     func testOnlyAllowedPlainKeys() throws {
         let clip = makeClip(bytes: SyncRecordMapper.inlineLimit + 1)
         let rec = record(for: clip)

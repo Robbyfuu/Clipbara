@@ -138,7 +138,7 @@ final class SmartKindsTests: XCTestCase {
     }
 
     func testBatchHolds50AmongTheNewest1000() {
-        XCTAssertEqual(SmartKinds.version, 1)
+        XCTAssertEqual(SmartKinds.version, 2, "2: clips sorted before secrets were left out are sorted again")
         let clips = (0..<1100).map { clip($0) }
         XCTAssertEqual(SmartKinds.nextBatch(clips: clips.shuffled()), clips.prefix(50).map(\.id))
         let newestDone = clips.enumerated().map { $0.offset < 1000 ? ($0.element.id, SmartKinds.version, $0.element.copiedAt) : $0.element }
@@ -291,6 +291,39 @@ final class SmartKindsQueueTests: XCTestCase {
         let fetch = FetchDescriptor(predicate: SmartKinds.predicate(for: .code, excluding: [.fileURL]),
                                     sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         XCTAssertEqual(try container.mainContext.fetch(fetch).map(\.id), [new.id, old.id])
+    }
+
+    /// Topic boards match the clip's topic, with the same exclusions as the type boards.
+    func testTopicBoardsCountAndFetchByTopic() throws {
+        let work = try insert(.plainText, kinds: .code, dt: 0)
+        work.topicRaw = "work"
+        let trip = try insert(.url, kinds: .links, dt: 1)
+        trip.topicRaw = "travel"
+        let secretTrip = try insert(.plainText, dt: 2, secret: true)
+        secretTrip.topicRaw = "travel"
+        let fileTrip = try insert(.fileURL, kinds: .files, dt: 3)
+        fileTrip.topicRaw = "travel"
+        try container.mainContext.save()
+        let context = container.mainContext
+        XCTAssertEqual(try SmartKinds.counts(in: context).map(\.board), [.links, .code, .files], "type boards by default")
+        let all = try SmartKinds.counts(in: context, boards: SmartBoard.allCases)
+        XCTAssertEqual(all.map(\.board), [.links, .code, .files, .work, .travel])
+        XCTAssertEqual(all.map(\.count), [1, 1, 1, 1, 3])
+        XCTAssertEqual(try SmartKinds.counts(in: context, boards: [.travel], excluding: [.fileURL]).map(\.count), [2])
+        XCTAssertEqual(try SmartKinds.counts(in: context, boards: [.travel], excluding: [.fileURL],
+                                             includesSecrets: false).map(\.count), [1])
+        XCTAssertEqual(try SmartKinds.counts(in: context, boards: [.travel], includesSecrets: false).map(\.count), [2])
+        let fetch = FetchDescriptor(predicate: SmartKinds.predicate(for: .travel, excluding: [.fileURL]),
+                                    sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
+        XCTAssertEqual(try context.fetch(fetch).map(\.id), [secretTrip.id, trip.id])
+    }
+
+    /// Secrets left out with no type excluded: its own predicate, never an empty `contains`.
+    func testSecretsLeftOutWithNoTypeExcluded() throws {
+        try insert(.plainText, kinds: .code, dt: 0, secret: true)
+        try insert(.plainText, kinds: .code, dt: 1)
+        XCTAssertEqual(try SmartKinds.counts(in: container.mainContext, includesSecrets: false).map(\.count), [1])
+        XCTAssertEqual(try SmartKinds.counts(in: container.mainContext).map(\.count), [2])
     }
 
     func testNothingRunsWhileTurnedOff() async throws {

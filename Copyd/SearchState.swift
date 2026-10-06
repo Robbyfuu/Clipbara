@@ -103,7 +103,7 @@ final class SearchState {
     /// "Link previews" is on.
     func filteredItems(from items: [ClipboardItem], board: SmartBoard? = nil,
                        linkTitles: Bool = LinkPreviewPlan.isEnabled) -> [ClipboardItem] {
-        let items = board.map { board in items.filter { SmartKinds.members(of: board, kinds: $0.smartKinds, topic: nil) } }
+        let items = board.map { board in items.filter { SmartKinds.members(of: board, kinds: $0.smartKinds, topic: $0.topicRaw) } }
             ?? items
         let startDate = dateFilter.startDate
         let contentTypes = selectedContentTypes
