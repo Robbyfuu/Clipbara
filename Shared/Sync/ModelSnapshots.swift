@@ -20,6 +20,10 @@ extension ClipboardItem {
             rawData = s.rawData
             ocrText = nil
             ocrDone = false
+            // An edit on another device: the old link's preview goes, and the new link is fetched here.
+            linkTitle = nil
+            linkImageData = nil
+            linkPreviewDone = false
         }
         fileManifestData = s.fileManifest
         contentTypeRaw = s.contentType

@@ -51,6 +51,8 @@ final class AppState {
     private(set) var cloudSync: CloudSyncEngine?
     /// Reads the text in image clips: right after one is captured, at launch, and after a sync brings new ones.
     @ObservationIgnored private var imageText: ImageTextQueue?
+    /// Fetches link titles and images: right after a link is captured, at launch, after a sync, and when turned on.
+    @ObservationIgnored private(set) var linkPreviews: LinkPreviewQueue?
 
     @ObservationIgnored private var hasStarted = false
 
@@ -92,6 +94,7 @@ final class AppState {
         let engine = CloudSyncEngine(container: modelContainer) { [weak self] in
             self?.clipboardMonitor.refreshLatestItems()
             self?.imageText?.fill()
+            self?.linkPreviews?.fill()
         }
         cloudSync = engine
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) {
@@ -102,6 +105,11 @@ final class AppState {
         self.imageText = imageText
         clipboardMonitor.onNewImage = { [weak imageText] in imageText?.fill() }
         imageText.fill()
+        // Link previews never sync either.
+        let linkPreviews = LinkPreviewQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        self.linkPreviews = linkPreviews
+        clipboardMonitor.onNewLink = { [weak linkPreviews] in linkPreviews?.fill() }
+        linkPreviews.fill()
 
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in

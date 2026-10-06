@@ -72,6 +72,19 @@ final class KeyboardFeedTests: XCTestCase {
         XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent).map(\.preview), ["https://a.b", "#FF0000"])
     }
 
+    /// A link with a fetched title shows the title, never the image (memory), and the URL while previews are off.
+    func testLinkPreviewShowsTheTitle() throws {
+        let link = add("https://www.apple.com", type: .url, dt: 1)
+        link.linkTitle = "Apple"
+        link.linkImageData = Data([1, 2, 3])
+        add("https://copyd.app", type: .url, dt: 0)
+        let clips = try KeyboardFeed.items(in: context, mode: .recent)
+        XCTAssertEqual(clips.map(\.preview), ["Apple", "https://copyd.app"])
+        XCTAssertNil(clips.first?.thumbnail)
+        XCTAssertEqual(try KeyboardFeed.items(in: context, mode: .recent, linkTitles: false).map(\.preview),
+                       ["https://www.apple.com", "https://copyd.app"])
+    }
+
     func testClipboardCardFromCapturedText() throws {
         let text = "  " + String(repeating: "a", count: 500) + "\n"
         let card = KeyboardFeed.clipboardCard(try XCTUnwrap(ClipCapture.text(text)), now: t0)

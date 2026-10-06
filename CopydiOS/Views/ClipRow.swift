@@ -9,6 +9,7 @@ struct ClipRow: View {
     let item: ClipboardItem
     var onDelete: (() -> Void)?
     @State private var editing = false
+    @AppStorage(LinkPreviewPlan.enabledDefaultsKey, store: SharedDefaults.store) private var linkPreviewsOn = true
 
     var body: some View {
         // The sweep, a sync or another row's delete may have removed the clip: reading it then would crash.
@@ -100,24 +101,38 @@ struct ClipRow: View {
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         } else if let parts = linkParts {
-            VStack(alignment: .leading, spacing: 6) {
-                if let title {
-                    mainLine(title)
-                    Text(parts.host + parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
-                        .foregroundStyle(DesignTokens.Brand.ink2)
-                        .lineLimit(2).truncationMode(.middle)
-                } else {
-                    Text(parts.host).brandFont(18, .bold).tracking(-0.18).lineLimit(1)
-                        .foregroundStyle(DesignTokens.Brand.ink)
+            // The fetched preview: the page's image as a thumbnail, its title, and the domain under it.
+            let pageTitle = linkPreviewsOn ? item.linkPreviewTitle : nil
+            let image = linkPreviewsOn ? linkImage : nil
+            HStack(spacing: 14) {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .accessibilityHidden(true)
                 }
-                if title == nil, !parts.rest.isEmpty {
-                    Text(parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
-                        .foregroundStyle(DesignTokens.Brand.ink2)
-                        .lineLimit(2).truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 6) {
+                    if let heading = title ?? pageTitle {
+                        mainLine(heading)
+                        // A user title keeps the whole link under it; a page title, the domain.
+                        Text(title == nil ? parts.host : parts.host + parts.rest)
+                            .brandFont(12, design: .monospaced, relativeTo: .caption)
+                            .foregroundStyle(DesignTokens.Brand.ink2)
+                            .lineLimit(2).truncationMode(.middle)
+                    } else {
+                        Text(parts.host).brandFont(18, .bold).tracking(-0.18).lineLimit(1)
+                            .foregroundStyle(DesignTokens.Brand.ink)
+                        if !parts.rest.isEmpty {
+                            Text(parts.rest).brandFont(12, design: .monospaced, relativeTo: .caption)
+                                .foregroundStyle(DesignTokens.Brand.ink2)
+                                .lineLimit(2).truncationMode(.middle)
+                        }
+                    }
+                    meta
                 }
-                meta
             }
-            .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+            .padding(image == nil ? EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16)
+                                  : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 16))
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 mainLine(title ?? item.textContent ?? "")
@@ -161,6 +176,12 @@ struct ClipRow: View {
                 .background(DesignTokens.Brand.chip, in: RoundedRectangle(cornerRadius: 12))
                 .accessibilityHidden(true)
         }
+    }
+
+    /// A link's fetched image, decoded by ImageIO at the 60 pt thumbnail's pixel size, never the full 640 px.
+    private var linkImage: UIImage? {
+        guard item.contentType == .url, !item.isSensitive, let data = item.linkImageData else { return nil }
+        return Thumbnail.image(from: data, maxPixels: 180).map(UIImage.init(cgImage:))
     }
 
     /// Link clips, and text clips that are nothing but one http(s) URL, render as the link card.

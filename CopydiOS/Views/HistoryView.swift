@@ -24,6 +24,7 @@ struct HistoryView: View {
     @State private var search = ""
     #endif
     @State private var filter = Filter.all
+    @AppStorage(LinkPreviewPlan.enabledDefaultsKey, store: SharedDefaults.store) private var linkPreviewsOn = true
     @FocusState private var searchFocused: Bool
     /// Set by the Search quick action; focuses the field once, then resets.
     @Binding var focusSearch: Bool
@@ -39,11 +40,13 @@ struct HistoryView: View {
             case .links: if item.contentType != .url { return false }
             case .images: if item.contentType != .image { return false }
             }
-            // Matches like the Mac panel's search: a secret by its mask, an image by the text read in it.
+            // Matches like the Mac panel's search: a secret by its mask, an image by the text read in it, a link by its
+            // page title while previews are on.
             return search.isEmpty
                 || ((item.secretMask ?? item.textContent)?.localizedCaseInsensitiveContains(search) ?? false)
                 || (item.userTitle?.localizedCaseInsensitiveContains(search) ?? false)
                 || (item.recognizedText?.localizedCaseInsensitiveContains(search) ?? false)
+                || (linkPreviewsOn && item.linkPreviewTitle?.localizedCaseInsensitiveContains(search) == true)
         }
     }
 

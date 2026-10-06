@@ -97,4 +97,15 @@ final class SearchStateTests: XCTestCase {
         state.debouncedSearchText = "receipt"
         XCTAssertEqual(state.filteredItems(from: [image]).map(\.id), [])
     }
+
+    /// A link is found by its fetched page title, unless previews are off.
+    func testSearchMatchesALinksTitle() {
+        let link = clip(.url)
+        link.textContent = "https://www.apple.com/iphone"
+        link.linkTitle = "iPhone - Apple"
+        let state = SearchState()
+        state.debouncedSearchText = "IPHONE - apple"
+        XCTAssertEqual(state.filteredItems(from: [link, clip(.plainText)]).map(\.id), [link.id])
+        XCTAssertEqual(state.filteredItems(from: [link], linkTitles: false).map(\.id), [])
+    }
 }

@@ -99,7 +99,8 @@ final class SearchState {
         multiSelection.clear()
     }
 
-    func filteredItems(from items: [ClipboardItem]) -> [ClipboardItem] {
+    /// `linkTitles`: a link also matches by its fetched page title, while "Link previews" is on.
+    func filteredItems(from items: [ClipboardItem], linkTitles: Bool = LinkPreviewPlan.isEnabled) -> [ClipboardItem] {
         let startDate = dateFilter.startDate
         let contentTypes = selectedContentTypes
         let query = debouncedSearchText
@@ -118,7 +119,7 @@ final class SearchState {
             }
 
             if !query.isEmpty {
-                return item.matchesSearchQuery(query)
+                return item.matchesSearchQuery(query, linkTitles: linkTitles)
             }
 
             return true
@@ -149,11 +150,13 @@ final class SearchState {
 }
 
 private extension ClipboardItem {
-    /// A secret matches by its masked label only, never by the secret itself. An image also by the text read in it.
-    func matchesSearchQuery(_ query: String) -> Bool {
+    /// A secret matches by its masked label only, never by the secret itself. An image also by the text read in it, a
+    /// link by its page title.
+    func matchesSearchQuery(_ query: String, linkTitles: Bool) -> Bool {
         (secretMask ?? textContent)?.localizedCaseInsensitiveContains(query) == true ||
         sourceAppName?.localizedCaseInsensitiveContains(query) == true ||
         userTitle?.localizedCaseInsensitiveContains(query) == true ||
-        recognizedText?.localizedCaseInsensitiveContains(query) == true
+        recognizedText?.localizedCaseInsensitiveContains(query) == true ||
+        (linkTitles && linkPreviewTitle?.localizedCaseInsensitiveContains(query) == true)
     }
 }

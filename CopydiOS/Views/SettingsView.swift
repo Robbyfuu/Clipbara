@@ -15,6 +15,8 @@ struct SettingsView: View {
     @AppStorage(SecretDetector.protectDefaultsKey, store: SharedDefaults.store) private var protectSecrets = true
     @AppStorage(SecretSweeper.deleteAfterDefaultsKey, store: SharedDefaults.store)
     private var deleteSecretsAfter = SecretSweeper.defaultMinutes
+    /// In the App Group, so the keyboard and the widget show link titles only while it is on.
+    @AppStorage(LinkPreviewPlan.enabledDefaultsKey, store: SharedDefaults.store) private var linkPreviewsEnabled = true
     /// Live Activities can be turned off for Copyd in Settings; re-read on every return to the app.
     @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var notificationsDenied = false
@@ -93,6 +95,13 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
                 .padding(.bottom, 24)
+
+                sectionLabel("History")
+                toggleRow("Link previews", symbol: "link", isOn: $linkPreviewsEnabled)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .brandCard()
+                    .padding(.bottom, 24)
 
                 sectionLabel("Secrets")
                 VStack(alignment: .leading, spacing: 0) {
@@ -209,6 +218,10 @@ struct SettingsView: View {
         .background(DesignTokens.Brand.shelf)
         .sheet(isPresented: $showQuickGuide) { QuickGuideView() }
         .onChange(of: liveActivityEnabled) { model.updateLiveActivity() }
+        .onChange(of: linkPreviewsEnabled) { _, on in
+            if on { model.linkPreviews.fill() } else { model.linkPreviews.stop() }
+            AppModel.reloadWidgets()  // the widget shows a link's title only while this is on
+        }
         .onChange(of: arrivalNotificationsEnabled) { _, on in
             guard on else { return }
             Task {

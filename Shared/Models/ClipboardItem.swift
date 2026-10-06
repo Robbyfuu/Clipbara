@@ -29,6 +29,13 @@ final class ClipboardItem {
     var ocrText: String?
     /// Recognition already ran, so an image with no text is never read again. Local only, like `ocrText`.
     var ocrDone: Bool = false
+    /// A link clip's page title, fetched by `LinkPreviewQueue`. Local only, like `ocrText`: each device fetches its own.
+    /// Additive, so existing stores migrate lightweight.
+    var linkTitle: String?
+    /// The page's image (or icon), a JPEG at most `LinkPreviewPlan.targetPixelSize` wide. Local only.
+    @Attribute(.externalStorage) var linkImageData: Data?
+    /// The fetch finished, with a preview or none, so a dead link is never fetched again. Local only.
+    var linkPreviewDone: Bool = false
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }

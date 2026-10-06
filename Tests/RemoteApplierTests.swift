@@ -386,6 +386,23 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertFalse(local.ocrDone, "the new image is read again")
     }
 
+    /// An edit on another device syncs as an update of the same clip: the old link's preview goes, and the new link is
+    /// fetched. A rename keeps it.
+    func testRemoteUpdateKeepsALinksPreviewUntilTheLinkChanges() throws {
+        try apply(clips: [clip(1, type: "url", data: Data("https://www.apple.com".utf8))])
+        let local = try XCTUnwrap(try clips().first)
+        local.linkTitle = "Apple"
+        local.linkImageData = Data([1])
+        local.linkPreviewDone = true
+        try apply(clips: [clip(1, title: "renamed", type: "url", data: Data("https://www.apple.com".utf8))])
+        XCTAssertEqual(local.linkTitle, "Apple")
+        XCTAssertTrue(local.linkPreviewDone)
+        try apply(clips: [clip(1, hash: "h2", type: "url", data: Data("https://copyd.app".utf8))])
+        XCTAssertNil(local.linkTitle)
+        XCTAssertNil(local.linkImageData)
+        XCTAssertFalse(local.linkPreviewDone, "the new link is fetched again")
+    }
+
     func testNoMergeAt61Seconds() throws {
         try apply(clips: [clip(1)])
         let out = try apply(clips: [clip(2, dt: 61)])

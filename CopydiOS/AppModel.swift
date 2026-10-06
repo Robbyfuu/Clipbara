@@ -18,6 +18,8 @@ final class AppModel {
     /// Reads the text in image clips while the app is in the foreground only: started on launch and on every return,
     /// stopped when the app goes to the background.
     let imageText: ImageTextQueue
+    /// Fetches link titles and images, foreground only like `imageText`.
+    let linkPreviews: LinkPreviewQueue
     /// True when the App Group container was unavailable and the store lives in memory only.
     let isInMemory: Bool
     var toastVisible = false
@@ -60,11 +62,14 @@ final class AppModel {
         #if DEBUG
         Self.seedSampleClipsIfRequested(container)
         Self.seedOCRImageIfRequested(container)
+        Self.seedLinkClipIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         sync = CloudSyncEngine(container: container) { Self.remoteChangesApplied() }
         // The text read in an image never syncs, so its save queues no upload.
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
+        // Link previews never sync either.
+        linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) { sync.start() }
         #if DEBUG
@@ -267,11 +272,14 @@ final class AppModel {
     }
 
     /// The widget shows the newest clips, so it reloads after every change to them. Copying changes nothing.
-    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read. A background push
-    /// wake reads nothing; the next return to the foreground does. Called by the engine after `shared` exists.
+    /// A fetch brought changes: the widget reloads, and in the foreground the new images are read and the new links
+    /// fetched. A background push wake does neither; the next return to the foreground does. Called by the engine after
+    /// `shared` exists.
     private static func remoteChangesApplied() {
         reloadWidgets()
-        if UIApplication.shared.applicationState == .active { shared.imageText.fill() }
+        guard UIApplication.shared.applicationState == .active else { return }
+        shared.imageText.fill()
+        shared.linkPreviews.fill()
     }
 
     static func reloadWidgets() {
@@ -323,6 +331,8 @@ final class AppModel {
         item.isSensitive = SecretDetector.flags(clip.textContent, type: clip.contentType)
         context.insert(item)
         try? context.save()
+        // Only the foreground app reads the pasteboard, so this runs in the foreground.
+        if item.contentType == .url { linkPreviews.fill() }
     }
 
     /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.
@@ -360,7 +370,8 @@ final class AppModel {
     /// so no tracker sees the delete and `queueEverything` never uploads the samples.
     private static func removeSeedClipsUnlessSeeding(_ container: ModelContainer) {
         guard !UserDefaults.standard.bool(forKey: "CopydSeedSampleClips"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedOCRImage"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedLinkClip") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
@@ -401,6 +412,20 @@ final class AppModel {
                 .font: UIFont.systemFont(ofSize: 72, weight: .semibold), .foregroundColor: UIColor.black])
         }
         context.insert(ClipboardItem(contentType: .image, rawData: png, thumbnailData: Thumbnail.png(from: png), contentHash: hash))
+        try? context.save()
+    }
+
+    /// `-CopydSeedLinkClip YES`: inserts one link to https://www.apple.com, not fetched yet, for the fill pass to find.
+    /// Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without any seed flag deletes it.
+    private static func seedLinkClipIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedLinkClip"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        let hash = "seed-preview-link"
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(predicate: #Predicate { $0.contentHash == hash }))) ?? 0) == 0
+        else { return }
+        let link = "https://www.apple.com"
+        context.insert(ClipboardItem(contentType: .url, rawData: Data(link.utf8), textContent: link, contentHash: hash))
         try? context.save()
     }
 

@@ -50,6 +50,8 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
+        # Link previews: LinkPresentation fetches each link's page title and image.
+        com.apple.security.network.client: true
         com.apple.developer.icloud-container-identifiers: [iCloud.com.robbyfuu.copyd]
         com.apple.developer.icloud-services: [CloudKit]
         com.apple.developer.aps-environment: development
@@ -122,6 +124,8 @@ targets:
           - Sync/CloudSyncEngine.swift
           # Vision text recognition runs in the app only, never in an extension's memory budget.
           - Services/ImageTextRecognizer.swift
+          # Link previews are fetched by the apps only: no network fetch, nor LinkPresentation, in an extension.
+          - Services/LinkPreviewFetcher.swift
     resources:
       - CopydKeyboard/Resources
     settings:
@@ -152,6 +156,8 @@ targets:
           - Sync/CloudSyncEngine.swift
           # Vision text recognition runs in the app only, never in an extension's memory budget.
           - Services/ImageTextRecognizer.swift
+          # Link previews are fetched by the apps only: no network fetch, nor LinkPresentation, in an extension.
+          - Services/LinkPreviewFetcher.swift
       # Controls and the Lock Screen button run these intents. The system opens the app only when an intent is a
       # member of both targets; WIDGET_EXTENSION compiles out the app-only `perform` body.
       - path: CopydiOS/Intents/OpenAppIntents.swift
@@ -187,6 +193,8 @@ targets:
           - Sync/CloudSyncEngine.swift
           # Vision text recognition runs in the app only, never in an extension's memory budget.
           - Services/ImageTextRecognizer.swift
+          # Link previews are fetched by the apps only: no network fetch, nor LinkPresentation, in an extension.
+          - Services/LinkPreviewFetcher.swift
     resources:
       - CopydShare/Resources
     settings:
@@ -259,6 +267,8 @@ targets:
       - path: Shared/Utilities/TextTransform.swift
       - path: Shared/Utilities/OCRPlan.swift
       - path: Shared/Services/ImageTextRecognizer.swift
+      - path: Shared/Utilities/LinkPreviewPlan.swift
+      - path: Shared/Services/LinkPreviewFetcher.swift
       # The iPhone's strings, so ArrivalNoticeTests can resolve the Spanish notice.
       - path: CopydiOS/Resources/Localizable.xcstrings
     settings:

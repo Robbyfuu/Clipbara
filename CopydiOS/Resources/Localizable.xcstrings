@@ -1161,6 +1161,22 @@
         }
       }
     },
+    "Link previews" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link previews"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vistas previas de links"
+          }
+        }
+      }
+    },
     "Links" : {
       "localizations" : {
         "en" : {

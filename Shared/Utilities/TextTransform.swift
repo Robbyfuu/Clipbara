@@ -238,6 +238,10 @@ extension ClipboardItem {
             rawData = edit.rawData
             textContent = edit.textContent
             contentHash = edit.contentHash
+            // The preview was the old link's: the next fill fetches the new one.
+            linkTitle = nil
+            linkImageData = nil
+            linkPreviewDone = false
         }
         try? context.save()
         return true

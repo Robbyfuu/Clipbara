@@ -26,8 +26,10 @@ enum KeyboardFeed {
     enum Mode: Equatable { case recent, pinned, pinboard(UUID) }
     static let limit = 60, previewLimit = 300
 
+    /// `linkTitles`: a link shows its fetched page title in place of the URL, never its image (memory).
     @MainActor
-    static func items(in context: ModelContext, mode: Mode, limit: Int = limit) throws -> [KeyboardClip] {
+    static func items(in context: ModelContext, mode: Mode, limit: Int = limit,
+                      linkTitles: Bool = LinkPreviewPlan.isEnabled) throws -> [KeyboardClip] {
         // File clips can't be typed or pasted from the keyboard (or copied from the widget): a Mac path, or files.
         // Secrets never show in the keyboard or the widget.
         let fileRaw = ContentType.fileURL.rawValue, filesRaw = ContentType.files.rawValue
@@ -47,12 +49,12 @@ enum KeyboardFeed {
             return board.entries.sorted { $0.displayOrder < $1.displayOrder }
                 .compactMap(\.clipboardItem)
                 .filter { $0.contentType != .fileURL && $0.contentType != .files && !$0.isSensitive }
-                .prefix(limit).map(clip)
+                .prefix(limit).map { clip($0, linkTitles: linkTitles) }
         }
         var descriptor = FetchDescriptor<ClipboardItem>(
             predicate: predicate, sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
         descriptor.fetchLimit = limit
-        return try context.fetch(descriptor).map(clip)
+        return try context.fetch(descriptor).map { clip($0, linkTitles: linkTitles) }
     }
 
     @MainActor
@@ -75,11 +77,11 @@ enum KeyboardFeed {
             sourceAppName: nil, isClipboard: true)
     }
 
-    private static func clip(_ item: ClipboardItem) -> KeyboardClip {
+    private static func clip(_ item: ClipboardItem, linkTitles: Bool) -> KeyboardClip {
         let type = item.contentType
         let text = item.textContent
         return KeyboardClip(
-            id: item.id, contentType: type, preview: preview(type, text),
+            id: item.id, contentType: type, preview: (linkTitles ? item.linkPreviewTitle : nil) ?? preview(type, text),
             thumbnail: type == .image ? item.thumbnailData : nil,
             isPinned: item.isPinned, copiedAt: item.copiedAt, textByteCount: text?.utf8.count ?? 0,
             sourceAppName: item.sourceAppName)

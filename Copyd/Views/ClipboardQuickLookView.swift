@@ -15,6 +15,7 @@ struct ClipboardQuickLookView: View {
     @State private var cachedIsCodeLike: Bool = false
     /// A secret shows its mask until Show. Every item change, ←/→ included, hides it again.
     @State private var isRevealed = false
+    @AppStorage(LinkPreviewPlan.enabledDefaultsKey) private var linkPreviewsOn = true
 
     init(
         item: ClipboardItem,
@@ -65,7 +66,8 @@ struct ClipboardQuickLookView: View {
                 cachedCharCount = 0
                 cachedIsCodeLike = false
             } else {
-                cachedImage = nil
+                // A link's fetched image; the bubble keeps its fixed size, so `imageMetadata` stays nil.
+                cachedImage = item.contentType == .url ? item.linkImageData.flatMap(NSImage.init(data:)) : nil
                 imageMetadata = nil
 
                 let text = item.textContent ?? ""
@@ -321,15 +323,31 @@ struct ClipboardQuickLookView: View {
         let urlString = item.textContent ?? ""
         let url = URL(string: urlString)
         let domain = url?.host ?? urlString
+        let title = linkPreviewsOn ? item.linkPreviewTitle : nil
 
         return VStack(alignment: .leading, spacing: 16) {
+            if linkPreviewsOn, let cachedImage {
+                Image(nsImage: cachedImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: 320)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .accessibilityHidden(true)
+            }
             HStack(spacing: 14) {
                 iconTile(systemImage: "globe", tint: .teal)
 
                 VStack(alignment: .leading, spacing: 5) {
+                    if let title {
+                        Text(title)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .textSelection(.enabled)
+                    }
                     Text(domain)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: title == nil ? 20 : 14, weight: title == nil ? .semibold : .regular))
+                        .foregroundStyle(title == nil ? .primary : .secondary)
                         .lineLimit(1)
 
                     Text(urlString)
