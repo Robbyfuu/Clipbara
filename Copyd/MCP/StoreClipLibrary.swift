@@ -32,7 +32,8 @@ struct StoreClipLibrary: ClipLibrary {
         return try await read { context in
             guard let predicate = try Self.visibleClips(on: board, smartBoards: boards, in: context) else { return [] }
             var fetch = FetchDescriptor(predicate: predicate, sortBy: [SortDescriptor(\.copiedAt, order: .reverse)])
-            fetch.fetchLimit = Self.searchWindow
+            // With nothing to match in memory, the newest `limit` are the answer.
+            fetch.fetchLimit = query == nil && type == nil ? limit : Self.searchWindow
             // Never `rawData`, the thumbnail or the link image.
             fetch.propertiesToFetch = [\.id, \.contentTypeRaw, \.textContent, \.sourceAppName, \.copiedAt, \.isPinned,
                                        \.ocrText, \.linkTitle, \.fileManifestData, \.smartKinds]

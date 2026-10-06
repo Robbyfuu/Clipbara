@@ -8,6 +8,7 @@ struct IntegrationsSettingsTab: View {
     @AppStorage(MCPServer.allowsWriteDefaultsKey) private var allowsWrite = false
     /// Committed to `port` only within `MCPServer.ports`; anything else reverts.
     @State private var portField = MCPServer.defaultPort
+    @State private var confirmsRegenerate = false
 
     private var status: String {
         switch appState.mcpState {
@@ -16,8 +17,8 @@ struct IntegrationsSettingsTab: View {
             String(localized: "MCP.status.off", defaultValue: "Off", comment: "Settings > Integrations: the MCP server isn't running")
         case .running(let port):
             String(localized: "Running on 127.0.0.1:\(String(port))")
-        case .failed(let message) where message == MCPServer.portInUse(UInt16(MCPServer.savedPort)):
-            String(localized: "Port \(String(MCPServer.savedPort)) is in use")
+        case .portInUse(let port):
+            String(localized: "Port \(String(port)) is in use")
         case .failed(let message):
             String(localized: "Couldn't start the server: \(message)")
         }
@@ -48,8 +49,15 @@ struct IntegrationsSettingsTab: View {
                             .foregroundStyle(.secondary)
                         Button("Copy") { if let token = appState.mcpToken { copy(token) } }
                             .disabled(appState.mcpToken == nil)
-                        Button("Regenerate") { appState.regenerateMCPToken() }
+                        // Only once a token exists: the first one is made when the server is first switched on.
+                        Button("Regenerate") { confirmsRegenerate = true }
+                            .disabled(appState.mcpToken == nil)
                     }
+                }
+                .confirmationDialog("Regenerate the token?", isPresented: $confirmsRegenerate) {
+                    Button("Regenerate", role: .destructive) { appState.regenerateMCPToken() }
+                } message: {
+                    Text("Apps using the current token will stop connecting.")
                 }
 
                 Toggle("Allow writing to the clipboard", isOn: $allowsWrite)
@@ -81,9 +89,9 @@ struct IntegrationsSettingsTab: View {
         }
     }
 
-    /// Never captured, so the token never lands in the history.
+    /// Skipped by the monitor, and concealed for other clipboard managers: the token never lands in a history.
     private func copy(_ text: String) {
         appState.clipboardMonitor.skipStagedChange()
-        appState.pasteService.pastePlainText(text)
+        MCPToken.copyConcealed(text)
     }
 }

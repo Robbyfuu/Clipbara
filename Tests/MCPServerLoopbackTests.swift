@@ -139,10 +139,10 @@ final class MCPServerLoopbackTests: XCTestCase {
         let second = MCPServer(port: port, token: token, router: MCPRouter(library: library, allowsWrite: { false }))
         addTeardownBlock { second.stop() }
         let failed = expectation(description: "failed")
-        second.onStateChange = { if case .failed = $0 { failed.fulfill() } }
+        second.onStateChange = { if case .portInUse = $0 { failed.fulfill() } }
         try second.start()
         await fulfillment(of: [failed], timeout: 5)
-        XCTAssertEqual(second.state, .failed("Port \(port) is in use"))
+        XCTAssertEqual(second.state, .portInUse(port))
     }
 
     /// Regenerate in Settings: the new token applies to the next request, with no restart.
@@ -183,7 +183,7 @@ final class MCPServerLoopbackTests: XCTestCase {
             let settled = expectation(description: "running or failed")
             next.onStateChange = { state in
                 switch state {
-                case .running, .failed: settled.fulfill()
+                case .running, .failed, .portInUse: settled.fulfill()
                 case .off: break
                 }
             }
@@ -225,7 +225,7 @@ final class MCPServerLoopbackTests: XCTestCase {
         let settled = expectation(description: "running or failed")
         next.onStateChange = { state in
             switch state {
-            case .running, .failed: settled.fulfill()
+            case .running, .failed, .portInUse: settled.fulfill()
             case .off: break
             }
         }

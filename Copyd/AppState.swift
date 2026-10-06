@@ -178,8 +178,9 @@ final class AppState {
         mcpServer = nil
         mcpState = .off
         guard UserDefaults.standard.bool(forKey: MCPServer.enabledDefaultsKey), let container = modelContainer else { return }
-        guard let token = MCPToken.current() else {
-            mcpState = .failed("The access token couldn't be saved in the Keychain")
+        // Created on first enable. Any other Keychain error keeps the server off and the saved token untouched.
+        guard let token = try? MCPToken.app.current() else {
+            mcpState = .failed(String(localized: "Couldn't read the access token."))
             return
         }
         mcpToken = token
@@ -204,12 +205,12 @@ final class AppState {
 
     /// Settings shows the token once it exists, without creating it.
     func loadMCPToken() {
-        if mcpToken == nil { mcpToken = MCPToken.saved() }
+        if mcpToken == nil { mcpToken = try? MCPToken.app.saved() }
     }
 
     /// Replaces the token; the running server takes it at once. Clients set up with the old one must be set up again.
     func regenerateMCPToken() {
-        guard let token = MCPToken.regenerate() else { return NSSound.beep() }
+        guard let token = try? MCPToken.app.regenerate() else { return NSSound.beep() }
         mcpToken = token
         mcpServer?.token = token
     }

@@ -526,6 +526,22 @@
         }
       }
     },
+    "Apps using the current token will stop connecting." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps using the current token will stop connecting."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las apps que usan el token actual dejarán de conectarse."
+          }
+        }
+      }
+    },
     "Automatic pinboards" : {
       "localizations" : {
         "en" : {
@@ -1254,6 +1270,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法连接 App Store。"
+          }
+        }
+      }
+    },
+    "Couldn't read the access token." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the access token."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer el token de acceso."
           }
         }
       }
@@ -3770,6 +3802,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Regenerar"
+          }
+        }
+      }
+    },
+    "Regenerate the token?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regenerate the token?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Generar un nuevo token?"
           }
         }
       }

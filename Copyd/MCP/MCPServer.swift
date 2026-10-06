@@ -10,7 +10,9 @@ final class MCPServer: @unchecked Sendable {
     enum State: Equatable, Sendable {
         case off
         case running(UInt16)
-        /// Shown in Settings, e.g. "Port 39787 is in use".
+        /// Another app holds the port. Settings says so in the user's language.
+        case portInUse(UInt16)
+        /// Any other failure, with Network's description.
         case failed(String)
     }
 
@@ -26,9 +28,6 @@ final class MCPServer: @unchecked Sendable {
         let port = UserDefaults.standard.object(forKey: portDefaultsKey) as? Int ?? defaultPort
         return ports.contains(port) ? port : defaultPort
     }
-
-    /// The `.failed` message for a busy port, which Settings shows localized.
-    static func portInUse(_ port: UInt16) -> String { "Port \(port) is in use" }
 
     private static let log = Logger(subsystem: "com.robbyfuu.copyd", category: "MCP")
 
@@ -147,10 +146,9 @@ final class MCPServer: @unchecked Sendable {
                 queue.asyncAfter(deadline: .now() + Self.bindRetryDelay, execute: retry)
                 return
             }
-            let message = if case .posix(.EADDRINUSE) = error { Self.portInUse(port) } else { error.localizedDescription }
-            Self.log.error("MCP server failed: \(message, privacy: .public)")
+            Self.log.error("MCP server failed: \(error.localizedDescription, privacy: .public)")
             teardown()
-            setState(.failed(message))
+            setState(error == .posix(.EADDRINUSE) ? .portInUse(port) : .failed(error.localizedDescription))
         default:
             break
         }

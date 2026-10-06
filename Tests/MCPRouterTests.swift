@@ -42,6 +42,16 @@ actor FakeClipLibrary: ClipLibrary {
     }
 }
 
+/// A thread-safe uptime the tests move forward.
+final class TestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: TimeInterval = 0
+    var now: TimeInterval {
+        get { lock.withLock { value } }
+        set { lock.withLock { value = newValue } }
+    }
+}
+
 /// A thread-safe switch the tests flip between requests.
 final class WriteSwitch: @unchecked Sendable {
     private let lock = NSLock()
@@ -298,6 +308,27 @@ final class MCPRouterTests: XCTestCase {
         XCTAssertEqual((result["structuredContent"] as? [String: Any])?["copied"] as? Bool, true)
         let copied = await library.copied
         XCTAssertEqual(copied, ["héllo"])
+    }
+
+    /// A runaway client can't flood the clipboard, nor the history behind it.
+    func testCopiesAreLimitedToOnePerSecond() async {
+        let clock = TestClock()
+        let library = FakeClipLibrary()
+        let r = MCPRouter(library: library, allowsWrite: { true }, now: { clock.now })
+        let copy = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"copy_to_clipboard","arguments":{"text":"hi"}}}"#
+
+        let first = toolResult(await send(copy, to: r))
+        XCTAssertEqual(first["isError"] as? Bool, false)
+        clock.now = 0.999
+        let second = toolResult(await send(copy, to: r))
+        XCTAssertEqual(second["isError"] as? Bool, true)
+        XCTAssertEqual((second["content"] as? [[String: Any]])?.first?["text"] as? String, "Too many copies; try again in a moment.")
+        clock.now = 1
+        let third = toolResult(await send(copy, to: r))
+        XCTAssertEqual(third["isError"] as? Bool, false)
+
+        let copied = await library.copied
+        XCTAssertEqual(copied, ["hi", "hi"])
     }
 
     func testCopyIsAnUnknownToolWhileWritingIsOff() async {

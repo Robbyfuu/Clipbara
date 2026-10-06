@@ -16,13 +16,21 @@ struct MCPRouter: Sendable {
     /// Only 2025-06-18: 2025-03-26 also allowed JSON-RPC batches, which this server doesn't accept.
     static let supportedVersions: Set<String> = [latestVersion]
 
+    /// At most one `copy_to_clipboard` this often, so a runaway client can't flood the clipboard and the history.
+    static let copyInterval: TimeInterval = 1
+
     private let library: any ClipLibrary
     private let allowsWrite: @Sendable () -> Bool
+    /// Seconds on a monotonic clock.
+    private let now: @Sendable () -> TimeInterval
+    private let lastCopy = LastCopy()
 
     /// `allowsWrite` is read on every request, so the setting applies without restarting the server.
-    init(library: any ClipLibrary, allowsWrite: @escaping @Sendable () -> Bool) {
+    init(library: any ClipLibrary, allowsWrite: @escaping @Sendable () -> Bool,
+         now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.library = library
         self.allowsWrite = allowsWrite
+        self.now = now
     }
 
     func handle(_ body: Data) async -> MCPResponse {
@@ -84,6 +92,21 @@ struct MCPRouter: Sendable {
 
     // MARK: tools
 
+    /// When the last copy was allowed. Shared by every copy of this router.
+    private final class LastCopy: @unchecked Sendable {
+        private let lock = NSLock()
+        private var time: TimeInterval?
+
+        /// True, and recorded, when `interval` has passed since the last allowed copy.
+        func claim(at now: TimeInterval, interval: TimeInterval) -> Bool {
+            lock.withLock {
+                if let time, now - time < interval { return false }
+                time = now
+                return true
+            }
+        }
+    }
+
     private struct Boards: Encodable {
         let pinboards: [BoardSummary]
         let smartBoards: [BoardSummary]
@@ -102,6 +125,9 @@ struct MCPRouter: Sendable {
                 let boards = try await library.boards()
                 return try success(Boards(pinboards: boards.filter { $0.id == nil }, smartBoards: boards.filter { $0.id != nil }))
             case .copy(let text):
+                guard lastCopy.claim(at: now(), interval: Self.copyInterval) else {
+                    return failure("Too many copies; try again in a moment.")
+                }
                 try await library.copy(text: text)
                 return try success(["copied": true])
             }

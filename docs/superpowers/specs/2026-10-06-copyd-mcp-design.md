@@ -46,7 +46,7 @@ Secrets (`isSensitive`) are never returned by any tool, not even masked. They ar
 | `search_clips` | `query` (optional string), `type` (optional: `text`, `link`, `image`, `file`, `color`, `code`), `board` (optional: a user pinboard name or a smart board id such as `links` or `work`), `limit` (optional, default 20, max 50) | Newest first. Each result has `id`, `type`, `preview` (first 200 characters, or the OCR text or link title), `app` (source app name), `copied_at` (ISO 8601) and `pinned`. The query matches text, OCR text, link titles and file names, case- and diacritic-insensitive. |
 | `get_clip` | `id` | The full text (capped at 100 KB, with `truncated: true` when cut), plus `type`, `app`, `copied_at`, `link_title`, `ocr_text`, `file_names`. Images return metadata and OCR text only, never pixels. A secret or unknown id returns a tool error saying "Clip not found". |
 | `list_pinboards` | none | The user's pinboards (`name`, `count`) and the non-empty smart boards (`id`, `name`, `count`). |
-| `copy_to_clipboard` | `text` (max 100 KB) | Writes plain text to the clipboard, which Copyd then captures like any copy. |
+| `copy_to_clipboard` | `text` (max 100 KB) | Writes plain text to the clipboard, which Copyd then captures like any copy. At most one copy per second; a faster call gets the tool error "Too many copies; try again in a moment." |
 
 `copy_to_clipboard` is only listed and allowed when "Allow writing to the clipboard" is on. That setting is off by default.
 
@@ -68,8 +68,10 @@ There is a new Settings tab, "Integrations" / "Integraciones":
 - "Copy Claude Code command" / "Copiar comando para Claude Code":
 
   ```
-  claude mcp add --transport http copyd http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"
+  claude mcp add --transport http --scope user copyd http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"
   ```
+
+  `--scope user` adds Copyd to every project: clipboard history isn't tied to one (ruling M2).
 
 - "Copy Cursor config" / "Copiar configuración para Cursor":
 
@@ -79,7 +81,11 @@ There is a new Settings tab, "Integrations" / "Integraciones":
 
 **Footnote:** "Only apps on this Mac can connect, and only with the token. Secrets are never shared." / "Solo las apps de este Mac pueden conectarse, y solo con el token. Los secretos nunca se comparten."
 
-**Regenerate** replaces the token, so existing clients must be reconfigured.
+**Copies stay on this Mac.** The token and both configurations are written with `.currentHostOnly` and marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, so Universal Clipboard never sends them and clipboard managers skip them.
+
+**Regenerate** replaces the token, so existing clients must be reconfigured. It asks first: "Regenerate the token?" / "¿Generar un nuevo token?", "Apps using the current token will stop connecting." / "Las apps que usan el token actual dejarán de conectarse." It is disabled until the server has been enabled once.
+
+**Keychain.** The token lives in the data-protection keychain, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Only a missing item creates a token; any other Keychain error keeps the server off and shows "Couldn't read the access token." / "No se pudo leer el token de acceso."
 
 **Debug-only override.** `-CopydMCPToken <value>` sets the token for local testing. It is compiled only in DEBUG.
 
