@@ -403,6 +403,20 @@ final class RemoteApplierTests: XCTestCase {
         XCTAssertFalse(local.linkPreviewDone, "the new link is fetched again")
     }
 
+    /// The automatic pinboards are local: a rename keeps them, new content is sorted again.
+    func testRemoteUpdateKeepsTheAutomaticPinboardsUntilTheContentChanges() throws {
+        try apply(clips: [clip(1, data: Data("Call (415) 555-0132".utf8))])
+        let local = try XCTUnwrap(try clips().first)
+        local.smartKinds = SmartBoard.contacts.bit
+        local.smartKindsVersion = SmartKinds.version
+        try apply(clips: [clip(1, title: "renamed", data: Data("Call (415) 555-0132".utf8))])
+        XCTAssertEqual(local.smartKinds, SmartBoard.contacts.bit)
+        XCTAssertEqual(local.smartKindsVersion, SmartKinds.version)
+        try apply(clips: [clip(1, hash: "h2", data: Data("func greet() {}".utf8))])
+        XCTAssertEqual(local.smartKinds, 0)
+        XCTAssertEqual(local.smartKindsVersion, 0, "the new content is sorted again")
+    }
+
     func testNoMergeAt61Seconds() throws {
         try apply(clips: [clip(1)])
         let out = try apply(clips: [clip(2, dt: 61)])

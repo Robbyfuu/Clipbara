@@ -68,6 +68,28 @@ final class PanelTabShortcutTests: XCTestCase {
         XCTAssertEqual(PanelTabShortcut.target(at: 2, pinboardIDs: [c, b]), .pinboard(b))
     }
 
+    /// The automatic pinboards follow the user's pinboards, and the numbers keep counting through them.
+    func testSmartBoardsContinueTheNumbering() {
+        let a = UUID(), b = UUID()
+        XCTAssertEqual(PanelTabShortcut.target(at: 1, pinboardIDs: [a, b], smartBoards: [.links, .code]), .pinboard(a))
+        XCTAssertEqual(PanelTabShortcut.target(at: 2, pinboardIDs: [a, b], smartBoards: [.links, .code]), .pinboard(b))
+        XCTAssertEqual(PanelTabShortcut.target(at: 3, pinboardIDs: [a, b], smartBoards: [.links, .code]), .smart(.links))
+        XCTAssertEqual(PanelTabShortcut.target(at: 4, pinboardIDs: [a, b], smartBoards: [.links, .code]), .smart(.code))
+        XCTAssertNil(PanelTabShortcut.target(at: 5, pinboardIDs: [a, b], smartBoards: [.links, .code]))
+        XCTAssertEqual(PanelTabShortcut.target(at: 1, pinboardIDs: [], smartBoards: [.images]), .smart(.images))
+        let many = (0..<6).map { _ in UUID() }
+        XCTAssertEqual(PanelTabShortcut.target(at: 8, pinboardIDs: many, smartBoards: SmartBoard.types), .smart(.code))
+        XCTAssertNil(PanelTabShortcut.target(at: 9, pinboardIDs: many, smartBoards: SmartBoard.types), "⌥⌘9 is the last")
+    }
+
+    func testOnlyHistoryAndSmartBoardsShowTheHistoryGrid() {
+        XCTAssertTrue(PanelTab.history.showsHistoryGrid)
+        XCTAssertTrue(PanelTab.smart(.links).showsHistoryGrid)
+        XCTAssertFalse(PanelTab.pinboard(UUID()).showsHistoryGrid)
+        XCTAssertEqual(PanelTab.smart(.code).smartBoard, .code)
+        XCTAssertNil(PanelTab.history.smartBoard)
+    }
+
     func testHintsMatchShortcutRange() {
         for index in 0..<9 {
             XCTAssertEqual(PanelTabShortcut.hint(at: index), "⌥⌘\(index + 1)")

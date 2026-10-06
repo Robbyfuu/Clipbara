@@ -36,6 +36,11 @@ final class ClipboardItem {
     @Attribute(.externalStorage) var linkImageData: Data?
     /// The fetch finished, with a preview or none, so a dead link is never fetched again. Local only.
     var linkPreviewDone: Bool = false
+    /// The type boards the clip shows in (`SmartBoard.bit`), sorted by `SmartKindsQueue`. Local only, like `ocrText`:
+    /// each device sorts its own. Additive, so existing stores migrate lightweight.
+    var smartKinds: Int = 0
+    /// The `SmartKinds.version` that sorted `smartKinds`; 0 until sorted. Local only.
+    var smartKindsVersion: Int = 0
 
     var contentType: ContentType {
         get { ContentType(rawValue: contentTypeRaw) ?? .unknown }

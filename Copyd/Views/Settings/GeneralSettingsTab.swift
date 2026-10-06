@@ -14,6 +14,7 @@ struct GeneralSettingsTab: View {
     @AppStorage(SecretDetector.protectDefaultsKey) private var protectSecrets: Bool = true
     @AppStorage(SecretSweeper.deleteAfterDefaultsKey) private var deleteSecretsAfter: Int = SecretSweeper.defaultMinutes
     @AppStorage(LinkPreviewPlan.enabledDefaultsKey) private var linkPreviews: Bool = true
+    @AppStorage(SmartKinds.enabledDefaultsKey) private var smartBoards: Bool = true
     /// Re-read whenever Copyd comes back to the front, e.g. from System Settings.
     @State private var hasPasteAccess = CGPreflightPostEventAccess()
     @AppStorage(CloudSyncEngine.enabledDefaultsKey) private var iCloudSyncEnabled: Bool = false
@@ -63,6 +64,12 @@ struct GeneralSettingsTab: View {
             Toggle("Link previews", isOn: $linkPreviews)
                 .onChange(of: linkPreviews) { _, on in
                     if on { appState.linkPreviews?.fill() } else { appState.linkPreviews?.stop() }
+                }
+
+            // Off: the automatic pinboards leave the top bar, and no clip is sorted.
+            Toggle("Automatic pinboards", isOn: $smartBoards)
+                .onChange(of: smartBoards) { _, on in
+                    if on { appState.smartKinds?.fill() } else { appState.smartKinds?.stop() }
                 }
 
             Section("Pasting") {

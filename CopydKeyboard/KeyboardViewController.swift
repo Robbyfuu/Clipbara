@@ -101,8 +101,10 @@ final class KeyboardViewController: UIInputViewController {
             self.container = container
             let context = ModelContext(container)
             model.boards = try KeyboardFeed.boards(in: context)
-            // The selected board may have been deleted on the Mac.
+            model.smartBoards = SmartKinds.isEnabled ? try KeyboardFeed.smartBoards(in: context) : []
+            // The selected board may have been deleted on the Mac, or an automatic one emptied or turned off.
             if case .pinboard(let id) = model.mode, !model.boards.contains(where: { $0.id == id }) { model.mode = .recent }
+            if case .smart(let board) = model.mode, !model.smartBoards.contains(board) { model.mode = .recent }
             // Once the app has stored the copy (or it was already there), the feed shows it instead.
             if let hash = clipboard?.clip.contentHash, (try? ClipCapture.existsInHistory(hash: hash, in: context)) == true {
                 clipboard = nil

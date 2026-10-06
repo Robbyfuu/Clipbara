@@ -3,6 +3,19 @@ import AppKit
 enum PanelTab: Equatable, Hashable {
     case history
     case pinboard(UUID)
+    /// An automatic pinboard: History narrowed to one kind of clip, in the History grid. Read-only.
+    case smart(SmartBoard)
+
+    /// History and the automatic pinboards share the History grid; a pinboard has its own.
+    var showsHistoryGrid: Bool {
+        if case .pinboard = self { return false }
+        return true
+    }
+
+    var smartBoard: SmartBoard? {
+        if case .smart(let board) = self { return board }
+        return nil
+    }
 }
 
 /// Fixed panel-local shortcuts, in the same order as the visible tabs.
@@ -16,11 +29,12 @@ enum PanelTabShortcut {
         return NumberKey.index(keyCode: keyCode)
     }
 
-    static func target(at index: Int, pinboardIDs: [UUID]) -> PanelTab? {
+    /// History, then the pinboards, then the automatic pinboards, each in display order.
+    static func target(at index: Int, pinboardIDs: [UUID], smartBoards: [SmartBoard] = []) -> PanelTab? {
         guard (0..<9).contains(index) else { return nil }
         if index == 0 { return .history }
-        guard pinboardIDs.indices.contains(index - 1) else { return nil }
-        return .pinboard(pinboardIDs[index - 1])
+        let tabs = pinboardIDs.map(PanelTab.pinboard) + smartBoards.map(PanelTab.smart)
+        return tabs.indices.contains(index - 1) ? tabs[index - 1] : nil
     }
 
     static func hint(at index: Int) -> String? {

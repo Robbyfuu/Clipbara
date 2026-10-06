@@ -440,7 +440,8 @@ final class PanelController {
                 // Missing tabs are a no-op, not a shortcut for the frontmost app.
                 if let index = PanelTabShortcut.index(keyCode: keyCode, modifiers: event.modifierFlags) {
                     if let appState = self.appState,
-                       let tab = PanelTabShortcut.target(at: index, pinboardIDs: appState.orderedPinboardIDs) {
+                       let tab = PanelTabShortcut.target(at: index, pinboardIDs: appState.orderedPinboardIDs,
+                                                         smartBoards: appState.orderedSmartBoards) {
                         self.selectTab(tab)
                     }
                     return true

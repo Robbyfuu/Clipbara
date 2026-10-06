@@ -364,8 +364,11 @@ private struct EditClipSheet: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             // The sweep or a sync may have deleted the clip meanwhile. A secret edit deletes it.
-                            if !item.isGone, item.saveEdit(text, in: modelContext), !item.isGone, item.contentType == .url {
-                                model.linkPreviews.fill()  // the new link's preview
+                            if !item.isGone, item.saveEdit(text, in: modelContext) {
+                                model.smartKinds.fill()  // the new text's automatic pinboards
+                                if !item.isGone, item.contentType == .url {
+                                    model.linkPreviews.fill()  // the new link's preview
+                                }
                             }
                             dismiss()
                         }

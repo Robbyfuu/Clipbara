@@ -11,6 +11,8 @@ final class KeyboardModel {
     var state = KeyboardState.noStore
     var mode = KeyboardFeed.Mode.recent
     var boards: [KeyboardBoard] = []
+    /// The automatic pinboards with a clip to show, after `boards`.
+    var smartBoards: [SmartBoard] = []
     var lastSync: Date?
     /// Source app icons by bundle id, at most 28 px, filled as cards need them.
     var icons: [String: UIImage] = [:]
@@ -128,6 +130,9 @@ struct KeyboardView: View {
                     ForEach(model.boards) { board in
                         chip(board.name, .pinboard(board.id), dot: DesignTokens.pinboardDots[board.colorIndex])
                     }
+                    ForEach(model.smartBoards, id: \.self) { board in
+                        chip(board.title, .smart(board), symbol: "sparkles")
+                    }
                 }
                 .padding(.horizontal, 3)
             }
@@ -139,7 +144,7 @@ struct KeyboardView: View {
         .frame(minHeight: 44)
     }
 
-    private func chip(_ title: String, _ mode: KeyboardFeed.Mode, dot: Color? = nil) -> some View {
+    private func chip(_ title: String, _ mode: KeyboardFeed.Mode, dot: Color? = nil, symbol: String? = nil) -> some View {
         let active = model.mode == mode
         return Button {
             guard model.mode != mode else { return }
@@ -148,6 +153,7 @@ struct KeyboardView: View {
         } label: {
             HStack(spacing: 6) {
                 if let dot { Circle().fill(dot).frame(width: 8, height: 8).accessibilityHidden(true) }
+                if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).accessibilityHidden(true) }
                 Text(title).lineLimit(1)
             }
             .font(.system(size: 14, weight: active ? .bold : .semibold))

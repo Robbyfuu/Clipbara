@@ -14,6 +14,7 @@ struct NavigationBarView: View {
     @Query(sort: \Pinboard.displayOrder) private var pinboards: [Pinboard]
     @Query(sort: \ClipboardItem.copiedAt, order: .reverse) private var historyItems: [ClipboardItem]
     @Query private var pinboardEntries: [PinboardEntry]
+    @AppStorage(SmartKinds.enabledDefaultsKey) private var smartBoardsEnabled = true
 
     @State private var isAddingPinboard = false
     @State private var newPinboardName = ""
@@ -29,9 +30,19 @@ struct NavigationBarView: View {
     var body: some View {
         navigationBar
         .frame(height: DesignTokens.Nav.height)
-        .onAppear { appState.orderedPinboardIDs = pinboards.map(\.id) }
+        .onAppear {
+            appState.orderedPinboardIDs = pinboards.map(\.id)
+            appState.orderedSmartBoards = smartBoards
+        }
         .onChange(of: pinboards.map(\.id)) { _, ids in
             appState.orderedPinboardIDs = ids
+        }
+        .onChange(of: smartBoards) { _, boards in
+            appState.orderedSmartBoards = boards
+            // Its last clip went, or the setting was turned off: the tab is gone.
+            if let board = appState.selectedTab.smartBoard, !boards.contains(board) {
+                appState.panelController.selectTab(.history)
+            }
         }
         .alert("Create Pinboard", isPresented: $isAddingPinboard) {
             TextField("Name", text: $newPinboardName)
@@ -151,6 +162,22 @@ struct NavigationBarView: View {
                         }
                     }
 
+                    // Automatic pinboards: read-only, so no menu and no drop. Published by `onChange(of: smartBoards)`,
+                    // so the tabs and ⌥⌘ numbers always follow the same list.
+                    ForEach(Array(appState.orderedSmartBoards.enumerated()), id: \.element) { index, board in
+                        navTab(
+                            label: board.title,
+                            dotColor: nil,
+                            symbol: "sparkles",
+                            isActive: appState.selectedTab == .smart(board)
+                        ) {
+                            appState.panelController.selectTab(.smart(board))
+                        }
+                        .id(PanelTab.smart(board))
+                        .help(PanelTabShortcut.hint(at: pinboards.count + index + 1).map { "\(board.title) (\($0))" }
+                              ?? board.title)
+                    }
+
                     NavIconButton(icon: "plus", iconSize: 12) {
                         newPinboardName = nextPinboardName()
                         isAddingPinboard = true
@@ -255,6 +282,7 @@ struct NavigationBarView: View {
     private func navTab(
         label: String,
         dotColor: Color?,
+        symbol: String? = nil,
         isActive: Bool,
         isDropTargeted: Bool = false,
         action: @escaping () -> Void
@@ -262,6 +290,7 @@ struct NavigationBarView: View {
         NavTabButton(
             label: label,
             dotColor: dotColor,
+            symbol: symbol,
             isActive: isActive,
             isDropTargeted: isDropTargeted,
             action: action
@@ -279,6 +308,13 @@ struct NavigationBarView: View {
 
     private var optionsMenuButton: some View {
         OptionsMenuButton(searchState: appState.searchState)
+    }
+
+    /// The type boards holding a clip, in order; none while "Automatic pinboards" is off. One pass over History.
+    private var smartBoards: [SmartBoard] {
+        guard smartBoardsEnabled else { return [] }
+        let kinds = historyItems.reduce(0) { $1.isGone ? $0 : $0 | $1.smartKinds }
+        return SmartBoard.types.filter { kinds & $0.bit != 0 }
     }
 
     private var pinnedItemIDs: Set<UUID> {
@@ -414,6 +450,8 @@ struct NavigationBarView: View {
 private struct NavTabButton: View {
     let label: String
     let dotColor: Color?
+    /// An automatic pinboard's ✨, in place of the dot.
+    var symbol: String? = nil
     let isActive: Bool
     let isDropTargeted: Bool
     let action: () -> Void
@@ -425,6 +463,11 @@ private struct NavTabButton: View {
             HStack(spacing: 6) {
                 if let dotColor {
                     Circle().fill(dotColor).frame(width: 8, height: 8)
+                }
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .accessibilityHidden(true)
                 }
 
                 Text(label)

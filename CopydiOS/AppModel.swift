@@ -20,6 +20,8 @@ final class AppModel {
     let imageText: ImageTextQueue
     /// Fetches link titles and images, foreground only like `imageText`.
     let linkPreviews: LinkPreviewQueue
+    /// Sorts clips into the automatic pinboards, foreground only like `imageText`.
+    let smartKinds: SmartKindsQueue
     /// Keeps the clips in Spotlight, following every main-context save.
     let spotlight: SpotlightIndexer
     /// True when the App Group container was unavailable and the store lives in memory only.
@@ -76,6 +78,7 @@ final class AppModel {
         Self.seedSecretClipIfRequested(container)
         Self.seedCodeClipsIfRequested(container)
         Self.seedAppIdentityIfRequested(container)
+        Self.seedSmartClipsIfRequested(container)
         Self.removeSeedClipsUnlessSeeding(container)
         #endif
         // Before the engine starts, so the saves of its first fetch are indexed.
@@ -85,6 +88,8 @@ final class AppModel {
         imageText = ImageTextQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         // Link previews never sync either.
         linkPreviews = LinkPreviewQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
+        // Nor do the automatic pinboards: each device sorts its own clips.
+        smartKinds = SmartKindsQueue(container: container) { [sync] ids in sync.saveLocalOnly(ids) }
         sync.onRemoteInserts = { [weak self] ids in self?.announceArrivals(ids) }
         sync.onMirrorWiped = { [weak self] in self?.spotlight.removeAll() }
         reloadAppLooks()
@@ -305,6 +310,7 @@ final class AppModel {
         guard UIApplication.shared.applicationState == .active else { return }
         shared.imageText.fill()
         shared.linkPreviews.fill()
+        shared.smartKinds.fill()
     }
 
     /// Reads every identity and decodes its icon at 84 px (28 pt at 3x), all off the main thread. There is one per
@@ -375,6 +381,7 @@ final class AppModel {
         try? context.save()
         // Only the foreground app reads the pasteboard, so this runs in the foreground.
         if item.contentType == .url { linkPreviews.fill() }
+        smartKinds.fill()
     }
 
     /// Shows `text` in the toast for 1.2 s and reads it to VoiceOver.
@@ -416,7 +423,8 @@ final class AppModel {
               !UserDefaults.standard.bool(forKey: "CopydSeedLinkClip"),
               !UserDefaults.standard.bool(forKey: "CopydSeedSecretClip"),
               !UserDefaults.standard.bool(forKey: "CopydSeedCodeClips"),
-              !UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity") else { return }
+              !UserDefaults.standard.bool(forKey: "CopydSeedAppIdentity"),
+              !UserDefaults.standard.bool(forKey: "CopydSeedSmartClips") else { return }
         let context = ModelContext(container)
         let seeds = (try? context.fetch(FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash.starts(with: "seed-") }))) ?? []
@@ -457,6 +465,30 @@ final class AppModel {
         let text = "Meet at the north entrance, 10:30"
         context.insert(ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text,
                                      sourceAppName: "Atlas", sourceAppBundleId: seedAppBundleID, contentHash: "seed-app"))
+        try? context.save()
+        invalidateSpotlight()
+    }
+
+    /// `-CopydSeedSmartClips YES`: inserts an address, a sentence with a phone number, an email and a files clip, for
+    /// the Automatic section; with `-CopydSeedSampleClips YES -CopydSeedCodeClips YES` every type board has a clip.
+    /// The fill pass sorts them. Refuses to run unless sync is off (`-iCloudSyncEnabled NO`). A launch without any seed
+    /// flag deletes them.
+    private static func seedSmartClipsIfRequested(_ container: ModelContainer) {
+        guard UserDefaults.standard.bool(forKey: "CopydSeedSmartClips"),
+              !UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) else { return }
+        let context = ModelContext(container)
+        guard ((try? context.fetchCount(FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentHash == "seed-smart-address" }))) ?? 0) == 0 else { return }
+        for (hash, text) in [("seed-smart-address", "1 Infinite Loop, Cupertino, CA 95014"),
+                             ("seed-smart-phone", "Call me at (415) 555-0132 tomorrow"),
+                             ("seed-smart-email", "Write to ana@example.com")] {
+            context.insert(ClipboardItem(contentType: .plainText, rawData: Data(text.utf8), textContent: text, contentHash: hash))
+        }
+        if let bundle = try? FileBundle.encode([(name: "Notes.txt", data: Data("Copyd".utf8), uti: "public.plain-text")]) {
+            let files = ClipboardItem(contentType: .files, rawData: bundle, textContent: "Notes.txt", contentHash: "seed-smart-files")
+            files.fileManifestData = FileBundle.manifestJSON(bundle)
+            context.insert(files)
+        }
         try? context.save()
         invalidateSpotlight()
     }

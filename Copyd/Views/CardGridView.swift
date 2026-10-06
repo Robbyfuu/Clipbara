@@ -18,10 +18,12 @@ struct CardGridView: View {
     var body: some View {
         Group {
             if filteredItems.isEmpty {
+                // An automatic pinboard shows only while it has clips, so empty means filtered out.
+                let narrowed = appState.searchState.isActive || appState.selectedTab != .history
                 PanelEmptyState(
-                    title: appState.searchState.isActive ? "No Results" : "Copy anything",
-                    systemImage: appState.searchState.isActive ? "magnifyingglass" : "clipboard",
-                    message: appState.searchState.isActive
+                    title: narrowed ? "No Results" : "Copy anything",
+                    systemImage: narrowed ? "magnifyingglass" : "clipboard",
+                    message: narrowed
                         ? "Try a different search or filter"
                         : "Your clipboard history will appear here"
                 )
@@ -96,12 +98,12 @@ struct CardGridView: View {
             }
         }
         .onChange(of: items) { _, newItems in
-            if appState.selectedTab == .history {
+            if appState.selectedTab.showsHistoryGrid {
                 updateFilteredItems(from: newItems)
             }
         }
         .onChange(of: appState.selectedTab) { _, newTab in
-            if newTab == .history {
+            if newTab.showsHistoryGrid {
                 syncFirstVisibleIndex()
                 updateFilteredItems(from: items)
             }
@@ -113,17 +115,17 @@ struct CardGridView: View {
             }
         }
         .onChange(of: appState.searchState.debouncedSearchText) { _, _ in
-            if appState.selectedTab == .history {
+            if appState.selectedTab.showsHistoryGrid {
                 updateFilteredItems(from: items)
             }
         }
         .onChange(of: appState.searchState.selectedContentTypes) { _, _ in
-            if appState.selectedTab == .history {
+            if appState.selectedTab.showsHistoryGrid {
                 updateFilteredItems(from: items)
             }
         }
         .onChange(of: appState.searchState.dateFilter) { _, _ in
-            if appState.selectedTab == .history {
+            if appState.selectedTab.showsHistoryGrid {
                 updateFilteredItems(from: items)
             }
         }
@@ -150,21 +152,23 @@ struct CardGridView: View {
         }
     }
 
-    /// Writes the index only while History is the active tab; re-run on activation
+    /// Writes the index only while History or an automatic pinboard is the active tab; re-run on activation
     /// because this view stays mounted while another tab is shown.
     private func syncFirstVisibleIndex() {
-        guard appState.selectedTab == .history else { return }
+        guard appState.selectedTab.showsHistoryGrid else { return }
         let index = QuickPasteShortcut.firstVisibleIndex(scrollOffset: lastOffset)
         if appState.firstVisibleIndex != index { appState.firstVisibleIndex = index }
     }
 
-    /// The suggestions, then the usual cards without them.
+    /// The suggestions, then the usual cards without them. An automatic pinboard has its own clips only, no suggestions.
     private func row(from sourceItems: [ClipboardItem]) -> (cards: [ClipboardItem], suggested: Int) {
+        let board = appState.selectedTab.smartBoard
         // Ranked on open; a suggestion deleted since then is simply gone.
-        let suggested = appState.searchState.allowsSuggestions
+        let suggested = board == nil && appState.searchState.allowsSuggestions
             ? appState.suggestedIDs.compactMap { id in sourceItems.first { $0.id == id } }
             : []
-        return (SuggestedRow.merge(suggested: suggested, rest: appState.searchState.filteredItems(from: sourceItems)),
+        return (SuggestedRow.merge(suggested: suggested,
+                                   rest: appState.searchState.filteredItems(from: sourceItems, board: board)),
                 suggested.count)
     }
 

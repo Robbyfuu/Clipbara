@@ -32,6 +32,22 @@ final class SearchStateTests: XCTestCase {
         XCTAssertEqual(state.filteredItems(from: items).map(\.contentType), [.plainText])
     }
 
+    /// An automatic pinboard is History narrowed to its clips, and search narrows it further.
+    func testSmartBoardKeepsItsClipsOnly() {
+        let link = clip(.url), code = clip(.plainText), both = clip(.plainText), none = clip(.plainText)
+        link.smartKinds = SmartBoard.links.bit
+        code.smartKinds = SmartBoard.code.bit
+        both.smartKinds = SmartBoard.code.bit | SmartBoard.contacts.bit
+        let items = [link, code, both, none]
+        let state = SearchState()
+        XCTAssertEqual(state.filteredItems(from: items).map(\.id), items.map(\.id), "History keeps every clip")
+        XCTAssertEqual(state.filteredItems(from: items, board: .code).map(\.id), [code.id, both.id])
+        XCTAssertEqual(state.filteredItems(from: items, board: .links).map(\.id), [link.id])
+        XCTAssertEqual(state.filteredItems(from: items, board: .colors), [])
+        state.toggleContentType(.url)
+        XCTAssertEqual(state.filteredItems(from: items, board: .code), [], "filters apply on top")
+    }
+
     /// Multi-select picks from the row as shown, so the suggestions stay put while it's active.
     func testSuggestionsHideWhileSearchingOrFilteringButNotWhileMultiSelecting() {
         let state = SearchState()

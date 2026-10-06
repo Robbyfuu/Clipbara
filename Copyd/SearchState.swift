@@ -99,8 +99,12 @@ final class SearchState {
         multiSelection.clear()
     }
 
-    /// `linkTitles`: a link also matches by its fetched page title, while "Link previews" is on.
-    func filteredItems(from items: [ClipboardItem], linkTitles: Bool = LinkPreviewPlan.isEnabled) -> [ClipboardItem] {
+    /// `board`: an automatic pinboard's clips only. `linkTitles`: a link also matches by its fetched page title, while
+    /// "Link previews" is on.
+    func filteredItems(from items: [ClipboardItem], board: SmartBoard? = nil,
+                       linkTitles: Bool = LinkPreviewPlan.isEnabled) -> [ClipboardItem] {
+        let items = board.map { board in items.filter { SmartKinds.members(of: board, kinds: $0.smartKinds, topic: nil) } }
+            ?? items
         let startDate = dateFilter.startDate
         let contentTypes = selectedContentTypes
         let query = debouncedSearchText

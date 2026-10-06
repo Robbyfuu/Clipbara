@@ -242,6 +242,9 @@ extension ClipboardItem {
             linkTitle = nil
             linkImageData = nil
             linkPreviewDone = false
+            // So were the automatic pinboards: the next fill sorts the new text.
+            smartKinds = 0
+            smartKindsVersion = 0
         }
         try? context.save()
         return true

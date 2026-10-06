@@ -81,6 +81,19 @@ final class ClipEditTests: XCTestCase {
         XCTAssertEqual(clip.linkTitle, "Copyd")
     }
 
+    /// The automatic pinboards sorted the old text: an edit clears them, so the next fill sorts the new one.
+    func testEditResetsTheAutomaticPinboards() throws {
+        let context = try makeContext()
+        let clip = try saved(text("Call me at (415) 555-0132"), in: context)
+        clip.smartKinds = SmartBoard.contacts.bit
+        clip.smartKindsVersion = SmartKinds.version
+        try context.save()
+        XCTAssertTrue(clip.saveEdit("func greet() {}", in: context))
+        XCTAssertEqual(clip.smartKinds, 0)
+        XCTAssertEqual(clip.smartKindsVersion, 0, "sorted again by the next fill")
+        XCTAssertFalse(context.hasChanges, "saved")
+    }
+
     /// An edit that turns a link into a secret replaces it: the new local clip carries no preview and is never fetched.
     func testLinkEditedIntoASecretHasNoPreview() throws {
         let context = try makeContext()

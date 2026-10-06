@@ -26,6 +26,8 @@ final class AppState {
     var selectedTab: PanelTab = .history
     /// Published by NavigationBarView so shortcuts follow its exact display order.
     var orderedPinboardIDs: [UUID] = []
+    /// The automatic pinboards shown after them, also published by NavigationBarView.
+    var orderedSmartBoards: [SmartBoard] = []
     var previewItem: ClipboardItem?
     var panelToast: PanelToast?
     var panelPresentationID = 0
@@ -53,6 +55,9 @@ final class AppState {
     @ObservationIgnored private var imageText: ImageTextQueue?
     /// Fetches link titles and images: right after a link is captured, at launch, after a sync, and when turned on.
     @ObservationIgnored private(set) var linkPreviews: LinkPreviewQueue?
+    /// Sorts clips into the automatic pinboards: right after a capture or an edit, at launch, after a sync, and when
+    /// turned on.
+    @ObservationIgnored private(set) var smartKinds: SmartKindsQueue?
 
     @ObservationIgnored private var hasStarted = false
 
@@ -68,6 +73,7 @@ final class AppState {
         pasteStack.appState = self
         clipboardMonitor.onCapture = { [weak self] id in
             self?.pasteStack.push(id)
+            self?.smartKinds?.fill()
         }
         // Every pick in Copyd (panel, pinboard, menu bar, multi-paste, ⌘1–9) comes through here, right
         // before the clip is written. It ends Paste Stack, then pastes into the app the user was in once
@@ -96,6 +102,7 @@ final class AppState {
             self?.clipboardMonitor.refreshLatestItems()
             self?.imageText?.fill()
             self?.linkPreviews?.fill()
+            self?.smartKinds?.fill()
         }
         cloudSync = engine
         if UserDefaults.standard.bool(forKey: CloudSyncEngine.enabledDefaultsKey) {
@@ -111,6 +118,10 @@ final class AppState {
         self.linkPreviews = linkPreviews
         clipboardMonitor.onNewLink = { [weak linkPreviews] in linkPreviews?.fill() }
         linkPreviews.fill()
+        // Nor do the automatic pinboards: each device sorts its own clips.
+        let smartKinds = SmartKindsQueue(container: modelContainer) { [weak engine] ids in engine?.saveLocalOnly(ids) }
+        self.smartKinds = smartKinds
+        smartKinds.fill()
 
         // Render the panel once off screen so the first hotkey press is instant.
         Task { @MainActor [weak self] in
@@ -230,7 +241,10 @@ final class AppState {
         guard item.isEditable, let context = modelContainer?.mainContext else { return NSSound.beep() }
         let app = panelController.focusReturnApp
         hidePanel()
-        EditClipWindowController.shared.show(item, in: context, returnTo: app) { [weak self] in self?.linkPreviews?.fill() }
+        EditClipWindowController.shared.show(item, in: context, returnTo: app) { [weak self] in
+            self?.linkPreviews?.fill()
+            self?.smartKinds?.fill()
+        }
     }
 
     /// ⌘-click: adds or removes a card from the multi-selection.
@@ -269,7 +283,7 @@ final class AppState {
     /// monitor's next change and hides the panel. Live Shift decides plain text
     /// exactly as it does for Return. No-op when no card is there.
     func quickPaste(number: Int) {
-        if selectedTab == .history, searchState.searchText != currentFilteredQuery { return }
+        if selectedTab.showsHistoryGrid, searchState.searchText != currentFilteredQuery { return }
         guard let index = QuickPasteShortcut.itemIndex(
             number: number,
             firstVisibleIndex: max(firstVisibleIndex, 0),

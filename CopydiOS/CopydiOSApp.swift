@@ -114,6 +114,7 @@ struct CopydiOSApp: App {
                 if phase == .background {
                     model.imageText.stop()
                     model.linkPreviews.stop()
+                    model.smartKinds.stop()
                 }
                 guard phase == .active else { return }
                 model.drainInbox()
@@ -123,6 +124,7 @@ struct CopydiOSApp: App {
                 // After the drain and the capture, so their new images are read first.
                 model.imageText.fill()
                 model.linkPreviews.fill()
+                model.smartKinds.fill()
                 // Restarts the activity iOS ended after 8 hours; the saves above already updated a running one.
                 model.updateLiveActivity()
             }

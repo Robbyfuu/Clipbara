@@ -46,9 +46,10 @@ struct HistoryPanelView: View {
                 ZStack {
                     // Cards layer
                     Group {
+                        // History, and each automatic pinboard as History narrowed to its clips.
                         CardGridView()
-                            .opacity(appState.selectedTab == .history ? 1 : 0)
-                            .allowsHitTesting(appState.selectedTab == .history)
+                            .opacity(appState.selectedTab.showsHistoryGrid ? 1 : 0)
+                            .allowsHitTesting(appState.selectedTab.showsHistoryGrid)
 
                         if case .pinboard(let id) = appState.selectedTab {
                             PinboardGridView(pinboardId: id)

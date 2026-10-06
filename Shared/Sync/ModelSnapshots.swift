@@ -24,6 +24,9 @@ extension ClipboardItem {
             linkTitle = nil
             linkImageData = nil
             linkPreviewDone = false
+            // And it is sorted into the automatic pinboards again.
+            smartKinds = 0
+            smartKindsVersion = 0
         }
         fileManifestData = s.fileManifest
         contentTypeRaw = s.contentType
